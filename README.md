@@ -138,3 +138,17 @@ Danmark (.CO), Tyskland (.DE), Sverige (.ST), Norge (.OL), USA (typisk symbol
 uden børssuffiks). Tickers er kun et lille, redigerbart udvalg; ikke en
 komplet liste over alle børsnoterede selskaber. Scoren er teknisk og ikke
 en investeringsanbefaling.
+
+
+### Sektoroverblik inspireret af open-source scanner
+
+AI-Stock-Scanner viser nu gennemsnitsscore, 21-dages afkast, relativ volumen,
+andel over SMA50 og en enkel sektortilstand for **de scannede aktier**.
+Tilgangen er inspireret af sektor-først-analysen i det MIT-licenserede
+hyan1985/ai-stock-scanner-projekt, men modellen er selvstændigt skrevet og
+benytter ikke Tushare. Sektortilknytningen er manuelt defineret for de
+20 eksempelaktier. Ukendte symboler mærkes "Ikke kategoriseret".
+
+**Bemærk:** Hvis kun én eller to aktier i en sektor er valgt, er tallene
+ikke repræsentative for hele sektoren. Status er en heuristik, ikke en
+investeringsanbefaling eller en måling af nettokapitalstrømme.
