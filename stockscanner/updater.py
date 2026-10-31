@@ -6,6 +6,7 @@ Denne funktion opdaterer ikke WordPress-pluginfiler på hangar18.dk.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import closing
 from datetime import datetime, timezone
 import hmac
 import json
@@ -86,8 +87,8 @@ def backup() -> Path:
         copies: list[tuple[Path, str]] = []
         if DB_PATH.is_file():
             saved_db = temp / "scans.sqlite3"
-            with sqlite3.connect("file:" + DB_PATH.resolve().as_posix() + "?mode=ro", uri=True) as original:
-                with sqlite3.connect(saved_db) as copied:
+            with closing(sqlite3.connect("file:" + DB_PATH.resolve().as_posix() + "?mode=ro", uri=True)) as original:
+                with closing(sqlite3.connect(saved_db)) as copied:
                     original.backup(copied)
             copies.append((saved_db, "data/scans.sqlite3"))
         if WATCHLIST_PATH.is_file():
