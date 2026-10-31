@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import os
 
 import pandas as pd
 import streamlit as st
 
 from stockscanner.core import analyze_prices, parse_tickers
+from stockscanner.markets import SAMPLES, market_of, example_tickers
+from stockscanner.updater import authorized, check_update, install_update
 from stockscanner.market_data import fetch_history
 from stockscanner.ollama import explain
 from stockscanner.storage import load_watchlist, recent_scans, save_scans, save_watchlist
@@ -28,9 +31,13 @@ st.caption(
 
 with st.sidebar:
     st.header("Overvågningsliste")
+    markets = st.multiselect("Aktiemarkeder", list(SAMPLES), default=list(SAMPLES))
+    if st.button("Indsæt eksempelaktier fra de valgte markeder", use_container_width=True):
+        st.session_state["watchlist_editor"] = "\n".join(example_tickers(markets))
     raw_symbols = st.text_area(
         "Aktiesymboler (komma, mellemrum eller ny linje)",
         value="\n".join(load_watchlist()),
+        key="watchlist_editor",
         height=180,
         help="Eksempler: NOVO-B.CO, DSV.CO, VWS.CO, MSFT, NVDA",
     )
@@ -39,6 +46,34 @@ with st.sidebar:
         cached_history.clear()
         st.success("Kurscache er ryddet. Scan igen for at hente nye data.")
     st.caption("Maks. 25 aktier pr. scanning for at skåne den gratis datakilde.")
+
+    with st.expander("Update – GitHub"):
+        st.caption("Opdaterer den lokale Python-scanner, ikke WordPress på hangar18.dk.")
+        if not os.environ.get("STOCKSCANNER_ADMIN_TOKEN"):
+            st.warning("Update er deaktiveret. Angiv STOCKSCANNER_ADMIN_TOKEN (mindst 20 tegn).")
+        else:
+            admin_token = st.text_input("Administratortoken", type="password", key="admin_update_token")
+            if not authorized(admin_token):
+                st.caption("Indtast administratortoken for at kontrollere opdateringer.")
+            else:
+                if st.button("Tjek GitHub-opdatering", use_container_width=True):
+                    try:
+                        st.session_state["github_update_status"] = check_update()
+                    except Exception as error:
+                        st.session_state.pop("github_update_status", None)
+                        st.error(f"Update-kontrol fejlede: {error}")
+                status = st.session_state.get("github_update_status")
+                if status is not None:
+                    st.write(f"Antal nye commits: {status.behind}")
+                    st.caption(f"Lokal {status.current[:12]} · GitHub {status.remote[:12]}")
+                    if status.behind > 0 and st.button("Backup og opdater nu", type="primary", use_container_width=True):
+                        try:
+                            backup_file = install_update(status.remote, admin_token)
+                            st.session_state.pop("github_update_status", None)
+                            st.success(f"Opdatering gennemført. Backup: {backup_file.name}")
+                            st.info("Genstart Streamlit-processen for at indlæse den nye version.")
+                        except Exception as error:
+                            st.error(f"Update fejlede: {error}")
 
 if do_scan:
     try:
@@ -81,6 +116,7 @@ if results:
     display = pd.DataFrame([
         {
             "Aktie": item.ticker,
+            "Marked": market_of(item.ticker),
             "Dato": item.market_date,
             "Kurs": round(item.price, 2),
             "Valuta": item.currency,
@@ -93,6 +129,7 @@ if results:
         for item in sorted_results
     ])
     st.subheader("Resultater")
+    st.caption("Kun valgte aktier fra overvågningslisten; ikke alle aktier på børserne.")
     st.dataframe(display, hide_index=True, use_container_width=True)
     st.download_button(
         "Eksportér scanning (CSV)",
