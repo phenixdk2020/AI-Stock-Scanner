@@ -9,6 +9,7 @@ import streamlit as st
 
 from stockscanner.core import analyze_prices, parse_tickers
 from stockscanner.markets import SAMPLES, market_of, example_tickers
+from stockscanner.sectors import group_sectors
 from stockscanner.updater import authorized, check_update, install_update
 from stockscanner.market_data import fetch_history
 from stockscanner.ollama import explain
@@ -137,6 +138,24 @@ if results:
         file_name="AI-Stock-Scanner-resultater.csv",
         mime="text/csv",
     )
+
+    st.subheader("Sektoroverblik for de scannede aktier")
+    sector_data = group_sectors(sorted_results)
+    st.dataframe(pd.DataFrame([
+        {
+            "Marked": row.market,
+            "Sektor": row.sector,
+            "Aktier": row.symbols,
+            "Antal": row.count,
+            "Score": row.avg_score,
+            "21 dage %": row.avg_21d_pct,
+            "Relativ volumen": row.avg_relative_volume,
+            "Over SMA50 %": row.uptrend_percent,
+            "Vurdering": row.status,
+        }
+        for row in sector_data
+    ]), hide_index=True, use_container_width=True)
+    st.caption("Kun de valgte aktier, ikke alle aktier i sektoren. Ingen beregning af institutionelle kapitalstrømme.")
 
     symbol = st.selectbox("Detaljer for aktie", [item.ticker for item in sorted_results])
     selected = next(item for item in sorted_results if item.ticker == symbol)
