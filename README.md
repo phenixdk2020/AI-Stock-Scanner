@@ -94,3 +94,47 @@ Daglige scanninger viser **justerede** lukkekurser, som kan afvige fra de ikke-j
 ## Plan for næste version
 
 Fundamental analyse, udvidede filtre, dataadapter til flere børser og udbydere, egentlige alarmer og backtest med transaktionsomkostninger. Ingen af disse V2-funktioner er implementeret i V1.
+
+
+## V1.1: Update, fem aktiemarkeder og versionering
+
+Streamlit-dashboardet har en **Update – GitHub** sektion med
+**Tjek GitHub-opdatering** og **Backup og opdater nu**. Den er beregnet til
+den lokale Python-installation (Windows eller anden maskine).
+
+**Vigtigt:** Repoet er privat. Derfor bruger opdateringen Git Credential
+Manager / SSH fra den eksisterende Git-klon, ikke et offentligt downloadlink
+og ikke en GitHub API-nøgle indlagt i programmet.
+
+I Windows PowerShell (inden appen startes):
+
+~~~powershell
+$env:STOCKSCANNER_ADMIN_TOKEN = Read-Host "Vælg langt administratortoken"
+.\.venv\Scripts\python.exe -m streamlit run app.py
+~~~
+
+Token skal have mindst 20 tegn. Indstil det kun på serveren/maskinen, ikke i
+GitHub, en WordPress-side eller et offentligt script.
+
+**Sikker opdatering:** Kontrollerer trusted GitHub-origin, main-branch, ren
+arbejdskopi og fast-forward fra origin/main. Før opdatering tages en
+SQLite-konsistent kopi af data/scans.sqlite3 samt kopi af data/watchlist.txt.
+ZIP-sikkerhedskopier ligger i backups/ og bliver ikke committed. En opdatering
+skifter kun Git-sporede filer; genstart Streamlit bagefter. Hvis Git ikke er
+installeret, privat adgang mangler eller der er lokale ændringer, afvises
+opdateringen. Automatisk rollback af kode er endnu ikke implementeret.
+
+**WordPress/hangar18.dk:** Denne updater opdaterer kun Python/Streamlit.
+Den kan ikke opdatere en WordPress-plugin eller installere en Python-proces
+på dit webhotel. Ved senere WordPress-integration bygger vi separat plugin,
+versioneret ZIP, SHA-256-manifest og native WordPress-opdatering svarende
+til Madplan. Private downloadadresser kræver autentificeret deployment
+eller en separat godkendt distributionskanal.
+
+### Markeder
+
+Sidebar kan indsætte eksempler fra de fem valgte markeder:
+Danmark (.CO), Tyskland (.DE), Sverige (.ST), Norge (.OL), USA (typisk symbol
+uden børssuffiks). Tickers er kun et lille, redigerbart udvalg; ikke en
+komplet liste over alle børsnoterede selskaber. Scoren er teknisk og ikke
+en investeringsanbefaling.
