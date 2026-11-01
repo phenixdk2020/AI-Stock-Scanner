@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.2.5
+ * Version: 0.3.0
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,12 +14,19 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.2.5');
+define('ASC_PLUGIN_VERSION', '0.3.0');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
 
 // Must initialize before user-profile / REST authentication determines HTTPS.
 require_once __DIR__ . '/includes/class-asc-https-proxy.php';
 ASC_HTTPS_Proxy::bootstrap();
+
+// Portfolio stays per-user in WordPress user metadata; quote source is optional.
+require_once __DIR__ . '/includes/class-asc-market-quotes.php';
+ASC_Market_Quotes::register();
+require_once __DIR__ . '/includes/class-asc-portfolio.php';
+ASC_Portfolio::register();
+
 
 register_activation_hook(__FILE__, 'asc_activate');
 function asc_activate(): void {
@@ -287,7 +294,18 @@ function asc_admin_page(): void {
     echo '<div class="wrap"><h1>AI Stock Scanner</h1>';
     echo '<p>Pluginversion: <strong>' . esc_html(ASC_PLUGIN_VERSION) . '</strong></p>';
     echo '<p>Seneste data modtaget (UTC): <strong>' . esc_html($when) . '</strong></p>';
-    echo '<p>Dashboard: opret en WordPress-side med <code>[ai_stock_scanner]</code>. Kun indloggede brugere ser aktiedata.</p>';
+    echo '<p>Startside: <strong>Personligt login og portefølje</strong>, med egne købskurser, antal, gevinst/tab og seneste kurs når en kurskilde er aktiv.</p>';
+    echo '<p>For at gøre porteføljen til websitets startside: klik nedenfor. Dette erstatter den nuværende forside, men sletter ikke indhold.</p>';
+    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+    echo '<input type="hidden" name="action" value="asc_create_home">';
+    wp_nonce_field('asc_create_home');
+    submit_button('Opret porteføljeside og sæt som forside', 'primary', 'submit', false);
+    echo '</form>';
+    if (isset($_GET['asc_home']) && $_GET['asc_home'] === 'created') {
+        echo '<div class="notice notice-success"><p>Startsiden er oprettet/aktiveret.</p></div>';
+    }
+    echo '<p>Alternativt: Opret en WordPress-side med <code>[ai_stock_home]</code> eller <code>[ai_stock_portfolio]</code>.</p>';
+    echo '<p>Scanner-dashboardet findes fortsat via <code>[ai_stock_scanner]</code>. Kun indloggede brugere ser aktiedata.</p>';
     echo '<p>Python-scanneren og Ollama kører lokalt på din computer; hjemmesiden viser kun de senest modtagne data.</p>';
     echo '<p><a class="button button-primary" href="' . esc_url(admin_url('admin.php?page=asc-updates')) . '">GitHub-opdateringer</a> ';
     echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=asc-connection')) . '">Forbindelse til PC</a></p>';
@@ -310,6 +328,7 @@ function asc_admin_connection(): void {
     echo '<p>REST endpoint: <code>' . esc_html(rest_url('ai-stock-scanner/v1/snapshot')) . '</code></p>';
     echo '<p>PC\'ens Python-scanner sender data over HTTPS. Ingen lokal Ollama-port skal åbnes mod internettet.</p>';
     echo '<p>Hvis hosting fjerner HTTP Authorization-headeren, bruger scanneren automatisk en ekstra header, som kontrolleres mod WordPress Application Passwords. Ingen ændring af .htaccess er nødvendig.</p>';
+    ASC_Market_Quotes::render_settings();
     ASC_HTTPS_Proxy::render_panel();
     echo '<p>Se installationsvejledningen i projektets GitHub-repository.</p>';
     echo '</div>';
