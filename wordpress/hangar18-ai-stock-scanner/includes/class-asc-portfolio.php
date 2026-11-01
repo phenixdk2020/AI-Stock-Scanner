@@ -63,6 +63,8 @@ final class ASC_Portfolio {
         check_admin_referer('asc_portfolio_add');
         $ticker = strtoupper(self::field('asc_ticker'));
         $name = self::field('asc_label');
+        if (function_exists('mb_substr')) { $name = mb_substr($name, 0, 80); }
+        else { $name = substr($name, 0, 80); }
         $currency = strtoupper(self::field('asc_currency'));
         $quantity = self::decimal(self::field('asc_quantity'));
         $buy_price = self::decimal(self::field('asc_buy_price'));
@@ -153,6 +155,7 @@ final class ASC_Portfolio {
     }
 
     private static function login(): string {
+        wp_enqueue_style('hangar18-asc');
         ob_start();
         echo '<section class="asc-dashboard asc-login">';
         echo '<header class="asc-heading"><h2>Min aktieoversigt</h2><p>Log ind for at se din personlige portefølje.</p></header>';
