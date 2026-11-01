@@ -41,7 +41,7 @@ class ScanResult:
     checks: dict[str, bool]
 
 
-def parse_tickers(raw: str, max_count: int = 25) -> list[str]:
+def parse_tickers(raw: str, max_count: int = 50) -> list[str]:
     """Accepter komma, semikolon, linjeskift eller mellemrum og fjern dubletter."""
     tickers: list[str] = []
     for symbol in re.split(r"[\s,;]+", raw.upper().strip()):
