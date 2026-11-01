@@ -102,6 +102,16 @@ class PortfolioContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, source)
 
+    def test_one_time_status_messages_are_not_replayed(self):
+        code = PORTFOLIO.read_text(encoding="utf-8")
+        self.assertIn("set_transient(self::flash_key(), $status, 180)", code)
+        self.assertIn("get_transient(self::flash_key())", code)
+        self.assertIn("delete_transient(self::flash_key())", code)
+        self.assertIn("remove_query_arg('asc_portfolio_status', $url)", code)
+        self.assertIn("wp_safe_redirect($url . '#asc-portfolio')", code)
+        self.assertNotIn("$_GET['asc_portfolio_status']", code)
+        self.assertNotIn("add_query_arg('asc_portfolio_status', $status", code)
+
     def test_three_purchase_diagnostics_and_bounded_quote_requests(self):
         portfolio = PORTFOLIO.read_text(encoding="utf-8")
         quotes = QUOTES.read_text(encoding="utf-8")
