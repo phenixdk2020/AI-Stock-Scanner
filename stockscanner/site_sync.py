@@ -17,11 +17,11 @@ from urllib.parse import urlsplit
 
 import requests
 
-from stockscanner.markets import market_of
+from stockscanner.markets import market_of, instrument_type_of, SUPPORTED_MARKETS
 from stockscanner.storage import DB_PATH
 
 ENDPOINT = "/wp-json/ai-stock-scanner/v1/snapshot"
-MAX_ROWS = 25
+MAX_ROWS = 50
 
 
 def build_snapshot(db_path: Path = DB_PATH, demo: bool = False) -> dict:
@@ -50,17 +50,18 @@ def build_snapshot(db_path: Path = DB_PATH, demo: bool = False) -> dict:
         raise ValueError("Ingen scanninger fundet. Kør scan_cli.py først.")
     latest = []
     seen: set[str] = set()
-    # Seneste resultat pr. aktie, dog ikke flere end 25 på WordPress-dashboardet.
+    # Seneste resultat pr. aktie, dog ikke flere end 50 på WordPress-dashboardet.
     for ticker, market_date, score, signal, scanned_at in rows:
         if ticker in seen:
             continue
         seen.add(ticker)
         market = market_of(str(ticker))
-        if market not in {"Danmark", "Tyskland", "Sverige", "Norge", "USA"}:
+        if market not in SUPPORTED_MARKETS:
             continue
         latest.append({
             "ticker": str(ticker),
             "market": market,
+            "instrument_type": instrument_type_of(str(ticker)),
             "market_date": str(market_date),
             "score": int(score),
             "signal": str(signal),
@@ -68,7 +69,7 @@ def build_snapshot(db_path: Path = DB_PATH, demo: bool = False) -> dict:
         if len(latest) == MAX_ROWS:
             break
     if not latest:
-        raise ValueError("Ingen gyldige aktier fra de fem markeder i lokal SQLite.")
+        raise ValueError("Ingen gyldige aktier fra de ni markeder i lokal SQLite.")
     return {"schema_version": 1, "generated_at": timestamp, "mode": "research", "rows": latest}
 
 
