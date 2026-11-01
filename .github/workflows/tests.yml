@@ -1,5 +1,9 @@
 name: Test AI-Stock-Scanner
 on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -15,3 +19,9 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - run: python -m unittest discover -s tests -v
       - run: python -m compileall -q app.py scan_cli.py stockscanner tests
+      - name: PHP syntax check
+        run: |
+          php -l wordpress/hangar18-ai-stock-scanner/hangar18-ai-stock-scanner.php
+          php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-github-updater.php
+      - name: WordPress updater reactivation regression
+        run: php tests/wp_updater_reactivation.php
