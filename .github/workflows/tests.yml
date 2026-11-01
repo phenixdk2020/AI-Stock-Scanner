@@ -1,9 +1,9 @@
 name: Test AI-Stock-Scanner
 on:
   push:
-    branches: [main, feature/v0.5.1-danish-stock-directory]
+    branches: [main, feature/v0.5.2-sticky-listed-status]
   pull_request:
-    branches: [main, feature/v0.5.1-danish-stock-directory]
+    branches: [main, feature/v0.5.2-sticky-listed-status]
   workflow_dispatch:
 permissions:
   contents: read
