@@ -13,6 +13,8 @@ final class ASC_Portfolio {
         add_action('admin_post_asc_portfolio_add', [self::class, 'add']);
         add_action('admin_post_asc_portfolio_delete', [self::class, 'delete']);
         add_action('admin_post_asc_portfolio_price', [self::class, 'set_manual_price']);
+        add_action('admin_post_asc_portfolio_export', [self::class, 'export_csv']);
+        add_action('admin_post_asc_portfolio_edit', [self::class, 'edit']);
         add_action('admin_post_asc_create_home', [self::class, 'create_home']);
     }
 
@@ -68,18 +70,21 @@ final class ASC_Portfolio {
         $currency = strtoupper(self::field('asc_currency'));
         $quantity = self::decimal(self::field('asc_quantity'));
         $buy_price = self::decimal(self::field('asc_buy_price'));
+        $initial_raw = self::field('asc_initial_price');
+        $initial_price = $initial_raw !== '' ? self::decimal($initial_raw) : null;
         $buy_date = self::field('asc_buy_date');
 
         if (preg_match('/^[A-Z0-9^][A-Z0-9.^=-]{0,19}$/D', $ticker) !== 1
             || preg_match('/^(DKK|SEK|NOK|EUR|USD)$/D', $currency) !== 1
             || $quantity === null || $buy_price === null
             || $quantity * $buy_price > 1.0e12
+            || ($initial_raw !== '' && $initial_price === null)
             || ($buy_date !== '' && !self::valid_date($buy_date))) {
             self::redirect('invalid');
         }
         $positions = self::positions(get_current_user_id());
         if (count($positions) >= self::MAX_POSITIONS) { self::redirect('limit'); }
-        $positions[] = [
+        $entry = [
             'id' => wp_generate_uuid4(),
             'ticker' => $ticker,
             'label' => $name,
@@ -89,6 +94,11 @@ final class ASC_Portfolio {
             'buy_date' => $buy_date,
             'created_at' => gmdate('Y-m-d\TH:i:s\Z'),
         ];
+        if ($initial_price !== null) {
+            $entry['manual_price'] = $initial_price;
+            $entry['manual_price_at'] = gmdate('Y-m-d\TH:i:s\Z');
+        }
+        $positions[] = $entry;
         update_user_meta(get_current_user_id(), self::USER_META, $positions);
         self::redirect('added');
     }
@@ -103,6 +113,64 @@ final class ASC_Portfolio {
         if ($id === '' || count($before) === count($after)) { self::redirect('notfound'); }
         update_user_meta(get_current_user_id(), self::USER_META, $after);
         self::redirect('deleted');
+    }
+
+    /** Update the purchase lot, preserving its manual quote and its stable identifier. */
+    public static function edit(): void {
+        if (!is_user_logged_in()) { auth_redirect(); exit; }
+        check_admin_referer('asc_portfolio_edit');
+        $id = self::field('asc_position_id');
+        $quantity = self::decimal(self::field('asc_quantity'));
+        $price = self::decimal(self::field('asc_buy_price'));
+        if ($id === '' || $quantity === null || $price === null
+            || $quantity * $price > 1.0e12) {
+            self::redirect('invalid');
+        }
+        $positions = self::positions(get_current_user_id());
+        $found = false;
+        foreach ($positions as &$p) {
+            if (($p['id'] ?? '') === $id) {
+                $p['quantity'] = $quantity;
+                $p['buy_price'] = $price;
+                $found = true;
+                break;
+            }
+        }
+        unset($p);
+        if (!$found) { self::redirect('notfound'); }
+        update_user_meta(get_current_user_id(), self::USER_META, $positions);
+        self::redirect('edited');
+    }
+
+    /** Export personal purchase lots. Formula characters in CSV cells are neutralized. */
+    public static function export_csv(): void {
+        if (!is_user_logged_in()) { auth_redirect(); exit; }
+        check_admin_referer('asc_portfolio_export');
+        $rows = self::positions(get_current_user_id());
+        nocache_headers();
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="min-aktieportefolje.csv"');
+        header('X-Content-Type-Options: nosniff');
+        $out = fopen('php://output', 'wb');
+        if ($out === false) { exit; }
+        fwrite($out, "\xEF\xBB\xBF");
+        fputcsv($out, ['Aktie','Navn','Antal','Købskurs','Valuta','Købsdato',
+            'Manuel kurs','Tidspunkt for manuel kurs'], ';');
+        foreach ($rows as $p) {
+            $ticker = (string)($p['ticker'] ?? '');
+            $name = (string)($p['label'] ?? '');
+            // CSV injection: spreadsheet applications treat leading = + - @ as formulas.
+            if (preg_match('/^[\s\x00-\x1f]*[=+\-@]/u', $ticker)) { $ticker = "'" . $ticker; }
+            if (preg_match('/^[\s\x00-\x1f]*[=+\-@]/u', $name)) { $name = "'" . $name; }
+            fputcsv($out, [
+                $ticker, $name, (string)($p['quantity'] ?? ''),
+                (string)($p['buy_price'] ?? ''), (string)($p['currency'] ?? ''),
+                (string)($p['buy_date'] ?? ''), (string)($p['manual_price'] ?? ''),
+                (string)($p['manual_price_at'] ?? ''),
+            ], ';');
+        }
+        fclose($out);
+        exit;
     }
 
     /** Optional manual quote when an authorized data feed has not been configured. */
@@ -158,7 +226,7 @@ final class ASC_Portfolio {
         wp_enqueue_style('hangar18-asc');
         ob_start();
         echo '<section class="asc-dashboard asc-login">';
-        echo '<header class="asc-heading"><h2>Min aktieoversigt</h2><p>Log ind for at se din personlige portefølje.</p></header>';
+        echo '<header class="asc-heading"><h2>Velkommen til min aktieoversigt</h2><p>Følg din portefølje, også når din PC er slukket.</p></header>';
         wp_login_form([
             'echo' => true, 'remember' => true,
             'redirect' => home_url('/'),
@@ -168,6 +236,12 @@ final class ASC_Portfolio {
             'label_log_in' => 'Log ind',
         ]);
         echo '<p class="asc-disclaimer">Brug din normale WordPress-bruger, ikke scannerens Application Password.</p>';
+        echo '<div class="asc-demo-overview"><h3>Eksempel på en portefølje</h3>';
+        echo '<p class="asc-demo-tag">Illustration – ikke rigtige aktiekurser</p>';
+        echo '<div class="asc-demo-metrics"><div><span>100 aktier til 100,00 kr.</span><strong>Investeret: 10.000 kr.</strong></div>';
+        echo '<div><span>Manuel kurs 112,00 kr.</span><strong>Værdi: 11.200 kr.</strong></div>';
+        echo '<div><span>Gevinst før omkostninger</span><strong class="asc-positive">+1.200 kr. (+12,00 %)</strong></div></div>';
+        echo '<p>Efter login kan du oprette dine egne aktier, opdatere kursen, redigere køb og eksportere dine data.</p></div>';
         echo '</section>';
         return (string)ob_get_clean();
     }
@@ -231,6 +305,7 @@ final class ASC_Portfolio {
         $messages = [
             'added' => 'Aktien er gemt.', 'deleted' => 'Beholdningen er slettet.',
             'priced' => 'Din manuelle kurs er opdateret.',
+            'edited' => 'Antal og købskurs er opdateret.',
             'invalid' => 'Kontrollér ticker, antal, pris, valuta og dato.',
             'limit' => 'Der kan højst gemmes 100 køb pr. bruger.',
             'notfound' => 'Kunne ikke finde den valgte beholdning.',
@@ -238,13 +313,17 @@ final class ASC_Portfolio {
         if (isset($messages[$status])) {
             echo '<p class="asc-notice" role="status">' . esc_html($messages[$status]) . '</p>';
         }
+        echo '<div class="asc-portfolio-actions"><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        echo '<input type="hidden" name="action" value="asc_portfolio_export">';
+        wp_nonce_field('asc_portfolio_export');
+        echo '<button type="submit">Eksportér mine køb (CSV)</button></form></div>';
         echo '<div class="asc-table-wrap"><table><thead><tr>';
         echo '<th scope="col">Aktie</th><th scope="col">Antal</th><th scope="col">Købskurs</th>';
         echo '<th scope="col">Seneste kurs</th><th scope="col">Investeret</th>';
         echo '<th scope="col">Værdi</th><th scope="col">Gevinst/tab</th><th scope="col">Handling</th>';
         echo '</tr></thead><tbody>';
         if (!$positions) {
-            echo '<tr><td colspan="8">Du har ikke tilføjet aktier endnu. Brug formularen nedenfor.</td></tr>';
+            echo '<tr><td colspan="8">Du har endnu ingen aktier. Indtast dit første køb nedenfor. Angiv også en manuel aktuel kurs for at se gevinst/tab med det samme.</td></tr>';
         }
         foreach ($positions as $p) {
             $ticker = (string)($p['ticker'] ?? '');
@@ -298,6 +377,13 @@ final class ASC_Portfolio {
 
             echo '<td><details><summary>Opdater</summary>';
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="asc-inline-form">';
+            echo '<input type="hidden" name="action" value="asc_portfolio_edit">';
+            echo '<input type="hidden" name="asc_position_id" value="' . esc_attr((string)$p['id']) . '">';
+            wp_nonce_field('asc_portfolio_edit');
+            echo '<label>Antal aktier <input name="asc_quantity" type="text" inputmode="decimal" value="' . esc_attr((string)$quantity) . '" required></label>';
+            echo '<label>Købskurs <input name="asc_buy_price" type="text" inputmode="decimal" value="' . esc_attr((string)$cost) . '" required></label>';
+            echo '<button type="submit">Gem beholdning</button></form>';
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="asc-inline-form">';
             echo '<input type="hidden" name="action" value="asc_portfolio_price">';
             echo '<input type="hidden" name="asc_position_id" value="' . esc_attr((string)$p['id']) . '">';
             wp_nonce_field('asc_portfolio_price');
@@ -309,6 +395,12 @@ final class ASC_Portfolio {
             wp_nonce_field('asc_portfolio_delete');
             echo '<button type="submit" class="asc-delete">Slet køb</button></form>';
             echo '</details></td></tr>';
+            if (is_array($quote) && !empty($quote['history'])) {
+                echo '<tr class="asc-chart-row"><td colspan="8">';
+                echo '<details><summary>Vis kursgraf og handelsvolumen for ' . esc_html($ticker) . '</summary>';
+                echo ASC_Market_Quotes::chart_markup($ticker, $quote);
+                echo '</details></td></tr>';
+            }
         }
         echo '</tbody></table></div>';
         echo '<p class="asc-disclaimer">Porteføljeberegninger er før kurtage, skat og udbytte. '
@@ -339,13 +431,15 @@ final class ASC_Portfolio {
         echo '<label>Navn (valgfrit)<input type="text" name="asc_label" maxlength="80" placeholder="F.eks. Nobia"></label>';
         echo '<label>Antal aktier<input type="text" name="asc_quantity" inputmode="decimal" placeholder="100" required></label>';
         echo '<label>Købskurs pr. aktie<input type="text" name="asc_buy_price" inputmode="decimal" placeholder="12,50" required></label>';
+        echo '<label>Aktuel kurs (valgfrit, manuel)<input type="text" name="asc_initial_price" inputmode="decimal" placeholder="13,25"></label>';
         echo '<label>Valuta<select name="asc_currency">';
         foreach (['DKK', 'SEK', 'NOK', 'EUR', 'USD'] as $currency) {
             echo '<option value="' . esc_attr($currency) . '">' . esc_html($currency) . '</option>';
         }
         echo '</select></label>';
         echo '<label>Købsdato (valgfri)<input type="date" name="asc_buy_date" max="' . esc_attr(wp_date('Y-m-d')) . '"></label>';
-        echo '<button type="submit">Gem aktiekøb</button></form></div>';
+        echo '<button type="submit">Gem aktiekøb og beregn</button></form>';
+        echo '<p class="asc-disclaimer">Du kan starte med en manuel kurs. Automatisk kursopdatering kræver en kurskilde; ingen forbindelse til PC-scanneren er nødvendig.</p></div>';
         if (!ASC_Market_Quotes::enabled()) {
             echo '<p class="asc-disclaimer">Der er ikke aktiveret en automatisk kurskilde. '
                 . 'Du kan indtaste en manuel kurs, eller administratoren kan vælge en eksperimentel kurskilde under AI Stock Scanner → Forbindelse.</p>';
