@@ -1,5 +1,8 @@
 # AI-Stock-Scanner V1
 
+> **WordPress v0.3.0 – privat portefølje (2026-11-01):** [WordPress ZIP](dist/hangar18-ai-stock-scanner-v0.3.0.zip). Brug WordPress' almindelige login. Under **AI Stock Scanner → Oversigt** kan en administrator trykke **Opret porteføljeside og sæt som forside** (den eksisterende forside ændres kun ved dette klik). Den personlige portefølje lagrer hvert køb på den indloggede WordPress-bruger, inkl. antal, købskurs, dato og valuta; den viser aktuelt manuel kurs og gevinst/tab pr. valutatype. Flere køb af samme aktie understøttes. Automatisk Yahoo-kurshentning er **slået fra som standard** og kan aktiveres til begrænset privat afprøvning under **AI Stock Scanner → Forbindelse**. Det er en uofficiel integration; priserne kan være forsinkede, og datavilkår skal vurderes. Ingen afhængighed af, at den lokale PC kører. Alternativ shortcode: `[ai_stock_home]` eller `[ai_stock_portfolio]`. Undgå at bruge scannerens Application Password til almindeligt login.
+
+
 > **Aktuel WordPress-version: v0.2.5.** Løser hosting-miljøer der fjerner HTTP `Authorization` ved at bruge en krypteret HTTPS-forbindelse med plugin-specifik reserveheader og WordPress' egen Application Password-verifikation. [Download v0.2.5 ZIP](dist/hangar18-ai-stock-scanner-v0.2.5.zip). Efter WordPress-opdatering: kør `git pull --ff-only` i `C:\AI-Stock-Scanner`, og test med `.\.venv\Scripts\python.exe -m stockscanner.site_sync --check-auth`. Hvis det virker, kan du sende demo med `--demo`. Ingen ændring af `.htaccess` er normalt nødvendig. Hvis webhotellet også fjerner den ekstra header, skal proxyen dog rettes hos webhotellet.
 
 
