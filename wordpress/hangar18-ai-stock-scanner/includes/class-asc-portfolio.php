@@ -257,9 +257,11 @@ final class ASC_Portfolio {
         echo '<header class="asc-heading"><h2>Velkommen ' . esc_html($first) . '</h2>';
         echo '<p>Din portefølje og dine aktieanalyser samlet ét sted.</p>';
         echo '<nav class="asc-home-nav"><a href="#asc-portfolio">Min portefølje</a>'
+            . '<a href="#asc-watchlist">Min watchlist</a>'
             . '<a href="#asc-research">Aktiescanner</a>'
             . '<a href="' . esc_url(wp_logout_url(home_url('/'))) . '">Log ud</a></nav></header>';
         echo self::markup();
+        echo ASC_Watchlist::render();
         echo '<div id="asc-research">' . do_shortcode('[ai_stock_scanner]') . '</div>';
         echo '</section>';
         return (string)ob_get_clean();
@@ -296,6 +298,7 @@ final class ASC_Portfolio {
             }
         }
         $totals = [];
+        $position_counts = [];
         $priced_count = 0;
         ob_start();
         echo '<section id="asc-portfolio" class="asc-portfolio">';
@@ -370,6 +373,7 @@ final class ASC_Portfolio {
                 if (!isset($totals[$currency])) { $totals[$currency] = ['cost' => 0.0, 'value' => 0.0]; }
                 $totals[$currency]['cost'] += $basis;
                 $totals[$currency]['value'] += $value;
+                $position_counts[$currency] = ($position_counts[$currency] ?? 0) + $quantity;
                 $priced_count++;
             } else {
                 echo '<td>—</td><td>—</td>';
@@ -411,8 +415,11 @@ final class ASC_Portfolio {
             foreach ($totals as $currency => $summary) {
                 $gain = $summary['value'] - $summary['cost'];
                 $pct = $summary['cost'] > 0 ? $gain / $summary['cost'] * 100 : 0;
-                echo '<div><span>Beregnede positioner (' . esc_html($currency) . ')</span>';
+                echo '<div><span>Porteføljens værdi / net worth (' . esc_html($currency) . ')</span>';
                 echo '<strong>' . self::amount($summary['value']) . ' ' . esc_html($currency) . '</strong>';
+                echo '<span>Investeret: ' . self::amount($summary['cost']) . ' '
+                    . esc_html($currency) . '</span>';
+                echo '<span>Antal aktier: ' . self::amount((float)($position_counts[$currency] ?? 0)) . '</span>';
                 echo '<span class="' . esc_attr($gain >= 0 ? 'asc-positive' : 'asc-negative') . '">'
                     . ($gain > 0 ? '+' : '') . self::amount($gain) . ' (' . ($pct > 0 ? '+' : '')
                     . self::amount($pct) . '%)</span></div>';
