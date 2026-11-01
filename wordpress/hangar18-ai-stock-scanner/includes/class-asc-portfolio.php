@@ -9,6 +9,7 @@ final class ASC_Portfolio {
 
     public static function register(): void {
         add_shortcode('ai_stock_portfolio', [self::class, 'render']);
+        add_action('template_redirect', [self::class, 'private_page_no_cache'], 0);
         add_shortcode('ai_stock_home', [self::class, 'render_home']);
         add_action('admin_post_asc_portfolio_add', [self::class, 'add']);
         add_action('admin_post_asc_portfolio_delete', [self::class, 'delete']);
@@ -16,6 +17,20 @@ final class ASC_Portfolio {
         add_action('admin_post_asc_portfolio_export', [self::class, 'export_csv']);
         add_action('admin_post_asc_portfolio_edit', [self::class, 'edit']);
         add_action('admin_post_asc_create_home', [self::class, 'create_home']);
+    }
+
+    /** Prevent shared page caches from showing stale/private holdings after a save. */
+    public static function private_page_no_cache(): void {
+        if (!is_user_logged_in()) { return; }
+        $home_id = (int)get_option('asc_home_page_id', 0);
+        if (is_front_page() || ($home_id > 0 && is_page($home_id))
+            || (is_singular() && (
+                has_shortcode((string)get_post_field('post_content', get_queried_object_id()), 'ai_stock_portfolio')
+                || has_shortcode((string)get_post_field('post_content', get_queried_object_id()), 'ai_stock_home')
+            ))) {
+            if (!defined('DONOTCACHEPAGE')) { define('DONOTCACHEPAGE', true); }
+            nocache_headers();
+        }
     }
 
     private static function positions(int $user_id): array {
@@ -74,13 +89,22 @@ final class ASC_Portfolio {
         $initial_price = $initial_raw !== '' ? self::decimal($initial_raw) : null;
         $buy_date = self::field('asc_buy_date');
 
-        if (preg_match('/^[A-Z0-9^][A-Z0-9.^=-]{0,19}$/D', $ticker) !== 1
-            || preg_match('/^(DKK|SEK|NOK|EUR|USD)$/D', $currency) !== 1
-            || $quantity === null || $buy_price === null
-            || $quantity * $buy_price > 1.0e12
-            || ($initial_raw !== '' && $initial_price === null)
-            || ($buy_date !== '' && !self::valid_date($buy_date))) {
-            self::redirect('invalid');
+        // Distinct errors make a rejected third purchase diagnosable after redirect.
+        if (preg_match('/^[A-Z0-9^][A-Z0-9.^=-]{0,19}$/D', $ticker) !== 1) {
+            self::redirect('invalid_ticker');
+        }
+        if (preg_match('/^(DKK|SEK|NOK|EUR|USD)$/D', $currency) !== 1) {
+            self::redirect('invalid_currency');
+        }
+        if ($quantity === null) { self::redirect('invalid_quantity'); }
+        if ($buy_price === null || $quantity * $buy_price > 1.0e12) {
+            self::redirect('invalid_buy_price');
+        }
+        if ($initial_raw !== '' && $initial_price === null) {
+            self::redirect('invalid_current_price');
+        }
+        if ($buy_date !== '' && !self::valid_date($buy_date)) {
+            self::redirect('invalid_date');
         }
         $positions = self::positions(get_current_user_id());
         if (count($positions) >= self::MAX_POSITIONS) { self::redirect('limit'); }
@@ -99,7 +123,19 @@ final class ASC_Portfolio {
             $entry['manual_price_at'] = gmdate('Y-m-d\TH:i:s\Z');
         }
         $positions[] = $entry;
-        update_user_meta(get_current_user_id(), self::USER_META, $positions);
+        $user_id = get_current_user_id();
+        $written = update_user_meta($user_id, self::USER_META, $positions);
+        // Confirm that the new purchase exists in the actual user-meta store,
+        // rather than displaying a false positive when a database write fails.
+        $saved = self::positions($user_id);
+        $stored = false;
+        foreach ($saved as $row) {
+            if (($row['id'] ?? '') === $entry['id']) { $stored = true; break; }
+        }
+        if ($written === false || !$stored) {
+            error_log('AI Stock Scanner: portfolio save did not persist for logged-in user.');
+            self::redirect('save_failed');
+        }
         self::redirect('added');
     }
 
@@ -306,16 +342,30 @@ final class ASC_Portfolio {
         $status = isset($_GET['asc_portfolio_status']) && is_string($_GET['asc_portfolio_status'])
             ? sanitize_key($_GET['asc_portfolio_status']) : '';
         $messages = [
-            'added' => 'Aktien er gemt.', 'deleted' => 'Beholdningen er slettet.',
+            'added' => 'Aktiekøbet er gemt og verificeret i WordPress.',
+            'deleted' => 'Beholdningen er slettet.',
             'priced' => 'Din manuelle kurs er opdateret.',
             'edited' => 'Antal og købskurs er opdateret.',
-            'invalid' => 'Kontrollér ticker, antal, pris, valuta og dato.',
+            'invalid' => 'Kontrollér antal og købskurs.',
+            'invalid_ticker' => 'Aktiesymbolet er ugyldigt. Brug fx NOVO-B.CO, SAP.DE eller MSFT (uden mellemrum).',
+            'invalid_currency' => 'Valutaen skal være DKK, SEK, NOK, EUR eller USD.',
+            'invalid_quantity' => 'Antal aktier skal være et positivt tal (fx 10 eller 2,5).',
+            'invalid_buy_price' => 'Købskursen skal være et positivt tal og beløbet inden for grænsen.',
+            'invalid_current_price' => 'Den manuelle aktuelle kurs skal være et positivt tal, eller feltet skal stå tomt.',
+            'invalid_date' => 'Købsdatoen er ugyldig eller ligger i fremtiden.',
+            'save_failed' => 'WordPress kunne ikke gemme købet i databasen. Forsøg igen, eller undersøg webhotellets PHP-fejllog.',
             'limit' => 'Der kan højst gemmes 100 køb pr. bruger.',
             'notfound' => 'Kunne ikke finde den valgte beholdning.',
         ];
         if (isset($messages[$status])) {
-            echo '<p class="asc-notice" role="status">' . esc_html($messages[$status]) . '</p>';
+            $ok = in_array($status, ['added', 'deleted', 'priced', 'edited'], true);
+            echo '<div class="asc-notice ' . ($ok ? 'asc-notice-ok' : 'asc-notice-error')
+                . '" role="' . ($ok ? 'status' : 'alert') . '"><strong>'
+                . ($ok ? 'OK: ' : 'Fejl: ') . esc_html($messages[$status])
+                . '</strong><div class="asc-subtle">Kode: ' . esc_html($status) . '</div></div>';
         }
+        echo '<p class="asc-saved-count">Gemte aktiekøb: <strong>' . esc_html((string)count($positions))
+            . '</strong> af ' . esc_html((string)self::MAX_POSITIONS) . '</p>';
         echo '<div class="asc-portfolio-actions"><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="asc_portfolio_export">';
         wp_nonce_field('asc_portfolio_export');
@@ -429,7 +479,7 @@ final class ASC_Portfolio {
         if ($priced_count < count($positions)) {
             echo '<p class="asc-warning">Nogle aktier mangler kurs. Deres gevinst/tab er ikke beregnet endnu.</p>';
         }
-        echo '<div class="asc-add-position"><h3>Tilføj et aktiekøb</h3>';
+        echo '<div class="asc-add-position" id="asc-add-position"><h3>Tilføj et aktiekøb</h3>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="asc_portfolio_add">';
         wp_nonce_field('asc_portfolio_add');
