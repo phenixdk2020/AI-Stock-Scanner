@@ -23,6 +23,12 @@ final class ASC_Watchlist {
     private static function redirect(string $status): void {
         $referer = wp_get_referer();
         $url = is_string($referer) ? wp_validate_redirect($referer, home_url('/')) : home_url('/');
+        // When a stock is followed from the catalogue, show the resulting
+        // watchlist (and the notice) instead of leaving the user on a hidden tab.
+        if (strpos($url, 'asc_view=stocks') !== false) {
+            $url = remove_query_arg(['asc_catalog_page', 'asc_query', 'asc_sector'], $url);
+            $url = add_query_arg('asc_view', 'watchlist', $url);
+        }
         $url = add_query_arg('asc_watch_status', $status, remove_query_arg('asc_watch_status', $url));
         wp_safe_redirect($url . '#asc-watchlist');
         exit;
