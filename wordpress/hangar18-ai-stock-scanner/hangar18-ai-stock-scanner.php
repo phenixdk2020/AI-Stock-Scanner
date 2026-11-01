@@ -255,7 +255,7 @@ function asc_render_dashboard(): string {
     }));
     ob_start();
     echo '<section class="asc-dashboard" aria-label="AI-Stock-Scanner">';
-    echo '<div class="asc-heading"><h2>AI Stock Scanner</h2><p>Aktier og ETF'er fra ni markeder</p></div>';
+    echo '<div class="asc-heading"><h2>AI Stock Scanner</h2><p>Aktier og ETF-instrumenter fra ni markeder</p></div>';
     echo '<form class="asc-filter-form" method="get">';
     if (isset($_GET['asc_view']) && $_GET['asc_view'] === 'scanner') {
         echo '<input type="hidden" name="asc_view" value="scanner">';
