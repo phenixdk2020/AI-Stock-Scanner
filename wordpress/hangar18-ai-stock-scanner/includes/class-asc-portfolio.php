@@ -75,6 +75,41 @@ final class ASC_Portfolio {
         return (int)$n;
     }
 
+    /**
+     * DKK beregninger adskiller faktisk købsbeløb i DKK fra dagens omregning.
+     * Hvis den aktuelle FX-kurs ikke findes, bruges den beregnede effektive
+     * købskurs kun som en TYDELIG mærket nød-estimering.
+     * Eksplicit betalt DKK kan omfatte kurtage og bankens valutaspread.
+     */
+    public static function calculate_dkk_values(
+        float $quantity, float $buy_price, float $current_price,
+        string $currency, ?float $paid_dkk, ?float $latest_rate
+    ): ?array {
+        $basis = $quantity * $buy_price;
+        if (!is_finite($basis) || $basis <= 0 || $current_price <= 0 ||
+            !is_finite($current_price) || $quantity <= 0) { return null; }
+        $paid_valid = $paid_dkk !== null && is_finite($paid_dkk) && $paid_dkk > 0;
+        $purchase_rate = $paid_valid ? $paid_dkk / $basis : null;
+        $current_rate = $currency === 'DKK' ? 1.0
+            : ($latest_rate !== null && is_finite($latest_rate) && $latest_rate > 0 ? $latest_rate : null);
+        $is_purchase_fx_fallback = $currency !== 'DKK' && $current_rate === null
+            && $purchase_rate !== null;
+        $used_rate = $current_rate ?? $purchase_rate;
+        if ($used_rate === null || !is_finite($used_rate) || $used_rate <= 0) { return null; }
+        $invested_dkk = $paid_valid ? $paid_dkk : $basis * $used_rate;
+        $market_value_dkk = $quantity * $current_price * $used_rate;
+        if (!is_finite($invested_dkk) || !is_finite($market_value_dkk)) { return null; }
+        return [
+            'invested_dkk' => $invested_dkk,
+            'value_dkk' => $market_value_dkk,
+            'profit_dkk' => $market_value_dkk - $invested_dkk,
+            'purchase_rate' => $purchase_rate,
+            'current_rate' => $used_rate,
+            'used_purchase_fx_fallback' => $is_purchase_fx_fallback,
+            'estimated_invested_dkk' => !$paid_valid,
+        ];
+    }
+
     private static function valid_date(string $date): bool {
         $d = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
         return $d instanceof DateTimeImmutable && $d->format('Y-m-d') === $date
@@ -112,6 +147,8 @@ final class ASC_Portfolio {
         $initial_raw = self::field('asc_initial_price');
         $initial_price = $initial_raw !== '' ? self::decimal($initial_raw) : null;
         $buy_date = self::field('asc_buy_date');
+        $paid_raw = self::field('asc_paid_dkk');
+        $paid_dkk = $paid_raw !== '' ? self::decimal($paid_raw) : null;
 
         // Distinct errors make a rejected third purchase diagnosable after redirect.
         if (preg_match('/^[A-Z0-9^][A-Z0-9.^=-]{0,19}$/D', $ticker) !== 1) {
@@ -130,6 +167,9 @@ final class ASC_Portfolio {
         if ($buy_date !== '' && !self::valid_date($buy_date)) {
             self::redirect('invalid_date');
         }
+        if ($paid_raw !== '' && $paid_dkk === null) {
+            self::redirect('invalid_paid_dkk');
+        }
         $positions = self::positions(get_current_user_id());
         if (count($positions) >= self::MAX_POSITIONS) { self::redirect('limit'); }
         $entry = [
@@ -142,6 +182,9 @@ final class ASC_Portfolio {
             'buy_date' => $buy_date,
             'created_at' => gmdate('Y-m-d\TH:i:s\Z'),
         ];
+        if ($paid_dkk !== null) {
+            $entry['paid_dkk'] = $paid_dkk;
+        }
         if ($initial_price !== null) {
             $entry['manual_price'] = $initial_price;
             $entry['manual_price_at'] = gmdate('Y-m-d\TH:i:s\Z');
@@ -182,10 +225,15 @@ final class ASC_Portfolio {
         $id = self::field('asc_position_id');
         $quantity = self::integer_quantity(self::field('asc_quantity'));
         $price = self::decimal(self::field('asc_buy_price'));
+        $paid_raw = self::field('asc_paid_dkk');
+        $paid_dkk = $paid_raw !== '' ? self::decimal($paid_raw) : null;
         if ($id === '') { self::redirect('notfound'); }
         if ($quantity === null) { self::redirect('invalid_quantity'); }
         if ($price === null || $quantity * $price > 1.0e12) {
             self::redirect('invalid_buy_price');
+        }
+        if ($paid_raw !== '' && $paid_dkk === null) {
+            self::redirect('invalid_paid_dkk');
         }
         $positions = self::positions(get_current_user_id());
         $found = false;
@@ -193,6 +241,11 @@ final class ASC_Portfolio {
             if (($p['id'] ?? '') === $id) {
                 $p['quantity'] = $quantity;
                 $p['buy_price'] = $price;
+                if ($paid_dkk !== null) {
+                    $p['paid_dkk'] = $paid_dkk;
+                } else {
+                    unset($p['paid_dkk']);
+                }
                 $found = true;
                 break;
             }
@@ -216,7 +269,7 @@ final class ASC_Portfolio {
         if ($out === false) { exit; }
         fwrite($out, "\xEF\xBB\xBF");
         fputcsv($out, ['Aktie','Navn','Antal','Købskurs','Valuta','Købsdato',
-            'Manuel kurs','Tidspunkt for manuel kurs'], ';');
+            'Manuel kurs','Tidspunkt for manuel kurs','Betalt i alt DKK'], ';');
         foreach ($rows as $p) {
             $ticker = (string)($p['ticker'] ?? '');
             $name = (string)($p['label'] ?? '');
@@ -228,6 +281,7 @@ final class ASC_Portfolio {
                 (string)($p['buy_price'] ?? ''), (string)($p['currency'] ?? ''),
                 (string)($p['buy_date'] ?? ''), (string)($p['manual_price'] ?? ''),
                 (string)($p['manual_price_at'] ?? ''),
+                (string)($p['paid_dkk'] ?? ''),
             ], ';');
         }
         fclose($out);
@@ -387,7 +441,7 @@ final class ASC_Portfolio {
             'added' => 'Aktiekøbet er gemt og verificeret i WordPress.',
             'deleted' => 'Beholdningen er slettet.',
             'priced' => 'Din manuelle kurs er opdateret.',
-            'edited' => 'Antal og købskurs er opdateret.',
+            'edited' => 'Antal, købskurs og betalt DKK er opdateret.',
             'invalid' => 'En ældre handling blev afvist. Prøv igen, så vises det præcise felt, der skal rettes.',
             'invalid_ticker' => 'Aktiesymbolet er ugyldigt. Brug fx NOVO-B.CO, SAP.DE eller MSFT (uden mellemrum).',
             'invalid_currency' => 'Valutaen skal være DKK, SEK, NOK, EUR eller USD.',
@@ -395,6 +449,7 @@ final class ASC_Portfolio {
             'invalid_buy_price' => 'Købskurs skal være et positivt tal, fx 125,50, uden valutasymbol.',
             'invalid_current_price' => 'Aktuel kurs skal være et positivt tal, fx 129,75, uden valutasymbol. Ved tilføjelse må feltet være tomt.',
             'invalid_date' => 'Købsdatoen er ugyldig eller ligger i fremtiden.',
+            'invalid_paid_dkk' => 'Betalt i alt (DKK) skal være et positivt beløb, fx 12.345,67, uden kr.-tegn.',
             'save_failed' => 'WordPress kunne ikke gemme købet i databasen. Forsøg igen, eller undersøg webhotellets PHP-fejllog.',
             'limit' => 'Der kan højst gemmes 100 køb pr. bruger.',
             'notfound' => 'Kunne ikke finde den valgte beholdning.',
