@@ -1,9 +1,9 @@
 name: Test AI-Stock-Scanner
 on:
   push:
-    branches: [main]
+    branches: [main, feature/v0.5.0-sidebar-etf-europe]
   pull_request:
-    branches: [main]
+    branches: [main, feature/v0.5.0-sidebar-etf-europe]
   workflow_dispatch:
 permissions:
   contents: read
@@ -31,6 +31,7 @@ jobs:
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-portfolio.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-market-quotes.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-fx-rates.php
+          php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-analysis.php
       - name: DKK conversion and effective purchase FX regression
         run: php tests/wp_portfolio_dkk.php
       - name: WordPress updater reactivation regression
