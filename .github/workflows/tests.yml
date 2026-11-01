@@ -32,3 +32,5 @@ jobs:
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-market-quotes.php
       - name: WordPress updater reactivation regression
         run: php tests/wp_updater_reactivation.php
+      - name: Three consecutive WordPress portfolio purchases
+        run: php tests/wp_portfolio_three_purchases.php
