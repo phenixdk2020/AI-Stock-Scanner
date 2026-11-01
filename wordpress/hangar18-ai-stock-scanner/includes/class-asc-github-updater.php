@@ -257,7 +257,7 @@ final class ASC_GitHub_Updater {
 
     private static function redirect(string $state): void {
         wp_safe_redirect(add_query_arg('asc_update', $state,
-            admin_url('tools.php?page=hangar18-ai-stock-scanner')));
+            admin_url('admin.php?page=asc-updates')));
         exit;
     }
     public static function check_now(): void {
