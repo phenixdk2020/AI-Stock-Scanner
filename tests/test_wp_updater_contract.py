@@ -37,6 +37,7 @@ class UpdaterContractTests(unittest.TestCase):
             self.assertIn(SLUG + "/" + SLUG + ".php", names)
             self.assertIn(SLUG + "/includes/class-asc-github-updater.php", names)
             self.assertIn(SLUG + "/assets/dashboard.css", names)
+            self.assertIn(SLUG + "/includes/class-asc-https-proxy.php", names)
             package_main = archive.read(SLUG + "/" + SLUG + ".php").decode("utf-8")
             package_updater = archive.read(
                 SLUG + "/includes/class-asc-github-updater.php"
