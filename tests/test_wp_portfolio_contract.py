@@ -179,6 +179,8 @@ class PortfolioContractTests(unittest.TestCase):
         self.assertIn("ai_stock_analysis", analysis)
         self.assertIn("EPS", analysis)
         self.assertIn("asc-analysis-grid", css)
+        self.assertIn("position:sticky;top:16px", css)
+        self.assertIn(".asc-app-shell{overflow:visible", css)
 
     def test_danish_catalog_search_and_safe_portfolio_prefill(self):
         code = PORTFOLIO.read_text(encoding="utf-8")
@@ -195,6 +197,10 @@ class PortfolioContractTests(unittest.TestCase):
                       "MAX_BYTES = 100000", "danish-stocks-snapshot.csv"):
             self.assertIn(token, catalog)
         self.assertTrue((PLUGIN / "assets/danish-stocks-snapshot.csv").exists())
+        self.assertIn("reconcile(", catalog)
+        self.assertIn("asc_catalog_complete", catalog)
+        self.assertIn("asc_catalog_as_of", catalog)
+        self.assertIn("listing_status", catalog)
 
     def test_yahoo_is_optional_and_rate_limited(self):
         source = QUOTES.read_text(encoding="utf-8")
