@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.2.2
+ * Version: 0.2.3
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,7 +14,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.2.2');
+define('ASC_PLUGIN_VERSION', '0.2.3');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
 
 register_activation_hook(__FILE__, 'asc_activate');
@@ -195,11 +195,31 @@ function asc_render_dashboard(): string {
     return (string)ob_get_clean();
 }
 
-add_action('admin_menu', static function (): void {
-    add_management_page(
+add_action('admin_menu', 'asc_register_admin_menu');
+function asc_register_admin_menu(): void {
+    // Synligt hovedmenupunkt i stedet for den tidligere placering under Værktøjer.
+    add_menu_page(
         'AI Stock Scanner', 'AI Stock Scanner', 'manage_options',
-        'hangar18-ai-stock-scanner', 'asc_admin_page'
+        'asc-dashboard', 'asc_admin_page', 'dashicons-chart-area', 31
     );
+    add_submenu_page(
+        'asc-dashboard', 'Oversigt', 'Oversigt', 'manage_options',
+        'asc-dashboard', 'asc_admin_page'
+    );
+    add_submenu_page(
+        'asc-dashboard', 'Opdateringer', 'Opdateringer', 'update_plugins',
+        'asc-updates', 'asc_admin_updates'
+    );
+    add_submenu_page(
+        'asc-dashboard', 'Forbindelse', 'Forbindelse', 'manage_options',
+        'asc-connection', 'asc_admin_connection'
+    );
+}
+add_filter('plugin_action_links_' . plugin_basename(__FILE__), static function (array $links): array {
+    if (current_user_can('update_plugins')) {
+        array_unshift($links, '<a href="' . esc_url(admin_url('admin.php?page=asc-updates')) . '">Opdateringer</a>');
+    }
+    return $links;
 });
 function asc_admin_page(): void {
     if (!current_user_can('manage_options')) { return; }
@@ -208,15 +228,29 @@ function asc_admin_page(): void {
     echo '<div class="wrap"><h1>AI Stock Scanner</h1>';
     echo '<p>Pluginversion: <strong>' . esc_html(ASC_PLUGIN_VERSION) . '</strong></p>';
     echo '<p>Seneste data modtaget (UTC): <strong>' . esc_html($when) . '</strong></p>';
-    echo '<p>Opret en WordPress-bruger med rollen <strong>AI Stock Scanner Sync Agent</strong>,';
-    echo ' og opret et separat Application Password på brugerens profil.</p>';
-    echo '<p>Dette er forbindelsesrollen, ikke en rolle til normale webbrugere.</p>';
-    echo '<p>REST endpoint: <code>' . esc_html(rest_url('ai-stock-scanner/v1/snapshot')) . '</code></p>';
-    echo '<p>Opret en side med shortcoden <code>[ai_stock_scanner]</code>.';
-    echo ' Kun indloggede brugere kan se resultaterne.</p>';
-    echo '<p>Python/Ollama kører på din PC; pluginet kører ikke Python eller Ollama på webhotellet.</p>';
-    echo '<p>GitHub-opdatering bruger en læsebegrænset token i wp-config.php. Pluginet genaktiveres efter en normal opdatering, hvis det var aktivt før.</p>';
+    echo '<p>Dashboard: opret en WordPress-side med <code>[ai_stock_scanner]</code>. Kun indloggede brugere ser aktiedata.</p>';
+    echo '<p>Python-scanneren og Ollama kører lokalt på din computer; hjemmesiden viser kun de senest modtagne data.</p>';
+    echo '<p><a class="button button-primary" href="' . esc_url(admin_url('admin.php?page=asc-updates')) . '">GitHub-opdateringer</a> ';
+    echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=asc-connection')) . '">Forbindelse til PC</a></p>';
+    echo '</div>';
+}
+function asc_admin_updates(): void {
+    if (!current_user_can('update_plugins')) { wp_die('Ingen adgang.'); }
+    echo '<div class="wrap"><h1>AI Stock Scanner – Opdateringer</h1>';
     ASC_GitHub_Updater::render_panel();
+    echo '</div>';
+}
+function asc_admin_connection(): void {
+    if (!current_user_can('manage_options')) { wp_die('Ingen adgang.'); }
+    $snapshot = get_option(ASC_OPTION_SNAPSHOT, []);
+    $when = is_array($snapshot) ? (string)($snapshot['generated_at'] ?? 'Aldrig') : 'Aldrig';
+    echo '<div class="wrap"><h1>AI Stock Scanner – Forbindelse</h1>';
+    echo '<p>Seneste data modtaget (UTC): <strong>' . esc_html($when) . '</strong></p>';
+    echo '<p>Opret en særskilt WordPress-bruger med rollen <strong>AI Stock Scanner Sync Agent</strong>,';
+    echo ' og opret et Application Password på denne brugers profil. Brug aldrig en administrator-konto til synkronisering.</p>';
+    echo '<p>REST endpoint: <code>' . esc_html(rest_url('ai-stock-scanner/v1/snapshot')) . '</code></p>';
+    echo '<p>PC\'ens Python-scanner sender data over HTTPS. Ingen lokal Ollama-port skal åbnes mod internettet.</p>';
+    echo '<p>Se installationsvejledningen i projektets GitHub-repository.</p>';
     echo '</div>';
 }
 
