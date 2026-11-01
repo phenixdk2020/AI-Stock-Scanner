@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.4.3
+ * Version: 0.4.4
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,7 +14,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.4.3');
+define('ASC_PLUGIN_VERSION', '0.4.4');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
 
 // Must initialize before user-profile / REST authentication determines HTTPS.
@@ -301,6 +301,9 @@ function asc_admin_page(): void {
     echo '<p>Startside: <strong>Personligt login, portefølje og watchlist</strong>. '
         . 'Du kan tilføje køb og manuel aktuel kurs, redigere beholdninger og eksportere egne køb som CSV – helt uden PC-scanneren.</p>';
     echo '<p>Med en aktiveret kurskilde kan du også se candlesticks, gennemsnitlig handelsvolumen og estimeret handelsværdi over 5/21 børsdage.</p>';
+    echo '<p><strong>v0.4.4:</strong> Angiv betalt i alt i DKK pr. køb. '
+        . 'Visning af investeret, aktuel værdi og gevinst/tab i DKK, '
+        . 'med ECB-valutakurs og tydelige skøn ved manglende valutakurser.</p>';
     echo '<p><strong>v0.4.1:</strong> Mere præcise fejlbeskeder ved køb, tæller for faktisk gemte køb og højst ét hurtigt Yahoo-kursopslag pr. sideindlæsning. '
         . 'De eksisterende aktiekøb bevares ved opdatering.</p>';
     echo '<p>For at gøre porteføljen til websitets startside: klik nedenfor. Dette erstatter den nuværende forside, men sletter ikke indhold.</p>';
