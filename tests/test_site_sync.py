@@ -34,8 +34,9 @@ class SnapshotTests(unittest.TestCase):
             payload = build_snapshot(db)
             self.assertEqual(payload["mode"], "research")
             self.assertEqual(len(payload["rows"]), 2)
-            self.assertEqual(payload["rows"][0]["score"], 80)
-            self.assertEqual(payload["rows"][1]["market"], "Danmark")
+            by_ticker = {item["ticker"]: item for item in payload["rows"]}
+            self.assertEqual(by_ticker["MSFT"]["score"], 80)
+            self.assertEqual(by_ticker["NOVO-B.CO"]["market"], "Danmark")
 
     def test_https_required(self):
         self.assertEqual(make_endpoint("https://aktier.hangar18.dk"),
