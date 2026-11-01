@@ -59,6 +59,22 @@ final class ASC_Portfolio {
         return is_finite($n) && $n > 0 && $n <= 1000000000 ? $n : null;
     }
 
+    /**
+     * Aktieantal er altid et heltal. Punktum er kun tilladt som dansk
+     * tusindtalsseparator (1.000), aldrig som decimaltegn (1.5).
+     * Vi afviser bevidst 2,5 og 2,00 i stedet for at afrunde købet.
+     */
+    private static function integer_quantity(string $raw): ?int {
+        $value = trim(str_replace(["\xc2\xa0", "\xe2\x80\xaf", ' '], '', $raw));
+        if (!preg_match('/^(?:[0-9]+|[0-9]{1,3}(?:\.[0-9]{3})+)$/D', $value)) {
+            return null;
+        }
+        $normalized = str_replace('.', '', $value);
+        $n = (float)$normalized;
+        if (!is_finite($n) || $n < 1 || $n > 1000000000) { return null; }
+        return (int)$n;
+    }
+
     private static function valid_date(string $date): bool {
         $d = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
         return $d instanceof DateTimeImmutable && $d->format('Y-m-d') === $date
@@ -83,7 +99,7 @@ final class ASC_Portfolio {
         if (function_exists('mb_substr')) { $name = mb_substr($name, 0, 80); }
         else { $name = substr($name, 0, 80); }
         $currency = strtoupper(self::field('asc_currency'));
-        $quantity = self::decimal(self::field('asc_quantity'));
+        $quantity = self::integer_quantity(self::field('asc_quantity'));
         $buy_price = self::decimal(self::field('asc_buy_price'));
         $initial_raw = self::field('asc_initial_price');
         $initial_price = $initial_raw !== '' ? self::decimal($initial_raw) : null;
@@ -156,11 +172,12 @@ final class ASC_Portfolio {
         if (!is_user_logged_in()) { auth_redirect(); exit; }
         check_admin_referer('asc_portfolio_edit');
         $id = self::field('asc_position_id');
-        $quantity = self::decimal(self::field('asc_quantity'));
+        $quantity = self::integer_quantity(self::field('asc_quantity'));
         $price = self::decimal(self::field('asc_buy_price'));
-        if ($id === '' || $quantity === null || $price === null
-            || $quantity * $price > 1.0e12) {
-            self::redirect('invalid');
+        if ($id === '') { self::redirect('notfound'); }
+        if ($quantity === null) { self::redirect('invalid_quantity'); }
+        if ($price === null || $quantity * $price > 1.0e12) {
+            self::redirect('invalid_buy_price');
         }
         $positions = self::positions(get_current_user_id());
         $found = false;
@@ -215,7 +232,7 @@ final class ASC_Portfolio {
         check_admin_referer('asc_portfolio_price');
         $id = self::field('asc_position_id');
         $price = self::decimal(self::field('asc_current_price'));
-        if ($price === null) { self::redirect('invalid'); }
+        if ($price === null) { self::redirect('invalid_current_price'); }
         $positions = self::positions(get_current_user_id());
         $found = false;
         foreach ($positions as &$p) {
@@ -313,6 +330,16 @@ final class ASC_Portfolio {
         return esc_html(number_format($num, 2, ',', '.'));
     }
 
+    /** Aktieantal vises som stk. (uden kr. eller unødvendige decimaler). */
+    private static function share_count(float $num): string {
+        if ($num === floor($num)) {
+            return esc_html(number_format($num, 0, ',', '.'));
+        }
+        // Vis evt. allerede gemte brøkdele nøjagtigt frem for at afrunde data.
+        $value = number_format($num, 8, ',', '.');
+        return esc_html(rtrim(rtrim($value, '0'), ','));
+    }
+
     private static function external_link(string $ticker): string {
         // Known, grounded Nordnet pages. Never guess arbitrary URLs from a ticker.
         $links = [
@@ -346,12 +373,12 @@ final class ASC_Portfolio {
             'deleted' => 'Beholdningen er slettet.',
             'priced' => 'Din manuelle kurs er opdateret.',
             'edited' => 'Antal og købskurs er opdateret.',
-            'invalid' => 'Kontrollér antal og købskurs.',
+            'invalid' => 'Et felt er ugyldigt. Kontrollér at antal aktier er et heltal, og at kurserne er positive tal.',
             'invalid_ticker' => 'Aktiesymbolet er ugyldigt. Brug fx NOVO-B.CO, SAP.DE eller MSFT (uden mellemrum).',
             'invalid_currency' => 'Valutaen skal være DKK, SEK, NOK, EUR eller USD.',
-            'invalid_quantity' => 'Antal aktier skal være et positivt tal (fx 10 eller 2,5).',
-            'invalid_buy_price' => 'Købskursen skal være et positivt tal og beløbet inden for grænsen.',
-            'invalid_current_price' => 'Den manuelle aktuelle kurs skal være et positivt tal, eller feltet skal stå tomt.',
+            'invalid_quantity' => 'Antal aktier skal være et positivt heltal, fx 10 eller 1.000. Ingen decimaler eller kr. i antal-feltet.',
+            'invalid_buy_price' => 'Købskurs skal være et positivt tal, fx 125,50, uden valutasymbol.',
+            'invalid_current_price' => 'Aktuel kurs skal være et positivt tal, fx 129,75, uden valutasymbol. Ved tilføjelse må feltet være tomt.',
             'invalid_date' => 'Købsdatoen er ugyldig eller ligger i fremtiden.',
             'save_failed' => 'WordPress kunne ikke gemme købet i databasen. Forsøg igen, eller undersøg webhotellets PHP-fejllog.',
             'limit' => 'Der kan højst gemmes 100 køb pr. bruger.',
@@ -407,7 +434,7 @@ final class ASC_Portfolio {
             echo '<tr><th scope="row">' . esc_html((string)($p['label'] ?: $ticker))
                 . '<div class="asc-subtle">' . esc_html($ticker) . self::external_link($ticker) . '</div>'
                 . '<div class="asc-subtle">' . esc_html((string)($p['buy_date'] ?? '')) . '</div></th>';
-            echo '<td>' . self::amount($quantity) . '</td><td>' . self::amount($cost) . ' ' . esc_html($currency) . '</td>';
+            echo '<td>' . self::share_count($quantity) . ' stk.</td><td>' . self::amount($cost) . ' ' . esc_html($currency) . '</td>';
             echo '<td>' . ($price !== null ? self::amount($price) . ' ' . esc_html($currency) : '—')
                 . '<div class="asc-subtle">' . esc_html($label) . '</div></td>';
             echo '<td>' . self::amount($basis) . ' ' . esc_html($currency) . '</td>';
@@ -434,7 +461,7 @@ final class ASC_Portfolio {
             echo '<input type="hidden" name="action" value="asc_portfolio_edit">';
             echo '<input type="hidden" name="asc_position_id" value="' . esc_attr((string)$p['id']) . '">';
             wp_nonce_field('asc_portfolio_edit');
-            echo '<label>Antal aktier <input name="asc_quantity" type="text" inputmode="decimal" value="' . esc_attr((string)$quantity) . '" required></label>';
+            echo '<label>Antal aktier (heltal) <input name="asc_quantity" type="number" inputmode="numeric" min="1" max="1000000000" step="1" value="' . esc_attr((string)$quantity) . '" required></label>';
             echo '<label>Købskurs <input name="asc_buy_price" type="text" inputmode="decimal" value="' . esc_attr((string)$cost) . '" required></label>';
             echo '<button type="submit">Gem beholdning</button></form>';
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="asc-inline-form">';
@@ -469,7 +496,7 @@ final class ASC_Portfolio {
                 echo '<strong>' . self::amount($summary['value']) . ' ' . esc_html($currency) . '</strong>';
                 echo '<span>Investeret: ' . self::amount($summary['cost']) . ' '
                     . esc_html($currency) . '</span>';
-                echo '<span>Antal aktier: ' . self::amount((float)($position_counts[$currency] ?? 0)) . '</span>';
+                echo '<span>Antal aktier: ' . self::share_count((float)($position_counts[$currency] ?? 0)) . ' stk.</span>';
                 echo '<span class="' . esc_attr($gain >= 0 ? 'asc-positive' : 'asc-negative') . '">'
                     . ($gain > 0 ? '+' : '') . self::amount($gain) . ' (' . ($pct > 0 ? '+' : '')
                     . self::amount($pct) . '%)</span></div>';
@@ -486,7 +513,7 @@ final class ASC_Portfolio {
         echo '<label>Ticker (Yahoo-symbol)<input type="text" name="asc_ticker" maxlength="20" '
             . 'placeholder="NOBI.ST eller HARB-B.CO" required></label>';
         echo '<label>Navn (valgfrit)<input type="text" name="asc_label" maxlength="80" placeholder="F.eks. Nobia"></label>';
-        echo '<label>Antal aktier<input type="text" name="asc_quantity" inputmode="decimal" placeholder="100" required></label>';
+        echo '<label>Antal aktier (heltal)<input type="number" name="asc_quantity" inputmode="numeric" min="1" max="1000000000" step="1" placeholder="100" required></label>';
         echo '<label>Købskurs pr. aktie<input type="text" name="asc_buy_price" inputmode="decimal" placeholder="12,50" required></label>';
         echo '<label>Aktuel kurs (valgfrit, manuel)<input type="text" name="asc_initial_price" inputmode="decimal" placeholder="13,25"></label>';
         echo '<label>Valuta<select name="asc_currency">';
