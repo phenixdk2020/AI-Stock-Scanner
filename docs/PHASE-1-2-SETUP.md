@@ -138,3 +138,10 @@ PHP kan lintes lokalt med `php -l wordpress/hangar18-ai-stock-scanner/hangar18-a
 - Windows Task Scheduler for daglige scan/sync kan først sættes op efter end-to-end test og licensafklaring.
 
 **Sikkerhedsarkitektur:** Lokal Ollama-poret `11434` og Streamlit `8501` skal ikke eksponeres mod internettet.
+
+
+## Opdatering – nyt i WordPress-plugin v0.2.0
+
+Den oprindelige beskrivelse af v0.1.0 ovenfor er historik. **v0.2.0** har en GitHub-updater til det private repository, med administratorstyring, sikker token i `wp-config.php`, SHA-256, WordPress' indbyggede midlertidige backup og genaktivering efter opdatering. Installér [v0.2.0 ZIP](../dist/hangar18-ai-stock-scanner-v0.2.0.zip) i stedet for v0.1.0, og følg [WordPress GitHub Update-guiden](WORDPRESS-GITHUB-UPDATE.md).
+
+En installation af v0.1.0 kræver **første manuelle ZIP-opgradering** til v0.2.0, hvorefter GitHub-knappen er tilgængelig. En permanent manuel rollback-funktion er ikke færdigbygget.
