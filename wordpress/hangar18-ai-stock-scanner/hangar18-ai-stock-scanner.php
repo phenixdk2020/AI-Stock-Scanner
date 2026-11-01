@@ -24,6 +24,8 @@ ASC_HTTPS_Proxy::bootstrap();
 // Portfolio stays per-user in WordPress user metadata; quote source is optional.
 require_once __DIR__ . '/includes/class-asc-market-quotes.php';
 ASC_Market_Quotes::register();
+// ECB reference-rate conversion is separate from unlicensed quote providers.
+require_once __DIR__ . '/includes/class-asc-fx-rates.php';
 require_once __DIR__ . '/includes/class-asc-portfolio.php';
 ASC_Portfolio::register();
 require_once __DIR__ . '/includes/class-asc-watchlist.php';
