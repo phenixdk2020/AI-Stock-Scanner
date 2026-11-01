@@ -129,3 +129,20 @@
 .asc-analysis-card h3{margin:0 0 .4rem}.asc-analysis-card strong{font-size:1.25rem}
 @media(max-width:990px){.asc-app-shell{grid-template-columns:190px minmax(0,1fr)}.asc-app-content.asc-dashboard{padding:1rem}.asc-app-overview{grid-template-columns:1fr 1fr}}
 @media(max-width:720px){.asc-app-shell{display:block;border-radius:10px}.asc-app-sidebar{display:none}.asc-app-mobile-menu{display:block;background:#093c70;color:#fff;padding:.6rem 1rem}.asc-app-mobile-menu summary{cursor:pointer;font-weight:700;padding:.45rem}.asc-app-mobile-menu .asc-side-nav{padding:.5rem 0}.asc-app-content.asc-dashboard{padding:.85rem}.asc-app-topbar h1{font-size:1.2rem}.asc-app-topbar span{font-size:.72rem}.asc-app-overview,.asc-analysis-grid{grid-template-columns:1fr}.asc-filter-form{padding:.7rem}}
+
+/* v0.5.1 - Danish stock catalogue */
+.asc-stock-catalog{min-width:0}
+.asc-stock-catalog h2{font-size:1.4rem;margin:0 0 .6rem}
+.asc-stock-catalog .asc-catalog-info{background:#edf5fc;color:#183f66;padding:.8rem 1rem;border-radius:10px}
+.asc-stock-catalog .asc-subtle{display:block}
+.asc-stock-catalog td.asc-catalog-actions{white-space:nowrap}
+.asc-catalog-actions form{display:inline-block;margin:0 .6rem 0 0}
+.asc-catalog-actions button,.asc-catalog-admin button{cursor:pointer;border:0;border-radius:7px;background:#0c578c;color:#fff;padding:.5rem .8rem;font-weight:650}
+.asc-catalog-actions a{display:inline-block;border:1px solid #aabecf;padding:.42rem .7rem;border-radius:7px}
+.asc-catalog-pages{display:flex;gap:1rem;justify-content:center;padding:1rem}
+.asc-catalog-pages a{padding:.5rem 1.1rem;border:1px solid #d3e0eb;border-radius:8px}
+.asc-catalog-admin{margin:1.1rem 0;border:1px solid #d4e0ec;border-radius:10px;padding:1rem}
+.asc-catalog-admin summary{cursor:pointer;font-weight:700}
+.asc-catalog-admin form{margin:.8rem 0;display:flex;gap:.7rem;align-items:center;flex-wrap:wrap}
+.asc-catalog-admin input[type=file]{max-width:100%}
+@media(max-width:720px){.asc-catalog-admin form{display:block}.asc-catalog-admin button{margin-top:.6rem}}
