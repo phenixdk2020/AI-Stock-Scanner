@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.5.0
+ * Version: 0.5.1
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,7 +14,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.5.0');
+define('ASC_PLUGIN_VERSION', '0.5.1');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
 
 // Must initialize before user-profile / REST authentication determines HTTPS.
@@ -32,6 +32,8 @@ require_once __DIR__ . '/includes/class-asc-watchlist.php';
 ASC_Watchlist::register();
 require_once __DIR__ . '/includes/class-asc-analysis.php';
 ASC_Analysis::register();
+require_once __DIR__ . '/includes/class-asc-danish-catalog.php';
+ASC_Danish_Catalog::register();
 
 
 register_activation_hook(__FILE__, 'asc_activate');
@@ -355,6 +357,7 @@ function asc_admin_page(): void {
     echo '<p>Startside: <strong>Personligt login, portefølje og watchlist</strong>. '
         . 'Du kan tilføje køb og manuel aktuel kurs, redigere beholdninger og eksportere egne køb som CSV – helt uden PC-scanneren.</p>';
     echo '<p>Med en aktiveret kurskilde kan du også se candlesticks, gennemsnitlig handelsvolumen og estimeret handelsværdi over 5/21 børsdage.</p>';
+    echo '<p><strong>v0.5.1:</strong> Søg i danske aktier med katalog, navn, ticker, sektor og ISIN via CSV-import. Følg aktier eller registrér køb fra resultatlisten.</p>';
     echo '<p><strong>v0.5.0:</strong> Ny venstremenu, ni markeder, ETF-understøttelse, scannerfiltre og scenarioanalyse.</p>';
     echo '<p><strong>v0.4.4:</strong> Angiv betalt i alt i DKK pr. køb. '
         . 'Visning af investeret, aktuel værdi og gevinst/tab i DKK, '
