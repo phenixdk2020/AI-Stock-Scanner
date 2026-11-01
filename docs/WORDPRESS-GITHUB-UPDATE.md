@@ -1,5 +1,8 @@
 # AI Stock Scanner – offentlig GitHub-opdatering (v0.2.2)
 
+> **v0.2.5 – API-godkendelse (2026-11-01):** Ved `HTTP 401 rest_not_logged_in` kan Python-scanneren nu automatisk gentage godkendelsen via `X-ASC-Authorization`, som kun godkendes på AI Stock Scanner-ruterne og valideres med WordPress' egen Application Password-funktion. Klienten kræver HTTPS og følger ikke redirects. [Download v0.2.5 ZIP](../dist/hangar18-ai-stock-scanner-v0.2.5.zip). Gå til **AI Stock Scanner → Opdateringer** for at opdatere; synkroniser derefter din Windows-projektmappe via `git pull --ff-only` og kør `python -m stockscanner.site_sync --check-auth`. Bemærk, at `/wp-json/wp/v2/users/me` stadig kan fejle i sådanne miljøer; fallback gælder kun scannerens egne REST-ruter. Hvis hosting også fjerner ekstra headers, er serverrettelse nødvendig.
+
+
 > **Nyeste version: v0.2.3 (2026-11-01).** Denne version flytter WordPress-administrationen til et synligt hovedmenupunkt **AI Stock Scanner** med undermenuerne **Oversigt**, **Opdateringer** og **Forbindelse**. Under Opdateringer bruges `Tjek GitHub-opdatering` og `Backup og opdater plugin`. Ældre beskrivelser af v0.2.2 og placeringen under **Værktøjer** er historiske. [Hent v0.2.3 ZIP](../dist/hangar18-ai-stock-scanner-v0.2.3.zip). Første opgradering kan foretages via **Plugins → Tilføj nyt → Upload plugin → Erstat nuværende**. Kontrollér at pluginet er aktivt bagefter.
 
 
