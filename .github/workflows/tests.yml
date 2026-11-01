@@ -23,6 +23,10 @@ jobs:
         run: |
           php -l wordpress/hangar18-ai-stock-scanner/hangar18-ai-stock-scanner.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-github-updater.php
+          php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-market-quotes.php
+          php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-portfolio.php
+          php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-watchlist.php
+          php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-https-proxy.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-https-proxy.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-portfolio.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-market-quotes.php
