@@ -54,7 +54,7 @@ class UpdaterContractTests(unittest.TestCase):
             "is_plugin_active_for_network", "update_plugins_github.com",
             "check_admin_referer(", "current_user_can('update_plugins')",
             "redirection' => 0", "autoupdate' => false",
-            "private GitHub",
+            "GitHub-opdatering til privat repository",
         ):
             with self.subTest(requirement=requirement):
                 self.assertIn(requirement, source)
