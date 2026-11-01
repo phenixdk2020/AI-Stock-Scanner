@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.1.0
+ * Version: 0.2.0
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,7 +14,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.1.0');
+define('ASC_PLUGIN_VERSION', '0.2.0');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
 
 register_activation_hook(__FILE__, 'asc_activate');
@@ -215,6 +215,10 @@ function asc_admin_page(): void {
     echo '<p>Opret en side med shortcoden <code>[ai_stock_scanner]</code>.';
     echo ' Kun indloggede brugere kan se resultaterne.</p>';
     echo '<p>Python/Ollama kører på din PC; pluginet kører ikke Python eller Ollama på webhotellet.</p>';
-    echo '<p>Opdatering i v0.1.0 sker med ny versioneret ZIP via WordPress. Automatisk privat GitHub-update og rollback er endnu ikke indbygget.</p>';
+    echo '<p>GitHub-opdatering bruger en læsebegrænset token i wp-config.php. Pluginet genaktiveres efter en normal opdatering, hvis det var aktivt før.</p>';
+    ASC_GitHub_Updater::render_panel();
     echo '</div>';
 }
+
+require_once __DIR__ . '/includes/class-asc-github-updater.php';
+ASC_GitHub_Updater::register();
