@@ -21,7 +21,7 @@ function remove_query_arg(string $key, string $url): string { return $url; }
 function add_query_arg(string $key, string $value, string $url): string {
     return $url . (strpos($url, '?') === false ? '?' : '&') . $key . '=' . $value;
 }
-function wp_safe_redirect(string $url): bool { return true; }
+function wp_safe_redirect(string $url): bool { echo "REDIRECT: " . $url . "\n"; return true; }
 function auth_redirect(): void { throw new RuntimeException('Unexpected login redirect'); }
 function get_user_meta(int $id, string $key, bool $single): array {
     $data = json_decode((string)file_get_contents($GLOBALS['fixture']), true);
@@ -34,12 +34,12 @@ function update_user_meta(int $id, string $key, array $value): bool {
 require_once __DIR__ . '/../wordpress/hangar18-ai-stock-scanner/includes/class-asc-portfolio.php';
 
 if (($argv[1] ?? '') === 'child') {
-    if (count($argv) !== 5) { exit(2); }
+    if (count($argv) < 5 || count($argv) > 6) { exit(2); }
     $GLOBALS['fixture'] = $argv[2];
     $_POST = [
         'asc_ticker' => $argv[3],
         'asc_label' => $argv[4],
-        'asc_quantity' => '10',
+        'asc_quantity' => $argv[5] ?? '10',
         'asc_buy_price' => '120,50',
         'asc_initial_price' => '131,25',
         'asc_currency' => 'DKK',
@@ -83,7 +83,34 @@ try {
             }
         }
     }
-    echo "PASS: 3 purchases persisted independently, with the previous two intact.\n";
+    // Fractional share quantities must be rejected and must not create another lot.
+    foreach (['2,5', '3.25', '2,00', '0', '-1'] as $invalid) {
+        $args = [
+            escapeshellarg(PHP_BINARY), escapeshellarg(__FILE__), 'child',
+            escapeshellarg($temp), escapeshellarg('AAPL'),
+            escapeshellarg('Invalid quantity test'), escapeshellarg($invalid),
+        ];
+        $output = []; $status = -1;
+        exec(implode(' ', $args) . ' 2>&1', $output, $status);
+        if ($status !== 0 || strpos(implode(' ', $output), 'asc_portfolio_status=invalid_quantity') === false) {
+            throw new RuntimeException('Fractional/invalid quantity was not rejected: ' . $invalid);
+        }
+        $check = json_decode((string)file_get_contents($temp), true);
+        if (count($check) !== 3) { throw new RuntimeException('Rejected quantity modified persisted positions'); }
+    }
+
+    // A properly grouped Danish whole number is accepted as 1,000 shares.
+    $args = [escapeshellarg(PHP_BINARY), escapeshellarg(__FILE__), 'child',
+        escapeshellarg($temp), escapeshellarg('MSFT'), escapeshellarg('Grouped integer'),
+        escapeshellarg('1.000')];
+    $output = []; $status = -1;
+    exec(implode(' ', $args) . ' 2>&1', $output, $status);
+    $check = json_decode((string)file_get_contents($temp), true);
+    if ($status !== 0 || count($check) !== 4
+        || (int)($check[3]['quantity'] ?? 0) !== 1000) {
+        throw new RuntimeException('1.000 was not accepted as one thousand shares');
+    }
+    echo "PASS: 3 independent buys, fractional quantities rejected, 1.000 stored as 1000.\n";
 } finally {
     @unlink($temp);
 }
