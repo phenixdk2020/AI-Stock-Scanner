@@ -146,10 +146,10 @@ function asc_accept_snapshot(WP_REST_Request $request) {
     }
 
     $items = $input['rows'];
-    if (count($items) < 1 || count($items) > 25 || array_values($items) !== $items) {
-        return new WP_Error('asc_count', 'Antallet skal være mellem 1 og 25.', ['status' => 400]);
+    if (count($items) < 1 || count($items) > 50 || array_values($items) !== $items) {
+        return new WP_Error('asc_count', 'Antallet skal være mellem 1 og 50.', ['status' => 400]);
     }
-    $markets = ['Danmark', 'Tyskland', 'Sverige', 'Norge', 'USA'];
+    $markets = ['Danmark', 'Tyskland', 'Sverige', 'Norge', 'USA', 'Frankrig', 'Holland', 'Spanien', 'Finland'];
     $signals = ['Interessant', 'Hold øje', 'Afvent'];
     $accepted = [];
     $seen = [];
@@ -168,10 +168,12 @@ function asc_accept_snapshot(WP_REST_Request $request) {
         $date = $row['market_date'];
         $score = $row['score'];
         $signal = $row['signal'];
+        $instrument_type = $row['instrument_type'] ?? 'Ukendt';
         if (!preg_match('/^[A-Z0-9^][A-Z0-9.^=-]{0,19}$/', $ticker) ||
             isset($seen[$ticker]) ||
             !in_array($market, $markets, true) ||
             !in_array($signal, $signals, true) ||
+            !in_array($instrument_type, ['Aktie', 'ETF', 'Ukendt'], true) ||
             $score < 0 || $score > 100 ||
             !preg_match('/^\d{4}-\d\d-\d\d$/', $date)
         ) {
@@ -186,6 +188,7 @@ function asc_accept_snapshot(WP_REST_Request $request) {
         $accepted[] = [
             'ticker' => $ticker,
             'market' => $market,
+            'instrument_type' => $instrument_type,
             'market_date' => $date,
             'score' => $score,
             'signal' => $signal,
@@ -228,7 +231,7 @@ function asc_render_dashboard(): string {
         ? $data['rows'] : [];
     ob_start();
     echo '<section class="asc-dashboard" aria-label="AI-Stock-Scanner">';
-    echo '<div class="asc-heading"><h2>AI Stock Scanner</h2><p>Research for Danmark, Tyskland, Sverige, Norge og USA</p></div>';
+    echo '<div class="asc-heading"><h2>AI Stock Scanner</h2><p>Aktier og ETF'er fra ni markeder</p></div>';
     if (!$rows) {
         echo '<div class="asc-empty">Ingen scanninger modtaget endnu. Installer den lokale scanner, og send først et demo-snapshot.</div>';
     } else {
@@ -238,7 +241,7 @@ function asc_render_dashboard(): string {
         $timestamp = strtotime($when);
         $stale = $timestamp === false || (time() - $timestamp) > 86400;
         echo '<div class="asc-metrics">';
-        echo '<div><strong>' . esc_html((string)count($rows)) . '</strong><span>Aktier</span></div>';
+        echo '<div><strong>' . esc_html((string)count($rows)) . '</strong><span>Værdipapirer</span></div>';
         echo '<div><strong>' . esc_html((string)count(array_unique(array_column($rows, 'market')))) . '</strong><span>Markeder</span></div>';
         echo '<div><strong>' . esc_html((string)count(array_filter($rows, static function ($r) {return ($r['score'] ?? 0) >= 80;}))) . '</strong><span>Score 80+</span></div>';
         echo '</div>';
@@ -246,12 +249,13 @@ function asc_render_dashboard(): string {
         if ($stale) { echo '<p class="asc-warning">Data er mere end 24 timer gamle. Den lokale PC/scanner er muligvis offline.</p>'; }
         echo '<p class="asc-updated">Seneste synkronisering (UTC): ' . esc_html($when) . '</p>';
         echo '<div class="asc-table-wrap"><table><thead><tr>';
-        echo '<th scope="col">Aktie</th><th scope="col">Marked</th><th scope="col">Handelsdato</th>';
+        echo '<th scope="col">Værdipapir</th><th scope="col">Type</th><th scope="col">Marked</th><th scope="col">Handelsdato</th>';
         echo '<th scope="col">Teknisk score</th><th scope="col">Signal</th></tr></thead><tbody>';
         foreach ($rows as $row) {
             $score = (int)$row['score'];
             $class = $score >= 80 ? 'asc-strong' : ($score >= 60 ? 'asc-watch' : 'asc-weak');
             echo '<tr><th scope="row">' . esc_html($row['ticker']) . '</th>';
+            echo '<td>' . esc_html((string)($row['instrument_type'] ?? 'Ukendt')) . '</td>';
             echo '<td>' . esc_html($row['market']) . '</td>';
             echo '<td>' . esc_html($row['market_date']) . '</td>';
             echo '<td><span class="asc-score ' . esc_attr($class) . '">' .
