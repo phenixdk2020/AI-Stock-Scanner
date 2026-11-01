@@ -9,6 +9,7 @@ QUOTES = PLUGIN / "includes" / "class-asc-market-quotes.php"
 MAIN = PLUGIN / "hangar18-ai-stock-scanner.php"
 WATCHLIST = PLUGIN / "includes" / "class-asc-watchlist.php"
 FX = PLUGIN / "includes" / "class-asc-fx-rates.php"
+ANALYSIS = PLUGIN / "includes" / "class-asc-analysis.php"
 
 
 class PortfolioContractTests(unittest.TestCase):
@@ -160,6 +161,24 @@ class PortfolioContractTests(unittest.TestCase):
         self.assertIn("eurofxref-daily.xml", fx)
         self.assertIn("class-asc-fx-rates.php", main)
         self.assertTrue((ROOT / "tests/wp_portfolio_dkk.php").exists())
+
+    def test_sidebar_etf_analytics_and_market_filters(self):
+        portfolio = PORTFOLIO.read_text(encoding="utf-8")
+        main = MAIN.read_text(encoding="utf-8")
+        analysis = ANALYSIS.read_text(encoding="utf-8")
+        css = (PLUGIN / "assets/dashboard.css").read_text(encoding="utf-8")
+        for value in ("asc-app-sidebar", "asc-app-mobile-menu", "asc_view", "overview",
+                      "portfolio", "watchlist", "scanner", "analysis", "settings"):
+            self.assertIn(value, portfolio)
+        self.assertIn("asc_instrument_type", portfolio)
+        self.assertIn("instrument_type", main)
+        self.assertIn("asc_market", main)
+        self.assertIn("asc_score_min", main)
+        self.assertIn("asc_signal", main)
+        self.assertIn("ASC_Analysis::register()", main)
+        self.assertIn("ai_stock_analysis", analysis)
+        self.assertIn("EPS", analysis)
+        self.assertIn("asc-analysis-grid", css)
 
     def test_yahoo_is_optional_and_rate_limited(self):
         source = QUOTES.read_text(encoding="utf-8")
