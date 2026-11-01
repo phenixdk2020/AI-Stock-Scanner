@@ -1,5 +1,8 @@
 # AI-Stock-Scanner V1
 
+> **Aktuel WordPress-plugin: v0.2.2.** Efter repositoryet blev gjort offentligt, er GitHub-opdatering **tokenfri**. Den defekte v0.2.0 ZIP må ikke bruges. [Download v0.2.2](dist/hangar18-ai-stock-scanner-v0.2.2.zip) og se [den opdaterede installationsvejledning](docs/WORDPRESS-GITHUB-UPDATE.md). Tidligere afsnit om privat repository og v0.2.0 nedenfor er historiske.
+
+
 En **lokal, dansk aktiescanner** bygget i Python med Streamlit-dashboard, historiske kurser fra yfinance, teknisk score, SQLite-historik og valgfri lokal Ollama-analyse.
 
 **Ingen betalte API-nøgler er nødvendige.** Projektet udfører **ikke** automatisk handel og giver ikke personlige investeringsanbefalinger.
