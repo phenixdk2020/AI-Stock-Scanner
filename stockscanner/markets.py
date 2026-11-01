@@ -1,4 +1,4 @@
-"""Eksempelaktier fra de fem valgte markeder (ikke hele børsuniverset)."""
+"""Eksempelaktier fra ni børser. Noteringssted er ikke altid hjemland."""
 
 SAMPLES = {
     "Danmark": ("NOVO-B.CO", "DSV.CO", "VWS.CO", "MAERSK-B.CO"),
@@ -26,5 +26,16 @@ def market_of(ticker: str) -> str:
     return "USA" if "." not in ticker and not ticker.startswith("^") else "Andet/ukendt"
 
 
-def example_tickers(markets: list[str]) -> list[str]:
-    return [ticker for market in markets for ticker in SAMPLES[market]]
+ETF_SAMPLES = ("VWCE.DE", "EUNL.DE", "SXR8.DE", "VWRL.AS")
+
+
+def instrument_type_of(ticker: str) -> str:
+    """Kun eksplicit kendte ETF-symboler klassificeres automatisk."""
+    return "ETF" if ticker.upper() in ETF_SAMPLES else "Ukendt"
+
+
+def example_tickers(markets: list[str], include_etfs: bool = False) -> list[str]:
+    tickers = [ticker for market in markets for ticker in SAMPLES[market]]
+    if include_etfs:
+        tickers.extend(ETF_SAMPLES)
+    return list(dict.fromkeys(tickers))
