@@ -8,6 +8,7 @@ PORTFOLIO = PLUGIN / "includes" / "class-asc-portfolio.php"
 QUOTES = PLUGIN / "includes" / "class-asc-market-quotes.php"
 MAIN = PLUGIN / "hangar18-ai-stock-scanner.php"
 WATCHLIST = PLUGIN / "includes" / "class-asc-watchlist.php"
+FX = PLUGIN / "includes" / "class-asc-fx-rates.php"
 
 
 class PortfolioContractTests(unittest.TestCase):
@@ -140,6 +141,25 @@ class PortfolioContractTests(unittest.TestCase):
         self.assertIn("self::redirect('invalid_quantity')", code)
         self.assertIn("self::redirect('invalid_buy_price')", code)
         self.assertIn("self::redirect('invalid_current_price')", code)
+
+    def test_paid_dkk_field_converts_invested_value_and_profit(self):
+        portfolio = PORTFOLIO.read_text(encoding="utf-8")
+        fx = FX.read_text(encoding="utf-8")
+        main = MAIN.read_text(encoding="utf-8")
+        for needle in (
+            "asc_paid_dkk", "invalid_paid_dkk", "calculate_dkk_values(",
+            "Betalt i alt (DKK)", "Faktisk betalt beløb", "Effektiv kurs ved køb",
+            "DKK afkast", "value_dkk", "invested_dkk", "profit_dkk",
+            "used_purchase_fx_fallback", "estimated_invested_dkk",
+            "Betalt i alt DKK", "asc-dkk-summary",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, portfolio)
+        self.assertIn("ASC_FX_Rates::to_dkk($currency)", portfolio)
+        self.assertIn("rate_from_snapshot(", fx)
+        self.assertIn("eurofxref-daily.xml", fx)
+        self.assertIn("class-asc-fx-rates.php", main)
+        self.assertTrue((ROOT / "tests/wp_portfolio_dkk.php").exists())
 
     def test_yahoo_is_optional_and_rate_limited(self):
         source = QUOTES.read_text(encoding="utf-8")
