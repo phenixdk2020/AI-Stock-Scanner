@@ -374,6 +374,7 @@ final class ASC_Portfolio {
         $sections = [
             'overview' => ['Overblik', '⌂'],
             'portfolio' => ['Min portefølje', '▣'],
+            'stocks' => ['Danske aktier', '⌕'],
             'watchlist' => ['Watchlist', '☆'],
             'scanner' => ['Aktiescanner', '▤'],
             'analysis' => ['Analyse', '◷'],
@@ -434,6 +435,8 @@ final class ASC_Portfolio {
             }
         } elseif ($view === 'portfolio') {
             echo self::markup();
+        } elseif ($view === 'stocks') {
+            echo ASC_Danish_Catalog::render();
         } elseif ($view === 'watchlist') {
             echo ASC_Watchlist::render();
         } elseif ($view === 'scanner') {
@@ -780,9 +783,19 @@ final class ASC_Portfolio {
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="asc_portfolio_add">';
         wp_nonce_field('asc_portfolio_add');
+        $suggested_ticker = isset($_GET['asc_ticker']) && is_string($_GET['asc_ticker'])
+            ? strtoupper(sanitize_text_field(wp_unslash($_GET['asc_ticker']))) : '';
+        $suggested_name = isset($_GET['asc_name']) && is_string($_GET['asc_name'])
+            ? sanitize_text_field(wp_unslash($_GET['asc_name'])) : '';
+        if (preg_match('/^[A-Z0-9^][A-Z0-9.^=-]{0,19}$/D', $suggested_ticker) !== 1) {
+            $suggested_ticker = '';
+        }
+        $suggested_name = function_exists('mb_substr')
+            ? mb_substr($suggested_name, 0, 80) : substr($suggested_name, 0, 80);
         echo '<label>Ticker (Yahoo-symbol)<input type="text" name="asc_ticker" maxlength="20" '
-            . 'placeholder="NOBI.ST, VWCE.DE eller ASML.AS" required></label>';
-        echo '<label>Navn (valgfrit)<input type="text" name="asc_label" maxlength="80" placeholder="F.eks. Nobia"></label>';
+            . 'placeholder="NOBI.ST, HARB-B.CO eller ASML.AS" value="'
+            . esc_attr($suggested_ticker) . '" required></label>';
+        echo '<label>Navn (valgfrit)<input type="text" name="asc_label" maxlength="80" placeholder="F.eks. Harboe" value="' . esc_attr($suggested_name) . '"></label>';
         echo '<label>Instrumenttype<select name="asc_instrument_type"><option value="Aktie">Aktie</option><option value="ETF">ETF</option></select></label>';
         echo '<label>Antal aktier (heltal)<input type="number" name="asc_quantity" inputmode="numeric" min="1" max="1000000000" step="1" placeholder="100" required></label>';
         echo '<label>Købskurs pr. aktie<input type="text" name="asc_buy_price" inputmode="decimal" placeholder="12,50" required></label>';
