@@ -81,13 +81,21 @@ final class ASC_Portfolio {
             && $date <= wp_date('Y-m-d');
     }
 
+    /** One-time per-user status. Avoid stale query-string errors after reload or upgrade. */
+    private static function flash_key(): string {
+        return 'asc_portfolio_flash_' . get_current_user_id();
+    }
+
     private static function redirect(string $status): void {
+        // The previous query-string status remained visible forever on refresh.
+        // Flash notices are consumed once by markup(), then removed.
+        set_transient(self::flash_key(), $status, 180);
         $referer = wp_get_referer();
         $url = is_string($referer) && $referer !== ''
             ? wp_validate_redirect($referer, home_url('/'))
             : home_url('/');
         $url = remove_query_arg('asc_portfolio_status', $url);
-        wp_safe_redirect(add_query_arg('asc_portfolio_status', $status, $url) . '#asc-portfolio');
+        wp_safe_redirect($url . '#asc-portfolio');
         exit;
     }
 
@@ -366,14 +374,17 @@ final class ASC_Portfolio {
         ob_start();
         echo '<section id="asc-portfolio" class="asc-portfolio">';
         echo '<div class="asc-section-title"><h2>Min portefølje</h2><p>Kun du kan se og ændre dine køb.</p></div>';
-        $status = isset($_GET['asc_portfolio_status']) && is_string($_GET['asc_portfolio_status'])
-            ? sanitize_key($_GET['asc_portfolio_status']) : '';
+        // Do not replay a previous '?asc_portfolio_status=invalid' bookmark or cache.
+        // Only a POST in this user's current session can create a fresh notice.
+        $status = get_transient(self::flash_key());
+        delete_transient(self::flash_key());
+        $status = is_string($status) ? sanitize_key($status) : '';
         $messages = [
             'added' => 'Aktiekøbet er gemt og verificeret i WordPress.',
             'deleted' => 'Beholdningen er slettet.',
             'priced' => 'Din manuelle kurs er opdateret.',
             'edited' => 'Antal og købskurs er opdateret.',
-            'invalid' => 'Et felt er ugyldigt. Kontrollér at antal aktier er et heltal, og at kurserne er positive tal.',
+            'invalid' => 'En ældre handling blev afvist. Prøv igen, så vises det præcise felt, der skal rettes.',
             'invalid_ticker' => 'Aktiesymbolet er ugyldigt. Brug fx NOVO-B.CO, SAP.DE eller MSFT (uden mellemrum).',
             'invalid_currency' => 'Valutaen skal være DKK, SEK, NOK, EUR eller USD.',
             'invalid_quantity' => 'Antal aktier skal være et positivt heltal, fx 10 eller 1.000. Ingen decimaler eller kr. i antal-feltet.',
