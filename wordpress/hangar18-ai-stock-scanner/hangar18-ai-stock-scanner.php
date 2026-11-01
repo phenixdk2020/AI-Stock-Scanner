@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.2.3
+ * Version: 0.2.4
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,8 +14,12 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.2.3');
+define('ASC_PLUGIN_VERSION', '0.2.4');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
+
+// Must initialize before user-profile / REST authentication determines HTTPS.
+require_once __DIR__ . '/includes/class-asc-https-proxy.php';
+ASC_HTTPS_Proxy::bootstrap();
 
 register_activation_hook(__FILE__, 'asc_activate');
 function asc_activate(): void {
@@ -250,6 +254,7 @@ function asc_admin_connection(): void {
     echo ' og opret et Application Password på denne brugers profil. Brug aldrig en administrator-konto til synkronisering.</p>';
     echo '<p>REST endpoint: <code>' . esc_html(rest_url('ai-stock-scanner/v1/snapshot')) . '</code></p>';
     echo '<p>PC\'ens Python-scanner sender data over HTTPS. Ingen lokal Ollama-port skal åbnes mod internettet.</p>';
+    ASC_HTTPS_Proxy::render_panel();
     echo '<p>Se installationsvejledningen i projektets GitHub-repository.</p>';
     echo '</div>';
 }
