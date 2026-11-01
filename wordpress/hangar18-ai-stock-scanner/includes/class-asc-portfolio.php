@@ -370,6 +370,10 @@ final class ASC_Portfolio {
         }
         $totals = [];
         $position_counts = [];
+        $dkk_totals = ['cost' => 0.0, 'value' => 0.0, 'positions' => 0];
+        $fx_missing = 0;
+        $fx_source_date = '';
+        $fx_stale = false;
         $priced_count = 0;
         ob_start();
         echo '<section id="asc-portfolio" class="asc-portfolio">';
@@ -457,7 +461,27 @@ final class ASC_Portfolio {
                 echo '<td>' . self::amount($value) . ' ' . esc_html($currency) . '</td>';
                 echo '<td class="' . esc_attr($class) . '">' . ($pnl > 0 ? '+' : '')
                     . self::amount($pnl) . ' ' . esc_html($currency) . '<div>'
-                    . ($pct > 0 ? '+' : '') . self::amount($pct) . '%</div></td>';
+                    . ($pct > 0 ? '+' : '') . self::amount($pct) . '%</div>';
+                $fx = ASC_FX_Rates::to_dkk($currency);
+                if ($fx !== null) {
+                    $multiplier = (float)$fx['rate'];
+                    $dkk_gain = $pnl * $multiplier;
+                    $dkk_totals['cost'] += $basis * $multiplier;
+                    $dkk_totals['value'] += $value * $multiplier;
+                    $dkk_totals['positions']++;
+                    if ($currency !== 'DKK') {
+                        $fx_source_date = (string)$fx['source_date'];
+                        $fx_stale = $fx_stale || !empty($fx['stale']);
+                        echo '<div class="asc-dkk-gain">≈ ' . ($dkk_gain > 0 ? '+' : '')
+                            . self::amount($dkk_gain) . ' DKK'
+                            . '<small>Omregnet med ECB-kurs ' . esc_html($fx_source_date)
+                            . (!empty($fx['stale']) ? ' (cache)' : '') . '</small></div>';
+                    }
+                } else {
+                    $fx_missing++;
+                    echo '<div class="asc-fx-unavailable">DKK: — (valutakurs mangler)</div>';
+                }
+                echo '</td>';
                 if (!isset($totals[$currency])) { $totals[$currency] = ['cost' => 0.0, 'value' => 0.0]; }
                 $totals[$currency]['cost'] += $basis;
                 $totals[$currency]['value'] += $value;
@@ -496,8 +520,10 @@ final class ASC_Portfolio {
         }
         echo '</tbody></table></div>';
         echo '<p class="asc-disclaimer">Porteføljeberegninger er før kurtage, skat og udbytte. '
-            . 'Beløb i forskellige valutaer lægges ikke sammen uden en valutakurs. '
-            . 'Kun beholdninger med kendt kurs indgår i summerne.</p>';
+            . 'Den omregnede DKK-gevinst bruger samme seneste valutakurs på købsbeløbet '
+            . 'og den aktuelle værdi. Den inkluderer derfor IKKE valutakursændringer siden køb '
+            . 'og er ikke dit faktiske DKK-afkast, hvis der er købt aktier i en anden valuta. '
+            . 'Kun beholdninger med kendt aktiekurs og valutakurs indgår i DKK-summen.</p>';
         if ($totals) {
             echo '<div class="asc-metrics asc-portfolio-summary">';
             foreach ($totals as $currency => $summary) {
@@ -513,6 +539,39 @@ final class ASC_Portfolio {
                     . self::amount($pct) . '%)</span></div>';
             }
             echo '</div>';
+        }
+        if ($dkk_totals['positions'] > 0) {
+            $gain_dkk = $dkk_totals['value'] - $dkk_totals['cost'];
+            $percent_dkk = $dkk_totals['cost'] > 0
+                ? 100 * $gain_dkk / $dkk_totals['cost'] : 0;
+            echo '<section class="asc-dkk-summary" aria-label="Samlet portefølje omregnet til danske kroner">';
+            echo '<h3>Samlet portefølje i DKK'
+                . ($fx_missing > 0 || $priced_count < count($positions) ? ' (delvis)' : '')
+                . '</h3>';
+            echo '<div class="asc-dkk-grid">';
+            echo '<div><span>Porteføljeværdi</span><strong>'
+                . self::amount($dkk_totals['value']) . ' DKK</strong></div>';
+            echo '<div><span>Investeret (omregnet)</span><strong>'
+                . self::amount($dkk_totals['cost']) . ' DKK</strong></div>';
+            echo '<div><span>Gevinst/tab (omregnet)</span><strong class="'
+                . esc_attr($gain_dkk >= 0 ? 'asc-positive' : 'asc-negative') . '">'
+                . ($gain_dkk > 0 ? '+' : '') . self::amount($gain_dkk) . ' DKK</strong>'
+                . '<span>' . ($percent_dkk > 0 ? '+' : '')
+                . self::amount($percent_dkk) . '%</span></div>';
+            echo '</div>';
+            if ($fx_source_date !== '') {
+                echo '<p class="asc-disclaimer">Valutakurser: Den Europæiske Centralbank (ECB), '
+                    . 'referencedato ' . esc_html($fx_source_date)
+                    . ($fx_stale ? ' (senest gemte referencekurs)' : '') . '. '
+                    . 'ECB-kurser offentliggøres normalt én gang på bankdage, ikke hvert 15. minut. '
+                    . 'Omregningen er vejledende og medregner ikke historiske valutakursændringer.</p>';
+            }
+            echo '</section>';
+        }
+        if ($fx_missing > 0) {
+            echo '<p class="asc-warning">DKK-omregning mangler for '
+                . esc_html((string)$fx_missing) . ' beholdning(er): Der er ingen gyldig '
+                . 'ECB-referencekurs tilgængelig. De indgår ikke i den samlede DKK-værdi.</p>';
         }
         if ($priced_count < count($positions)) {
             echo '<p class="asc-warning">Nogle aktier mangler kurs. Deres gevinst/tab er ikke beregnet endnu.</p>';
