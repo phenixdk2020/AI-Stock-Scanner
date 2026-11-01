@@ -428,6 +428,8 @@ final class ASC_Portfolio {
         $fx_missing = 0;
         $fx_source_date = '';
         $fx_stale = false;
+        $fx_estimated_count = 0;
+        $estimated_cost_count = 0;
         $priced_count = 0;
         ob_start();
         echo '<section id="asc-portfolio" class="asc-portfolio">';
@@ -482,6 +484,16 @@ final class ASC_Portfolio {
             $cost = (float)($p['buy_price'] ?? 0);
             if ($quantity <= 0 || $cost <= 0) { continue; }
             $basis = $quantity * $cost;
+            $paid_dkk = is_numeric($p['paid_dkk'] ?? null)
+                && (float)$p['paid_dkk'] > 0 ? (float)$p['paid_dkk'] : null;
+            $fx = ASC_FX_Rates::to_dkk($currency);
+            $latest_rate = $fx !== null ? (float)$fx['rate'] : null;
+            // Paid DKK is the exact entered cash outlay. Without it, invested
+            // DKK is an estimate at the latest available reference FX rate.
+            $invested_dkk = $paid_dkk ?? ($latest_rate !== null
+                ? $basis * $latest_rate : null);
+            $purchase_rate = $paid_dkk !== null && $basis > 0
+                ? $paid_dkk / $basis : null;
             $quote = $quotes[$ticker] ?? null;
             $price = null;
             $label = '';
@@ -507,34 +519,69 @@ final class ASC_Portfolio {
             echo '<td>' . self::share_count($quantity) . ' stk.</td><td>' . self::amount($cost) . ' ' . esc_html($currency) . '</td>';
             echo '<td>' . ($price !== null ? self::amount($price) . ' ' . esc_html($currency) : '—')
                 . '<div class="asc-subtle">' . esc_html($label) . '</div></td>';
-            echo '<td>' . self::amount($basis) . ' ' . esc_html($currency) . '</td>';
+            echo '<td>' . self::amount($basis) . ' ' . esc_html($currency);
+            if ($invested_dkk !== null) {
+                echo '<div class="asc-dkk-detail">'
+                    . ($paid_dkk === null ? '≈ ' : '')
+                    . self::amount($invested_dkk) . ' DKK'
+                    . '<small>' . ($paid_dkk !== null ? 'Faktisk betalt beløb'
+                        : 'Anslået med seneste ECB-kurs') . '</small></div>';
+            } else {
+                echo '<div class="asc-fx-unavailable">DKK: ikke tilgængelig</div>';
+            }
+            if ($purchase_rate !== null && $currency !== 'DKK') {
+                echo '<div class="asc-subtle">Effektiv kurs ved køb: 1 '
+                    . esc_html($currency) . ' = '
+                    . self::amount($purchase_rate) . ' DKK (inkl. evt. omkostninger)</div>';
+            }
+            echo '</td>';
             if ($price !== null) {
                 $value = $quantity * $price;
                 $pnl = $value - $basis;
                 $pct = 100 * ($price / $cost - 1);
                 $class = $pnl >= 0 ? 'asc-positive' : 'asc-negative';
-                echo '<td>' . self::amount($value) . ' ' . esc_html($currency) . '</td>';
+                $dkk = self::calculate_dkk_values($quantity, $cost, $price,
+                    $currency, $paid_dkk, $latest_rate);
+                echo '<td>' . self::amount($value) . ' ' . esc_html($currency);
+                if ($dkk !== null) {
+                    echo '<div class="asc-dkk-detail">'
+                        . (!empty($dkk['used_purchase_fx_fallback']) ? '≈ ' : '')
+                        . self::amount((float)$dkk['value_dkk']) . ' DKK'
+                        . '<small>' . (!empty($dkk['used_purchase_fx_fallback'])
+                            ? 'Skøn med købstidspunktets effektive kurs'
+                            : 'Aktuel værdi omregnet til DKK') . '</small></div>';
+                } else {
+                    echo '<div class="asc-fx-unavailable">Værdi i DKK: —</div>';
+                }
+                echo '</td>';
                 echo '<td class="' . esc_attr($class) . '">' . ($pnl > 0 ? '+' : '')
                     . self::amount($pnl) . ' ' . esc_html($currency) . '<div>'
-                    . ($pct > 0 ? '+' : '') . self::amount($pct) . '%</div>';
-                $fx = ASC_FX_Rates::to_dkk($currency);
-                if ($fx !== null) {
-                    $multiplier = (float)$fx['rate'];
-                    $dkk_gain = $pnl * $multiplier;
-                    $dkk_totals['cost'] += $basis * $multiplier;
-                    $dkk_totals['value'] += $value * $multiplier;
+                    . ($pct > 0 ? '+' : '') . self::amount($pct) . '% kursændring</div>';
+                if ($dkk !== null) {
+                    $gain_dkk = (float)$dkk['profit_dkk'];
+                    $percent_dkk = (float)$dkk['invested_dkk'] > 0
+                        ? $gain_dkk / (float)$dkk['invested_dkk'] * 100 : 0;
+                    $dkk_totals['cost'] += (float)$dkk['invested_dkk'];
+                    $dkk_totals['value'] += (float)$dkk['value_dkk'];
                     $dkk_totals['positions']++;
-                    if ($currency !== 'DKK') {
+                    if (!empty($dkk['used_purchase_fx_fallback'])) { $fx_estimated_count++; }
+                    if (!empty($dkk['estimated_invested_dkk'])) { $estimated_cost_count++; }
+                    if ($fx !== null && $currency !== 'DKK') {
                         $fx_source_date = (string)$fx['source_date'];
                         $fx_stale = $fx_stale || !empty($fx['stale']);
-                        echo '<div class="asc-dkk-gain">≈ ' . ($dkk_gain > 0 ? '+' : '')
-                            . self::amount($dkk_gain) . ' DKK'
-                            . '<small>Omregnet med ECB-kurs ' . esc_html($fx_source_date)
-                            . (!empty($fx['stale']) ? ' (cache)' : '') . '</small></div>';
                     }
+                    echo '<div class="asc-dkk-gain">'
+                        . (!empty($dkk['used_purchase_fx_fallback']) || !empty($dkk['estimated_invested_dkk'])
+                            ? '≈ ' : '')
+                        . ($gain_dkk > 0 ? '+' : '') . self::amount($gain_dkk) . ' DKK'
+                        . '<small>' . ($percent_dkk > 0 ? '+' : '')
+                        . self::amount($percent_dkk) . '%'
+                        . (!empty($dkk['used_purchase_fx_fallback'])
+                            ? ' · skøn med købskurs' : ' · DKK afkast')
+                        . '</small></div>';
                 } else {
                     $fx_missing++;
-                    echo '<div class="asc-fx-unavailable">DKK: — (valutakurs mangler)</div>';
+                    echo '<div class="asc-fx-unavailable">DKK: — (mangler valutakurs og betalt DKK)</div>';
                 }
                 echo '</td>';
                 if (!isset($totals[$currency])) { $totals[$currency] = ['cost' => 0.0, 'value' => 0.0]; }
@@ -553,6 +600,8 @@ final class ASC_Portfolio {
             wp_nonce_field('asc_portfolio_edit');
             echo '<label>Antal aktier (heltal) <input name="asc_quantity" type="number" inputmode="numeric" min="1" max="1000000000" step="1" value="' . esc_attr((string)$quantity) . '" required></label>';
             echo '<label>Købskurs <input name="asc_buy_price" type="text" inputmode="decimal" value="' . esc_attr((string)$cost) . '" required></label>';
+            echo '<label>Betalt i alt (DKK) <input name="asc_paid_dkk" type="text" inputmode="decimal" placeholder="Fx 12.345,67" value="'
+                . esc_attr($paid_dkk !== null ? number_format($paid_dkk, 2, ',', '.') : '') . '"></label>';
             echo '<button type="submit">Gem beholdning</button></form>';
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="asc-inline-form">';
             echo '<input type="hidden" name="action" value="asc_portfolio_price">';
@@ -574,11 +623,13 @@ final class ASC_Portfolio {
             }
         }
         echo '</tbody></table></div>';
-        echo '<p class="asc-disclaimer">Porteføljeberegninger er før kurtage, skat og udbytte. '
-            . 'Den omregnede DKK-gevinst bruger samme seneste valutakurs på købsbeløbet '
-            . 'og den aktuelle værdi. Den inkluderer derfor IKKE valutakursændringer siden køb '
-            . 'og er ikke dit faktiske DKK-afkast, hvis der er købt aktier i en anden valuta. '
-            . 'Kun beholdninger med kendt aktiekurs og valutakurs indgår i DKK-summen.</p>';
+        echo '<p class="asc-disclaimer">Angiv gerne det faktiske beløb betalt i DKK ved hvert køb '
+            . '(også kurtage, hvis det er med i beløbet). Så bliver investeret DKK præcist '
+            . 'som indtastet, og den effektive købskurs beregnes automatisk. '
+            . 'Nuværende værdi beregnes med seneste tilgængelige ECB-valutakurs. '
+            . 'Hvis den ikke kan hentes, bruges den beregnede købskurs alene som et tydeligt skøn. '
+            . 'Uden betalt DKK er investeret DKK anslået med seneste valutakurs. '
+            . 'Beløbene er før evt. skat og udbytte.</p>';
         if ($totals) {
             echo '<div class="asc-metrics asc-portfolio-summary">';
             foreach ($totals as $currency => $summary) {
@@ -602,13 +653,14 @@ final class ASC_Portfolio {
             echo '<section class="asc-dkk-summary" aria-label="Samlet portefølje omregnet til danske kroner">';
             echo '<h3>Samlet portefølje i DKK'
                 . ($fx_missing > 0 || $priced_count < count($positions) ? ' (delvis)' : '')
+                . ($fx_estimated_count > 0 || $estimated_cost_count > 0 ? ' (inkl. skøn)' : '')
                 . '</h3>';
             echo '<div class="asc-dkk-grid">';
             echo '<div><span>Porteføljeværdi</span><strong>'
                 . self::amount($dkk_totals['value']) . ' DKK</strong></div>';
-            echo '<div><span>Investeret (omregnet)</span><strong>'
+            echo '<div><span>Investeret (faktisk beløb eller skøn)</span><strong>'
                 . self::amount($dkk_totals['cost']) . ' DKK</strong></div>';
-            echo '<div><span>Gevinst/tab (omregnet)</span><strong class="'
+            echo '<div><span>Gevinst/tab i DKK</span><strong class="'
                 . esc_attr($gain_dkk >= 0 ? 'asc-positive' : 'asc-negative') . '">'
                 . ($gain_dkk > 0 ? '+' : '') . self::amount($gain_dkk) . ' DKK</strong>'
                 . '<span>' . ($percent_dkk > 0 ? '+' : '')
@@ -619,9 +671,19 @@ final class ASC_Portfolio {
                     . 'referencedato ' . esc_html($fx_source_date)
                     . ($fx_stale ? ' (senest gemte referencekurs)' : '') . '. '
                     . 'ECB-kurser offentliggøres normalt én gang på bankdage, ikke hvert 15. minut. '
-                    . 'Omregningen er vejledende og medregner ikke historiske valutakursændringer.</p>';
+                    . 'Betalt i alt (DKK) bruges som historisk købsbeløb, når det er oplyst.</p>';
             }
             echo '</section>';
+        }
+        if ($fx_estimated_count > 0) {
+            echo '<p class="asc-warning">For ' . esc_html((string)$fx_estimated_count)
+                . ' beholdning(er) er dagens DKK-værdi et skøn baseret på den effektive valutakurs ved køb. '
+                . 'Denne beregning omfatter ikke kursændringer i valuta siden købet.</p>';
+        }
+        if ($estimated_cost_count > 0) {
+            echo '<p class="asc-warning">For ' . esc_html((string)$estimated_cost_count)
+                . ' beholdning(er) mangler "Betalt i alt (DKK)". '
+                . 'Investeret DKK er derfor kun et skøn. Udfyld beløbet under Opdater.</p>';
         }
         if ($fx_missing > 0) {
             echo '<p class="asc-warning">DKK-omregning mangler for '
@@ -640,6 +702,7 @@ final class ASC_Portfolio {
         echo '<label>Navn (valgfrit)<input type="text" name="asc_label" maxlength="80" placeholder="F.eks. Nobia"></label>';
         echo '<label>Antal aktier (heltal)<input type="number" name="asc_quantity" inputmode="numeric" min="1" max="1000000000" step="1" placeholder="100" required></label>';
         echo '<label>Købskurs pr. aktie<input type="text" name="asc_buy_price" inputmode="decimal" placeholder="12,50" required></label>';
+        echo '<label>Betalt i alt (DKK, valgfrit)<input type="text" name="asc_paid_dkk" inputmode="decimal" placeholder="Fx 12.345,67"></label>';
         echo '<label>Aktuel kurs (valgfrit, manuel)<input type="text" name="asc_initial_price" inputmode="decimal" placeholder="13,25"></label>';
         echo '<label>Valuta<select name="asc_currency">';
         foreach (['DKK', 'SEK', 'NOK', 'EUR', 'USD'] as $currency) {
