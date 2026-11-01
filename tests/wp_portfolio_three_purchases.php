@@ -40,12 +40,13 @@ function update_user_meta(int $id, string $key, array $value): bool {
 require_once __DIR__ . '/../wordpress/hangar18-ai-stock-scanner/includes/class-asc-portfolio.php';
 
 if (($argv[1] ?? '') === 'child') {
-    if (count($argv) < 5 || count($argv) > 6) { exit(2); }
+    if (count($argv) < 5 || count($argv) > 7) { exit(2); }
     $GLOBALS['fixture'] = $argv[2];
     $_POST = [
         'asc_ticker' => $argv[3],
         'asc_label' => $argv[4],
         'asc_quantity' => $argv[5] ?? '10',
+        'asc_paid_dkk' => $argv[6] ?? '',
         'asc_buy_price' => '120,50',
         'asc_initial_price' => '131,25',
         'asc_currency' => 'DKK',
@@ -116,7 +117,19 @@ try {
         || (int)($check[3]['quantity'] ?? 0) !== 1000) {
         throw new RuntimeException('1.000 was not accepted as one thousand shares');
     }
-    echo "PASS: 3 independent buys, fractional quantities rejected, 1.000 stored as 1000.\n";
+    // Newly entered total cash paid in DKK is stored on the specific purchase lot.
+    $args = [escapeshellarg(PHP_BINARY), escapeshellarg(__FILE__), 'child',
+        escapeshellarg($temp), escapeshellarg('AAPL'),
+        escapeshellarg('Purchase cost DKK'), escapeshellarg('10'),
+        escapeshellarg('1.520,25')];
+    $output = []; $status = -1;
+    exec(implode(' ', $args) . ' 2>&1', $output, $status);
+    $check = json_decode((string)file_get_contents($temp), true);
+    if ($status !== 0 || count($check) !== 5
+        || abs((float)($check[4]['paid_dkk'] ?? 0) - 1520.25) > 0.00001) {
+        throw new RuntimeException('New purchase did not save actual paid DKK');
+    }
+    echo "PASS: 3 independent buys; fractional shares rejected; paid DKK persisted per purchase.\n";
 } finally {
     @unlink($temp);
 }
