@@ -3,16 +3,15 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) { exit; }
 
 /**
- * GitHub-opdatering til privat repository – ingen token i browser eller URL.
- * Token indstilles KUN i wp-config.php: define('ASC_GITHUB_TOKEN', 'github_pat_...');
- * Kræver GitHub fine-grained Contents: Read-only for dette ene repository.
+ * GitHub-opdatering fra offentligt repository – token ikke nødvendig.
+ * Beskytter installation med SHA-256, version, pluginidentitet og ZIP-kontrol.
  */
 final class ASC_GitHub_Updater {
     public const PLUGIN = 'hangar18-ai-stock-scanner/hangar18-ai-stock-scanner.php';
     private const SLUG = 'hangar18-ai-stock-scanner';
     private const REPO = 'https://github.com/phenixdk2020/AI-Stock-Scanner';
-    private const API = 'https://api.github.com/repos/phenixdk2020/AI-Stock-Scanner/contents/';
-    private const CACHE = 'asc_github_manifest_v2';
+    private const RAW = 'https://raw.githubusercontent.com/phenixdk2020/AI-Stock-Scanner/main/';
+    private const CACHE = 'asc_github_manifest_v3';
     private static bool $was_active = false;
     private static bool $was_network_active = false;
     private static string $last_error = '';
@@ -30,11 +29,6 @@ final class ASC_GitHub_Updater {
         add_action('admin_post_asc_github_install', [self::class, 'install_now']);
     }
 
-    public static function configured(): bool {
-        return defined('ASC_GITHUB_TOKEN')
-            && is_string(ASC_GITHUB_TOKEN)
-            && strlen(trim(ASC_GITHUB_TOKEN)) >= 20;
-    }
     private static function error(string $message): void {
         self::$last_error = $message;
         set_transient('asc_github_update_error_' . get_current_user_id(), $message, 15 * MINUTE_IN_SECONDS);
@@ -46,42 +40,27 @@ final class ASC_GitHub_Updater {
         delete_site_transient(self::CACHE);
     }
 
-    /** GitHub contents API returns base64 data; no public/raw URL or redirect needed. */
+    /** Public raw GitHub download; strict repository path, no redirects or token. */
     private static function github_file(string $path, int $max_bytes) {
-        if (!self::configured()) {
-            return new WP_Error('asc_token', 'GitHub-token mangler i wp-config.php.');
-        }
         if (!preg_match('~^(?:update\\.json|dist/hangar18-ai-stock-scanner-v[0-9]+\\.[0-9]+\\.[0-9]+\\.zip)$~D', $path)) {
             return new WP_Error('asc_untrusted_path', 'Uventet GitHub-filnavn.');
         }
-        $response = wp_safe_remote_get(self::API . $path . '?ref=main', [
-            'timeout' => 25,
+        $response = wp_safe_remote_get(self::RAW . $path, [
+            'timeout' => 30,
             'redirection' => 0,
-            'limit_response_size' => (int)($max_bytes * 1.5) + 8192,
-            'headers' => [
-                'Accept' => 'application/vnd.github+json',
-                'Authorization' => 'Bearer ' . trim(ASC_GITHUB_TOKEN),
-                'X-GitHub-Api-Version' => '2022-11-28',
-                'User-Agent' => 'Hangar18-AI-Stock-Scanner/' . ASC_PLUGIN_VERSION,
-            ],
+            'limit_response_size' => $max_bytes + 1,
+            'headers' => ['User-Agent' => 'Hangar18-AI-Stock-Scanner/' . ASC_PLUGIN_VERSION],
         ]);
         if (is_wp_error($response)) { return $response; }
         if ((int)wp_remote_retrieve_response_code($response) !== 200) {
-            return new WP_Error('asc_github_http', 'GitHub kan ikke læse filen (HTTP '
-                . (int)wp_remote_retrieve_response_code($response) . '). Kontrollér token/repository.');
+            return new WP_Error('asc_github_http', 'GitHub-download fejlede (HTTP '
+                . (int)wp_remote_retrieve_response_code($response) . ').');
         }
-        $body = json_decode((string)wp_remote_retrieve_body($response), true);
-        if (!is_array($body) || ($body['type'] ?? '') !== 'file'
-            || ($body['encoding'] ?? '') !== 'base64'
-            || !is_string($body['content'] ?? null)
-            || (int)($body['size'] ?? -1) > $max_bytes) {
-            return new WP_Error('asc_github_content', 'GitHub returnerede ikke gyldigt filindhold.');
+        $raw = (string)wp_remote_retrieve_body($response);
+        if ($raw === '' || strlen($raw) > $max_bytes) {
+            return new WP_Error('asc_github_size', 'GitHub-filen er tom eller for stor.');
         }
-        $decoded = base64_decode($body['content'], true);
-        if (!is_string($decoded) || strlen($decoded) > $max_bytes) {
-            return new WP_Error('asc_github_decode', 'GitHub-filen kunne ikke afkodes.');
-        }
-        return $decoded;
+        return $raw;
     }
     private static function valid_manifest($m): bool {
         if (!is_array($m)) { return false; }
@@ -92,7 +71,6 @@ final class ASC_GitHub_Updater {
             && ($m['package_path'] ?? '') === 'dist/' . self::SLUG . '-v' . $v . '.zip';
     }
     public static function manifest(bool $refresh = false): ?array {
-        if (!self::configured()) { return null; }
         if (!$refresh) {
             $cached = get_site_transient(self::CACHE);
             if (self::valid_manifest($cached)) { return $cached; }
@@ -108,7 +86,7 @@ final class ASC_GitHub_Updater {
         return $manifest;
     }
     private static function package_url(array $m): string {
-        return self::API . $m['package_path'] . '?ref=main';
+        return self::RAW . $m['package_path'];
     }
     private static function update_object(array $m): stdClass {
         $obj = new stdClass();
@@ -186,38 +164,59 @@ final class ASC_GitHub_Updater {
         if (!hash_equals((string)$m['sha256'], $digest)) {
             return new WP_Error('asc_bad_digest', 'GitHub ZIP SHA-256 matcher ikke manifestet.');
         }
-        if (!class_exists('ZipArchive')) {
-            return new WP_Error('asc_zip_missing', 'PHP ZipArchive er påkrævet for sikker opdatering.');
-        }
         $tmp = tempnam(get_temp_dir(), 'asc-wp-');
         if (!$tmp || file_put_contents($tmp, $zip_bytes) !== strlen($zip_bytes)) {
             if ($tmp) { @unlink($tmp); }
-            return new WP_Error('asc_tmp', 'Kan ikke skrive midlertidig opdateringsfil.');
+            return new WP_Error('asc_tmp', 'Kunne ikke oprette midlertidig ZIP.');
         }
-        $zip = new ZipArchive();
-        if ($zip->open($tmp) !== true) {
+        // Test using the same PclZip fallback as this hosting environment.
+        require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
+        $archive = new PclZip($tmp);
+        $listing = $archive->listContent();
+        if (!is_array($listing) || count($listing) < 2 || count($listing) > 250) {
             @unlink($tmp);
-            return new WP_Error('asc_zip_invalid', 'Opdateringspakken er ikke en gyldig ZIP.');
+            return new WP_Error('asc_bad_zip', 'WordPress kan ikke læse ZIP-arkivet.');
         }
-        $main = $zip->getFromName(self::PLUGIN);
-        $valid = is_string($main)
-            && preg_match('/^\\s*\\* Version:\\s*' . preg_quote($m['version'], '/') . '\\s*$/m', $main) === 1
-            && str_contains($main, 'Plugin Name: Hangar18 AI Stock Scanner')
-            && $zip->numFiles <= 250;
         $seen = [];
-        for ($i = 0; $i < $zip->numFiles && $valid; $i++) {
-            $name = $zip->getNameIndex($i);
-            $parts = explode('/', (string)$name);
-            $key = strtolower((string)$name);
-            if (isset($seen[$key]) || !str_starts_with((string)$name, self::SLUG . '/')
-                || str_contains((string)$name, '\\')
-                || in_array('..', $parts, true)) { $valid = false; }
+        $total = 0;
+        $has_main = false;
+        foreach ($listing as $entry) {
+            $name = (string)($entry['filename'] ?? '');
+            $parts = explode('/', $name);
+            $key = strtolower($name);
+            $size = (int)($entry['size'] ?? 0);
+            if ($name === '' || isset($seen[$key]) ||
+                !str_starts_with($name, self::SLUG . '/') ||
+                str_contains($name, '\\\\') || in_array('..', $parts, true) ||
+                $size < 0 || $size > 2097152) {
+                @unlink($tmp);
+                return new WP_Error('asc_zip_path', 'ZIP indeholder ugyldige filstier.');
+            }
             $seen[$key] = true;
+            $total += $size;
+            if ($name === self::PLUGIN) { $has_main = true; }
         }
-        $zip->close();
-        if (!$valid) {
+        if (!$has_main || $total > 2097152) {
             @unlink($tmp);
-            return new WP_Error('asc_zip_identity', 'ZIP-indhold, version eller mappestruktur er forkert.');
+            return new WP_Error('asc_zip_missing', 'Pluginfil mangler, eller ZIP er for stor.');
+        }
+        $extracted = $archive->extract(PCLZIP_OPT_EXTRACT_AS_STRING);
+        if (!is_array($extracted)) {
+            @unlink($tmp);
+            return new WP_Error('asc_zip_extract', 'PclZip kan ikke udpakke indholdet.');
+        }
+        $main = null;
+        foreach ($extracted as $entry) {
+            if (($entry['filename'] ?? '') === self::PLUGIN) {
+                $main = $entry['content'] ?? null;
+                break;
+            }
+        }
+        if (!is_string($main) ||
+            preg_match('/^\\s*\\* Version:\\s*' . preg_quote($m['version'], '/') . '\\s*$/m', $main) !== 1 ||
+            !str_contains($main, 'Plugin Name: Hangar18 AI Stock Scanner')) {
+            @unlink($tmp);
+            return new WP_Error('asc_zip_version', 'Pluginnavn eller version matcher ikke.');
         }
         return $tmp;
     }
@@ -321,7 +320,7 @@ final class ASC_GitHub_Updater {
             'installed' => 'Opdateringen blev installeret – aktiveringstilstand gendannet.',
             'available' => 'Der er en nyere GitHub-version.',
             'current' => 'Du har den nyeste version.',
-            'error' => 'GitHub-opdateringen mislykkedes. Se status og kontrollér token/rettigheder.',
+            'error' => 'GitHub-opdatering fejlede. Kontrollér netværk og manifest.',
         ];
         echo '<hr><h2>GitHub – Opdater plugin</h2>';
         if (isset($labels[$result])) {
@@ -329,14 +328,11 @@ final class ASC_GitHub_Updater {
                 . '"><p>' . esc_html($labels[$result]) . '</p></div>';
         }
         echo '<p>Installeret version: <strong>' . esc_html(ASC_PLUGIN_VERSION) . '</strong></p>';
-        if (!self::configured()) {
-            echo '<p><strong>GitHub-token mangler.</strong> Tilføj <code>define(\'ASC_GITHUB_TOKEN\', \'github_pat_...\');</code> i wp-config.php.';
-            echo ' Vælg kun dette private repository og Contents: Read-only.</p>';
-        } elseif ($m) {
+        if ($m) {
             echo '<p>Seneste GitHub-version: <strong>' . esc_html($m['version']) . '</strong> – '
                 . ($has_update ? 'ny version tilgængelig' : 'opdateret') . '</p>';
         } else {
-            echo '<p>GitHub-manifestet kunne ikke læses. Kontrollér token og update.json.</p>';
+            echo '<p>Kan ikke hente update.json fra det offentlige GitHub-repository.</p>';
         }
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="asc_github_check">';
@@ -355,6 +351,6 @@ final class ASC_GitHub_Updater {
         if (is_string($error) && $error !== '') {
             echo '<p><strong>Seneste fejl:</strong> ' . esc_html($error) . '</p>';
         }
-        echo '<p class="description">Kun administratorer kan opdatere. GitHub-token læses server-side og sendes ikke til browseren. Ingen automatisk cron-opdatering i denne version.</p>';
+        echo '<p class="description">Kun administratorer kan opdatere. Offentlig GitHub-opdatering kræver ingen token. Ingen automatisk cron-opdatering i denne version.</p>';
     }
 }
