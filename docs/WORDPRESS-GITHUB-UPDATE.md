@@ -1,5 +1,8 @@
 # AI Stock Scanner – offentlig GitHub-opdatering (v0.2.2)
 
+> **Nyeste version: v0.2.3 (2026-11-01).** Denne version flytter WordPress-administrationen til et synligt hovedmenupunkt **AI Stock Scanner** med undermenuerne **Oversigt**, **Opdateringer** og **Forbindelse**. Under Opdateringer bruges `Tjek GitHub-opdatering` og `Backup og opdater plugin`. Ældre beskrivelser af v0.2.2 og placeringen under **Værktøjer** er historiske. [Hent v0.2.3 ZIP](../dist/hangar18-ai-stock-scanner-v0.2.3.zip). Første opgradering kan foretages via **Plugins → Tilføj nyt → Upload plugin → Erstat nuværende**. Kontrollér at pluginet er aktivt bagefter.
+
+
 **Status 2026-11-01:** Repositoryet `phenixdk2020/AI-Stock-Scanner` er nu **offentligt**. Pluginet er opdateret til **v0.2.2** med tokenfri GitHub-opdatering og PclZip-kompatibel kontrol.
 
 ## Installer v0.2.2
