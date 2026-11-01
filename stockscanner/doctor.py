@@ -10,7 +10,6 @@ import json
 from urllib.error import URLError
 from urllib.request import urlopen
 
-from stockscanner.core import analyze_prices
 from stockscanner.markets import SAMPLES, market_of
 
 
@@ -27,6 +26,7 @@ def inspect_installation(live: bool = False, ollama: bool = False, model: str = 
         if live:
             try:
                 from stockscanner.market_data import fetch_history
+                from stockscanner.core import analyze_prices
                 prices, currency = fetch_history(ticker)
                 scan = analyze_prices(prices, ticker, currency)
                 record.update(status="ok", market_date=scan.market_date, currency=scan.currency)
