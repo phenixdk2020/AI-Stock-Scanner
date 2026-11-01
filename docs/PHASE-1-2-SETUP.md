@@ -1,5 +1,8 @@
 # AI-Stock-Scanner – fase 1 + 2: lokal motor og WordPress
 
+> **Aktuel opsætning v0.2.5:** Den nye scannerklient og WordPress-plugin understøtter sikker Application Password-godkendelse med alternativ header, når webhotellet fjerner normal Basic Authorization. [Download WordPress v0.2.5](../dist/hangar18-ai-stock-scanner-v0.2.5.zip). Opdater de lokale filer i `C:\AI-Stock-Scanner` via `git pull --ff-only`. Test: `.\.venv\Scripts\python.exe -m stockscanner.site_sync --check-auth`. `.htaccess` skal normalt ikke ændres. Ældre setupnoter nedenfor er historiske.
+
+
 > **OPDATERING 2026-11-01:** Brug **v0.2.2** i stedet for v0.1.0/v0.2.0. GitHub er nu **offentligt**; WordPress GitHub-updateren kræver **ikke** token. Den første v0.2.0 ZIP var fejlformateret. Hent [v0.2.2 ZIP](../dist/hangar18-ai-stock-scanner-v0.2.2.zip) og følg [den aktuelle GitHub-update-guide](WORDPRESS-GITHUB-UPDATE.md). Ældre installationsafsnit nedenfor er bevaret som historik.
 
 
