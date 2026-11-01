@@ -14,6 +14,8 @@ final class ASC_Market_Quotes {
     private const OPTION = 'asc_yahoo_quotes_opt_in';
     private const AGE = 900;  // 15 minutes between external requests per ticker.
     private const MAX_RESPONSE = 262144;
+    private const MAX_FETCH_PER_PAGE = 4;
+    private static int $fetches_this_page = 0;
 
     public static function enabled(): bool {
         return get_option(self::OPTION, 'no') === 'yes';
@@ -69,11 +71,15 @@ final class ASC_Market_Quotes {
         if (get_transient($cooldown) !== false) {
             return self::last_known($ticker);
         }
+        if (self::$fetches_this_page >= self::MAX_FETCH_PER_PAGE) {
+            return self::last_known($ticker);
+        }
+        self::$fetches_this_page++;
         set_transient($cooldown, 1, self::AGE);
         $url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
             . rawurlencode($ticker) . '?range=5d&interval=1d';
         $response = wp_safe_remote_get($url, [
-            'timeout' => 8,
+            'timeout' => 4,
             'redirection' => 0,
             'limit_response_size' => self::MAX_RESPONSE,
             'headers' => [
