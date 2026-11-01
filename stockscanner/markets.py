@@ -8,6 +8,8 @@ SAMPLES = {
     "USA": ("MSFT", "NVDA", "AAPL", "GOOGL"),
     "Frankrig": ("MC.PA", "OR.PA", "SAN.PA", "AIR.PA"),
     "Holland": ("ASML.AS", "INGA.AS", "AD.AS", "HEIA.AS"),
+    "Spanien": ("SAN.MC", "IBE.MC", "ITX.MC", "BBVA.MC"),
+    "Finland": ("NOKIA.HE", "KNEBV.HE", "FORTUM.HE", "SAMPO.HE"),
 }
 
 
