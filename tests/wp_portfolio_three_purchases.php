@@ -34,7 +34,7 @@ function update_user_meta(int $id, string $key, array $value): bool {
 require_once __DIR__ . '/../wordpress/hangar18-ai-stock-scanner/includes/class-asc-portfolio.php';
 
 if (($argv[1] ?? '') === 'child') {
-    if (count($argv) !== 6) { exit(2); }
+    if (count($argv) !== 5) { exit(2); }
     $GLOBALS['fixture'] = $argv[2];
     $_POST = [
         'asc_ticker' => $argv[3],
