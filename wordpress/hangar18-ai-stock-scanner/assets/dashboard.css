@@ -146,3 +146,23 @@
 .asc-catalog-admin form{margin:.8rem 0;display:flex;gap:.7rem;align-items:center;flex-wrap:wrap}
 .asc-catalog-admin input[type=file]{max-width:100%}
 @media(max-width:720px){.asc-catalog-admin form{display:block}.asc-catalog-admin button{margin-top:.6rem}}
+
+/* v0.5.2: Desktop navigation follows page scrolling.
+   The previous overflow:hidden on the grid clipped the sticky element. */
+@media(min-width:721px){
+  .asc-app-shell{overflow:visible;align-items:stretch}
+  .asc-app-sidebar{position:sticky;top:16px;align-self:start;
+    height:max-content;max-height:calc(100vh - 32px);overflow-y:auto;
+    overscroll-behavior:contain;scrollbar-width:thin;
+    border-radius:15px 0 0 15px;z-index:5}
+  .asc-app-content{min-width:0}
+}
+@media(max-width:720px){
+  .asc-app-mobile-menu{position:sticky;top:0;z-index:12}
+  .asc-app-mobile-menu[open]{max-height:min(85vh,720px);overflow-y:auto}
+}
+.asc-catalog-status{display:inline-block;font-size:.8rem;font-weight:700;
+  padding:.3rem .5rem;border-radius:6px;background:#e6f1fc;color:#174769}
+.asc-catalog-status.is-missing{background:#fff3d9;color:#804b0c}
+.asc-catalog-audit{margin:.8rem 0;border-left:4px solid #477eaa;background:#eef5fb;padding:.8rem}
+.asc-catalog-audit strong{font-weight:750}
