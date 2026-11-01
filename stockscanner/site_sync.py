@@ -1,0 +1,134 @@
+"""Sikker, eksplicit eksport af scannerens *egne scores* til WordPress.
+
+Bemærk datalicens: kør kun rigtige uploads, hvis brugeren har verificeret
+retten til at vise afledte markedsdata på den ønskede hjemmeside.
+Ingen direkte adgang til Ollama eller lokale filer fra WordPress.
+"""
+from __future__ import annotations
+
+import argparse
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import sqlite3
+from urllib.parse import urlsplit
+
+import requests
+
+from stockscanner.markets import market_of
+from stockscanner.storage import DB_PATH
+
+ENDPOINT = "/wp-json/ai-stock-scanner/v1/snapshot"
+MAX_ROWS = 25
+
+
+def build_snapshot(db_path: Path = DB_PATH, demo: bool = False) -> dict:
+    timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    if demo:
+        # Eksempel på udformning, ikke investeringsdata eller aktuelle markedsværdier.
+        return {
+            "schema_version": 1,
+            "generated_at": timestamp,
+            "mode": "demo",
+            "rows": [
+                {"ticker": "NOVO-B.CO", "market": "Danmark", "market_date": "2026-01-15",
+                 "score": 70, "signal": "Hold øje"},
+                {"ticker": "SAP.DE", "market": "Tyskland", "market_date": "2026-01-15",
+                 "score": 60, "signal": "Hold øje"},
+            ],
+        }
+    if not Path(db_path).exists():
+        raise ValueError("Ingen scanninger fundet. Kør scan_cli.py først.")
+    with sqlite3.connect(db_path) as conn:
+        rows = conn.execute(
+            """SELECT ticker, market_date, score, signal, scanned_at_utc
+               FROM scans ORDER BY scanned_at_utc DESC, id DESC"""
+        ).fetchall()
+    if not rows:
+        raise ValueError("Ingen scanninger fundet. Kør scan_cli.py først.")
+    latest = []
+    seen: set[str] = set()
+    # Seneste resultat pr. aktie, dog ikke flere end 25 på WordPress-dashboardet.
+    for ticker, market_date, score, signal, scanned_at in rows:
+        if ticker in seen:
+            continue
+        seen.add(ticker)
+        market = market_of(str(ticker))
+        if market not in {"Danmark", "Tyskland", "Sverige", "Norge", "USA"}:
+            continue
+        latest.append({
+            "ticker": str(ticker),
+            "market": market,
+            "market_date": str(market_date),
+            "score": int(score),
+            "signal": str(signal),
+        })
+        if len(latest) == MAX_ROWS:
+            break
+    if not latest:
+        raise ValueError("Ingen gyldige aktier fra de fem markeder i lokal SQLite.")
+    return {"schema_version": 1, "generated_at": timestamp, "mode": "research", "rows": latest}
+
+
+def make_endpoint(site_url: str) -> str:
+    site_url = site_url.rstrip("/")
+    parsed = urlsplit(site_url)
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+        raise ValueError("WordPress-adressen skal bruge HTTPS og må ikke indeholde login.")
+    if parsed.query or parsed.fragment or parsed.port not in (None, 443):
+        raise ValueError("Uventet query, fragment eller port i WordPress-adressen.")
+    return site_url + ENDPOINT
+
+
+def send_snapshot(payload: dict, site_url: str, username: str, app_password: str) -> dict:
+    endpoint = make_endpoint(site_url)
+    if not username.strip() or not app_password.strip():
+        raise ValueError("WordPress-brugernavn og Application Password mangler.")
+    response = requests.post(
+        endpoint,
+        json=payload,
+        auth=(username, app_password),
+        timeout=(8, 25),
+        allow_redirects=False,
+        headers={"User-Agent": "AI-Stock-Scanner/1.2"},
+    )
+    if response.status_code != 200:
+        raise RuntimeError("WordPress afviste overførslen (HTTP %s). Kontrollér rettigheder og endpoint."
+                           % response.status_code)
+    data = response.json()
+    if not isinstance(data, dict) or not data.get("ok"):
+        raise RuntimeError("WordPress returnerede ikke en gyldig kvittering.")
+    return data
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Eksport af researchresultater til WordPress")
+    parser.add_argument("--demo", action="store_true", help="Send kun tydeligt mærkede eksempelresultater")
+    parser.add_argument("--preview", action="store_true", help="Vis JSON lokalt uden at sende")
+    parser.add_argument("--confirm-data-rights", action="store_true",
+                        help="Bekræft at du har ret til at publicere de afledte markedsdata")
+    parser.add_argument("--db", type=Path, default=DB_PATH)
+    args = parser.parse_args()
+    if not args.demo and not args.preview and not args.confirm_data_rights:
+        parser.error("Rigtige uploads kræver --confirm-data-rights efter gennemgang af datalicens.")
+    try:
+        payload = build_snapshot(args.db, demo=args.demo)
+        if args.preview:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            receipt = send_snapshot(
+                payload,
+                os.environ.get("ASC_WP_SITE_URL", ""),
+                os.environ.get("ASC_WP_USER", ""),
+                os.environ.get("ASC_WP_APP_PASSWORD", ""),
+            )
+            print(json.dumps(receipt, ensure_ascii=False))
+        return 0
+    except (OSError, ValueError, RuntimeError, requests.RequestException, sqlite3.Error) as exc:
+        print("Fejl: " + str(exc))
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
