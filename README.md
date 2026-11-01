@@ -1,10 +1,18 @@
-# AI-Stock-Scanner — v0.5.1
+# AI-Stock-Scanner — v0.5.2
 
-**Aktuel WordPress-version: v0.5.1**. [Installations- og opdateringsvejledning](docs/WORDPRESS-GITHUB-UPDATE.md). Når releasen er udgivet på `main`, kan [ZIP-filen hentes her](dist/hangar18-ai-stock-scanner-v0.5.1.zip).
+**Aktuel WordPress-version: v0.5.2**. [Installations- og opdateringsvejledning](docs/WORDPRESS-GITHUB-UPDATE.md). Når releasen er udgivet på `main`, kan [ZIP-filen hentes her](dist/hangar18-ai-stock-scanner-v0.5.2.zip).
 
 Privat dansk WordPress-portefølje + lokal Python/Streamlit-scanner. Ingen ekstra betalte AI-API'er eller abonnementer kræves til grundfunktionerne. Markedsdata fra uofficielle kilder må kun anvendes efter kontrol af de relevante licensvilkår.
 
-## Nyt i WordPress v0.5.1
+## Nyt i WordPress v0.5.2
+
+- **Fast venstremenu** under scroll på desktop. På mobil en sammenfoldelig menu øverst.
+- Sikker opdatering af danske aktiers katalogstatus ved administrator-import af nyere, lovligt anvendelig CSV med kildedato. Et fuldt snapshot skal markeres eksplicit og have mindst 100 papirer. Antal nye, genfundne og ikke-genfundne papirer vises.
+- **Ingen automatisk sletning**, hverken af gamle katalogposter, porteføljer eller watchlists. "Ikke genfundet" betyder ikke "afnoteret".
+- Import af en delvis CSV tilføjer eller opdaterer uden at markere andre aktier som manglende. ISIN kan hjælpe med at identificere tickerændringer, når ISIN er oplyst.
+- Ingen direkte automatisk Nordnet/Yahoo-import: Nordnet API er ikke åbent for nye integrationer, og datarettigheder til redistribuering er ikke dokumenteret. Nasdaq tilbyder reference-data under særskilte rettigheder. Det medfølgende 2025-CC0-katalog er ikke aktuelt børsbevis.
+
+## Tidligere v0.5.1 funktion: Aktiesøgning
 
 - Ny sektion **Danske aktier** i venstremenuen. Søg efter navn, Nasdaq-symbol/Yahoo-kandidat, sektor og ISIN når tilgængeligt.
 - **141 danske aktiesymboler** fra et offentligt **CC0-referencedatasæt (september 2025)** følger med ZIP-filen. Listen fungerer offline fra første besøg og kan opdateres fra den åbne datakilde eller erstattes med en nyere, korrekt licenseret CSV under **Administrer aktiekatalog**.
