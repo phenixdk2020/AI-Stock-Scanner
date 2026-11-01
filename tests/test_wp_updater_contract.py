@@ -47,20 +47,21 @@ class UpdaterContractTests(unittest.TestCase):
     def test_secure_plugin_update_hooks(self):
         source = UPDATER.read_text(encoding="utf-8")
         for requirement in (
-            "ASC_GITHUB_TOKEN", "Authorization", "Bearer ",
-            "hash('sha256'", "hash_equals(", "ZipArchive",
+            "https://raw.githubusercontent.com/phenixdk2020/AI-Stock-Scanner/main/",
+            "hash('sha256'", "hash_equals(", "PclZip",
             "upgrader_pre_download", "upgrader_pre_install",
             "upgrader_post_install", "activate_plugin(",
             "is_plugin_active_for_network", "update_plugins_github.com",
             "check_admin_referer(", "current_user_can('update_plugins')",
             "redirection' => 0", "autoupdate' => false",
-            "GitHub-opdatering til privat repository",
+            "PCLZIP_OPT_EXTRACT_AS_STRING",
         ):
             with self.subTest(requirement=requirement):
                 self.assertIn(requirement, source)
         main = MAIN.read_text(encoding="utf-8")
         self.assertIn("ASC_GitHub_Updater::register()", main)
         self.assertIn("ASC_GitHub_Updater::render_panel()", main)
+        self.assertNotIn("ASC_GITHUB_TOKEN", source)
         self.assertNotIn("github_pat_", json.dumps(json.loads(MANIFEST.read_text())))
 
 
