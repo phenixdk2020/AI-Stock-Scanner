@@ -7,6 +7,7 @@ SAMPLES = {
     "Norge": ("EQNR.OL", "DNB.OL", "NHY.OL", "MOWI.OL"),
     "USA": ("MSFT", "NVDA", "AAPL", "GOOGL"),
     "Frankrig": ("MC.PA", "OR.PA", "SAN.PA", "AIR.PA"),
+    "Holland": ("ASML.AS", "INGA.AS", "AD.AS", "HEIA.AS"),
 }
 
 
