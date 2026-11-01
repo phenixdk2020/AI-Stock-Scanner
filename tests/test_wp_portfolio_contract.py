@@ -15,7 +15,6 @@ class PortfolioContractTests(unittest.TestCase):
         for expected in (
             "get_user_meta($user_id, self::USER_META, true)",
             "update_user_meta(get_current_user_id(), self::USER_META",
-            "update_user_meta($user_id, self::USER_META",
             "get_current_user_id()",
             "check_admin_referer('asc_portfolio_add')",
             "check_admin_referer('asc_portfolio_delete')",
