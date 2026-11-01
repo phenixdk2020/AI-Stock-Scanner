@@ -18,6 +18,8 @@ def market_of(ticker: str) -> str:
     for suffix, country in (
         (".CO", "Danmark"), (".DE", "Tyskland"),
         (".ST", "Sverige"), (".OL", "Norge"),
+        (".PA", "Frankrig"), (".AS", "Holland"),
+        (".MC", "Spanien"), (".HE", "Finland"),
     ):
         if ticker.endswith(suffix):
             return country
