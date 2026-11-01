@@ -1,10 +1,19 @@
-# AI-Stock-Scanner — v0.5.0
+# AI-Stock-Scanner — v0.5.1
 
-**Aktuel WordPress-version: v0.5.0**. [Installations- og opdateringsvejledning](docs/WORDPRESS-GITHUB-UPDATE.md). Når releasen er udgivet på `main`, kan [ZIP-filen hentes her](dist/hangar18-ai-stock-scanner-v0.5.0.zip).
+**Aktuel WordPress-version: v0.5.1**. [Installations- og opdateringsvejledning](docs/WORDPRESS-GITHUB-UPDATE.md). Når releasen er udgivet på `main`, kan [ZIP-filen hentes her](dist/hangar18-ai-stock-scanner-v0.5.1.zip).
 
 Privat dansk WordPress-portefølje + lokal Python/Streamlit-scanner. Ingen ekstra betalte AI-API'er eller abonnementer kræves til grundfunktionerne. Markedsdata fra uofficielle kilder må kun anvendes efter kontrol af de relevante licensvilkår.
 
-## WordPress v0.5.0
+## Nyt i WordPress v0.5.1
+
+- Ny sektion **Danske aktier** i venstremenuen. Søg efter navn, Nasdaq-symbol/Yahoo-kandidat, sektor og ISIN når tilgængeligt.
+- **141 danske aktiesymboler** fra et offentligt **CC0-referencedatasæt (september 2025)** følger med ZIP-filen. Listen fungerer offline fra første besøg og kan opdateres fra den åbne datakilde eller erstattes med en nyere, korrekt licenseret CSV under **Administrer aktiekatalog**.
+- Resultater kan tilføjes til personlig watchlist eller bruges til at forudfylde et aktiekøb.
+- **Vigtigt:** Referencedataene er ikke en autoritativ, verificeret liste over alle aktive børsnoteringer pr. dags dato. Især nye noteringer og afnoteringer kan mangle. Yahoo-koderne er kandidater, ikke garanterede quote-identifikatorer.
+- Kilde: [kjhq Denmark Stock Symbols and Metadata (CC0)](https://huggingface.co/datasets/kjhq/Denmark-Stock-Symbols-and-Metadata).
+- CSV-import med kolonnerne `name,ticker,market,sector,isin` (kun name og ticker kræves), komma eller semikolon, højst 100 KB; kræver WordPress-administrator.
+
+## WordPress v0.5.0 (tidligere release)
 
 - **Venstremenu** på desktop og sammenfoldelig navigation på mobil med Overblik, Portefølje, Watchlist, Aktiescanner, Analyse og Indstillinger.
 - Privat **aktie- og ETF-portefølje** med heltalsantal, flere køb af samme papir, redigering, manuel aktuel kurs og CSV-eksport.
