@@ -1,5 +1,8 @@
 # AI-Stock-Scanner – fase 1 + 2: lokal motor og WordPress
 
+> **OPDATERING 2026-11-01:** Brug **v0.2.2** i stedet for v0.1.0/v0.2.0. GitHub er nu **offentligt**; WordPress GitHub-updateren kræver **ikke** token. Den første v0.2.0 ZIP var fejlformateret. Hent [v0.2.2 ZIP](../dist/hangar18-ai-stock-scanner-v0.2.2.zip) og følg [den aktuelle GitHub-update-guide](WORDPRESS-GITHUB-UPDATE.md). Ældre installationsafsnit nedenfor er bevaret som historik.
+
+
 **Status:** Kode ligger i GitHub. WordPress-plugin er kildekode med en versionsstyret ZIP-bygger; installation på Hangar18 er **ikke** udført. Vi kan ikke logge på din PC eller webhotel fra denne chat.
 
 ## Overblik
