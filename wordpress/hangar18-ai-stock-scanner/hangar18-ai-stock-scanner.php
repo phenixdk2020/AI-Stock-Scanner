@@ -30,6 +30,8 @@ require_once __DIR__ . '/includes/class-asc-portfolio.php';
 ASC_Portfolio::register();
 require_once __DIR__ . '/includes/class-asc-watchlist.php';
 ASC_Watchlist::register();
+require_once __DIR__ . '/includes/class-asc-analysis.php';
+ASC_Analysis::register();
 
 
 register_activation_hook(__FILE__, 'asc_activate');
@@ -229,11 +231,59 @@ function asc_render_dashboard(): string {
     $data = get_option(ASC_OPTION_SNAPSHOT, []);
     $rows = is_array($data) && isset($data['rows']) && is_array($data['rows'])
         ? $data['rows'] : [];
+    // These filters are read-only and apply only to the snapshot rendered here.
+    $requested_market = isset($_GET['asc_market']) && is_string($_GET['asc_market'])
+        ? sanitize_text_field(wp_unslash($_GET['asc_market'])) : '';
+    $requested_type = isset($_GET['asc_type']) && is_string($_GET['asc_type'])
+        ? sanitize_text_field(wp_unslash($_GET['asc_type'])) : '';
+    $requested_signal = isset($_GET['asc_signal']) && is_string($_GET['asc_signal'])
+        ? sanitize_text_field(wp_unslash($_GET['asc_signal'])) : '';
+    $requested_min = isset($_GET['asc_score_min']) && is_string($_GET['asc_score_min'])
+        ? (int)$_GET['asc_score_min'] : 0;
+    $requested_min = max(0, min(100, $requested_min));
+    $markets = ['Danmark','Tyskland','Sverige','Norge','USA','Frankrig','Holland','Spanien','Finland'];
+    if (!in_array($requested_market, $markets, true)) { $requested_market = ''; }
+    if (!in_array($requested_type, ['Aktie','ETF','Ukendt'], true)) { $requested_type = ''; }
+    if (!in_array($requested_signal, ['Interessant','Hold øje','Afvent'], true)) { $requested_signal = ''; }
+    $all_count = count($rows);
+    $rows = array_values(array_filter($rows, static function ($row) use ($requested_market, $requested_type, $requested_signal, $requested_min): bool {
+        return is_array($row) &&
+            ($requested_market === '' || ($row['market'] ?? '') === $requested_market) &&
+            ($requested_type === '' || ($row['instrument_type'] ?? 'Ukendt') === $requested_type) &&
+            ($requested_signal === '' || ($row['signal'] ?? '') === $requested_signal) &&
+            (int)($row['score'] ?? -1) >= $requested_min;
+    }));
     ob_start();
     echo '<section class="asc-dashboard" aria-label="AI-Stock-Scanner">';
     echo '<div class="asc-heading"><h2>AI Stock Scanner</h2><p>Aktier og ETF'er fra ni markeder</p></div>';
+    echo '<form class="asc-filter-form" method="get">';
+    if (isset($_GET['asc_view']) && $_GET['asc_view'] === 'scanner') {
+        echo '<input type="hidden" name="asc_view" value="scanner">';
+    }
+    echo '<label>Marked<select name="asc_market"><option value="">Alle markeder</option>';
+    foreach ($markets as $market) {
+        echo '<option value="' . esc_attr($market) . '" '
+            . selected($requested_market, $market, false) . '>' . esc_html($market) . '</option>';
+    }
+    echo '</select></label><label>Instrument<select name="asc_type"><option value="">Alle typer</option>';
+    foreach (['Aktie','ETF','Ukendt'] as $type) {
+        echo '<option value="' . esc_attr($type) . '" '
+            . selected($requested_type, $type, false) . '>' . esc_html($type) . '</option>';
+    }
+    echo '</select></label><label>Signal<select name="asc_signal"><option value="">Alle signaler</option>';
+    foreach (['Interessant','Hold øje','Afvent'] as $signal) {
+        echo '<option value="' . esc_attr($signal) . '" '
+            . selected($requested_signal, $signal, false) . '>' . esc_html($signal) . '</option>';
+    }
+    echo '</select></label><label>Minimumscore<input type="number" min="0" max="100" step="1" name="asc_score_min" value="'
+        . esc_attr((string)$requested_min) . '"></label><button type="submit">Anvend filtre</button></form>';
+    echo '<p class="asc-updated">Viser ' . esc_html((string)count($rows))
+        . ' af ' . esc_html((string)$all_count) . ' modtagne værdipapirer.</p>';
     if (!$rows) {
-        echo '<div class="asc-empty">Ingen scanninger modtaget endnu. Installer den lokale scanner, og send først et demo-snapshot.</div>';
+        echo '<div class="asc-empty">'
+            . ($all_count === 0 ? 'Ingen scanninger modtaget endnu. Installer den lokale scanner, og send først et demo-snapshot.'
+                : 'Ingen resultater passer til filtrene. Prøv andre søgekriterier.')
+            . '</div>';
     } else {
         $when = (string)($data['generated_at'] ?? '');
         $mode = (string)($data['mode'] ?? '');
