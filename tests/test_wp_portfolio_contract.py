@@ -118,6 +118,19 @@ class PortfolioContractTests(unittest.TestCase):
         self.assertIn("'timeout' => 3", quotes)
         self.assertTrue((ROOT / "tests/wp_portfolio_three_purchases.php").exists())
 
+    def test_share_count_is_integer_not_currency(self):
+        code = PORTFOLIO.read_text(encoding="utf-8")
+        self.assertIn("private static function integer_quantity(string $raw): ?int", code)
+        self.assertEqual(code.count("self::integer_quantity(self::field('asc_quantity'))"), 2)
+        self.assertNotIn("self::decimal(self::field('asc_quantity'))", code)
+        self.assertIn("self::share_count($quantity) . ' stk.", code)
+        self.assertIn("type=\"number\" name=\"asc_quantity\"", code)
+        self.assertIn("type=\"number\" inputmode=\"numeric\"", code)
+        self.assertIn("step=\"1\"", code)
+        self.assertIn("self::redirect('invalid_quantity')", code)
+        self.assertIn("self::redirect('invalid_buy_price')", code)
+        self.assertIn("self::redirect('invalid_current_price')", code)
+
     def test_yahoo_is_optional_and_rate_limited(self):
         source = QUOTES.read_text(encoding="utf-8")
         for required in (
