@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.2.4
+ * Version: 0.2.5
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,7 +14,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.2.4');
+define('ASC_PLUGIN_VERSION', '0.2.5');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
 
 // Must initialize before user-profile / REST authentication determines HTTPS.
@@ -40,10 +40,65 @@ function asc_register_routes(): void {
     register_rest_route('ai-stock-scanner/v1', '/snapshot', [
         'methods'             => 'POST',
         'callback'            => 'asc_accept_snapshot',
-        'permission_callback' => static function (): bool {
-            return current_user_can('asc_sync');
-        },
+        'permission_callback' => 'asc_snapshot_permission',
     ]);
+    // Read-only authentication probe; allows testing without modifying scanner data.
+    register_rest_route('ai-stock-scanner/v1', '/auth-check', [
+        'methods'             => 'GET',
+        'callback'            => static function () {
+            return rest_ensure_response(['ok' => true, 'authenticated' => true]);
+        },
+        'permission_callback' => 'asc_snapshot_permission',
+    ]);
+}
+
+/**
+ * Scoped fallback for hosting providers that strip the standard Authorization header.
+ * X-ASC-Authorization is accepted ONLY for our two scanner routes. It contains the
+ * original WordPress Application Password as HTTP Basic's base64 representation,
+ * validated by WordPress itself. It never appears in query strings or persisted data.
+ *
+ * The Python client enforces HTTPS and never follows redirects.
+ */
+function asc_snapshot_permission(WP_REST_Request $request) {
+    if (current_user_can('asc_sync')) { return true; }
+
+    // Never weaken WordPress Application Password HTTPS availability checks.
+    if (!is_ssl() || !wp_is_application_passwords_available()) {
+        return new WP_Error('asc_https_required',
+            'WordPress skal registrere HTTPS før Application Passwords kan bruges.',
+            ['status' => 401]);
+    }
+
+    $raw = trim((string)$request->get_header('x-asc-authorization'));
+    if (strlen($raw) < 10 || strlen($raw) > 1024 ||
+        preg_match('~^Basic ([A-Za-z0-9+/]+={0,2})$~D', $raw, $match) !== 1) {
+        return new WP_Error('asc_auth_required',
+            'Ingen gyldig godkendelse. Kontrollér Application Password og serverens headers.',
+            ['status' => 401]);
+    }
+    $decoded = base64_decode($match[1], true);
+    if (!is_string($decoded) || strlen($decoded) > 512 || !str_contains($decoded, ':')) {
+        return new WP_Error('asc_auth_invalid', 'Ugyldig godkendelse.', ['status' => 401]);
+    }
+    [$username, $password] = explode(':', $decoded, 2);
+    if ($username === '' || $password === '' || strlen($username) > 120 ||
+        strlen($password) > 128) {
+        return new WP_Error('asc_auth_invalid', 'Ugyldig godkendelse.', ['status' => 401]);
+    }
+    $user = wp_authenticate_application_password(null, $username, $password);
+    if (!($user instanceof WP_User)) {
+        // Do not reveal whether the user exists, or whether a password was wrong.
+        return new WP_Error('asc_auth_failed',
+            'WordPress kunne ikke godkende brugernavn og Application Password.',
+            ['status' => 401]);
+    }
+    if (!user_can($user, 'asc_sync')) {
+        return new WP_Error('asc_sync_forbidden',
+            'Den godkendte bruger mangler asc_sync-rettigheden.',
+            ['status' => 403]);
+    }
+    return true;
 }
 
 /**
@@ -254,6 +309,7 @@ function asc_admin_connection(): void {
     echo ' og opret et Application Password på denne brugers profil. Brug aldrig en administrator-konto til synkronisering.</p>';
     echo '<p>REST endpoint: <code>' . esc_html(rest_url('ai-stock-scanner/v1/snapshot')) . '</code></p>';
     echo '<p>PC\'ens Python-scanner sender data over HTTPS. Ingen lokal Ollama-port skal åbnes mod internettet.</p>';
+    echo '<p>Hvis hosting fjerner HTTP Authorization-headeren, bruger scanneren automatisk en ekstra header, som kontrolleres mod WordPress Application Passwords. Ingen ændring af .htaccess er nødvendig.</p>';
     ASC_HTTPS_Proxy::render_panel();
     echo '<p>Se installationsvejledningen i projektets GitHub-repository.</p>';
     echo '</div>';
