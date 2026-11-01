@@ -8,7 +8,7 @@ import pandas as pd
 import streamlit as st
 
 from stockscanner.core import analyze_prices, parse_tickers
-from stockscanner.markets import SAMPLES, market_of, example_tickers
+from stockscanner.markets import SAMPLES, market_of, example_tickers, instrument_type_of, ETF_SAMPLES
 from stockscanner.sectors import group_sectors
 from stockscanner.updater import authorized, check_update, install_update
 from stockscanner.market_data import fetch_history
@@ -33,8 +33,9 @@ st.caption(
 with st.sidebar:
     st.header("Overvågningsliste")
     markets = st.multiselect("Aktiemarkeder", list(SAMPLES), default=list(SAMPLES))
+    include_etfs = st.checkbox("Medtag ETF-eksempler", value=False)
     if st.button("Indsæt eksempelaktier fra de valgte markeder", use_container_width=True):
-        st.session_state["watchlist_editor"] = "\n".join(example_tickers(markets))
+        st.session_state["watchlist_editor"] = "\n".join(example_tickers(markets, include_etfs=include_etfs))
     raw_symbols = st.text_area(
         "Aktiesymboler (komma, mellemrum eller ny linje)",
         value="\n".join(load_watchlist()),
@@ -46,7 +47,7 @@ with st.sidebar:
     if st.button("Ryd kurscache", use_container_width=True):
         cached_history.clear()
         st.success("Kurscache er ryddet. Scan igen for at hente nye data.")
-    st.caption("Maks. 25 aktier pr. scanning for at skåne den gratis datakilde.")
+    st.caption("Maks. 50 værdipapirer pr. scanning for at skåne den gratis datakilde.")
 
     with st.expander("Update – GitHub"):
         st.caption("Opdaterer den lokale Python-scanner, ikke WordPress på hangar18.dk.")
@@ -118,6 +119,7 @@ if results:
         {
             "Aktie": item.ticker,
             "Marked": market_of(item.ticker),
+            "Type": instrument_type_of(item.ticker),
             "Dato": item.market_date,
             "Kurs": round(item.price, 2),
             "Valuta": item.currency,
