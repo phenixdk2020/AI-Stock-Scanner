@@ -1,5 +1,8 @@
 # AI-Stock-Scanner V1
 
+> **Aktuel WordPress-version: v0.2.5.** Løser hosting-miljøer der fjerner HTTP `Authorization` ved at bruge en krypteret HTTPS-forbindelse med plugin-specifik reserveheader og WordPress' egen Application Password-verifikation. [Download v0.2.5 ZIP](dist/hangar18-ai-stock-scanner-v0.2.5.zip). Efter WordPress-opdatering: kør `git pull --ff-only` i `C:\AI-Stock-Scanner`, og test med `.\.venv\Scripts\python.exe -m stockscanner.site_sync --check-auth`. Hvis det virker, kan du sende demo med `--demo`. Ingen ændring af `.htaccess` er normalt nødvendig. Hvis webhotellet også fjerner den ekstra header, skal proxyen dog rettes hos webhotellet.
+
+
 > **Aktuel WordPress-plugin: v0.2.2.** Efter repositoryet blev gjort offentligt, er GitHub-opdatering **tokenfri**. Den defekte v0.2.0 ZIP må ikke bruges. [Download v0.2.2](dist/hangar18-ai-stock-scanner-v0.2.2.zip) og se [den opdaterede installationsvejledning](docs/WORDPRESS-GITHUB-UPDATE.md). Tidligere afsnit om privat repository og v0.2.0 nedenfor er historiske.
 
 
