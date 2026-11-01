@@ -152,3 +152,15 @@ benytter ikke Tushare. Sektortilknytningen er manuelt defineret for de
 **Bemærk:** Hvis kun én eller to aktier i en sektor er valgt, er tallene
 ikke repræsentative for hele sektoren. Status er en heuristik, ikke en
 investeringsanbefaling eller en måling af nettokapitalstrømme.
+
+## Fase 1 + 2 (november 2026): Lokal motor og WordPress-dashboard
+
+**Ny installationsguide:** [docs/PHASE-1-2-SETUP.md](docs/PHASE-1-2-SETUP.md)
+
+Fase 1 indeholder en lokal diagnostik (`python -m stockscanner.doctor --live --ollama`) og et sikkert, valgfrit WordPress-synkroniseringsmodul (`python -m stockscanner.site_sync --demo`).
+
+Fase 2 indeholder den første version af en loginbeskyttet WordPress-plugin med shortcode `[ai_stock_scanner]` og et REST-endpoint, der kræver et særskilt WordPress Application Password. Den lokale PC **pusher** validerede tekniske researchresultater til hjemmesiden over HTTPS. Ollama er fortsat kun tilgængelig på PC'en; ingen porte på hjemmenetværket skal åbnes.
+
+**WordPress-plugin v0.1.0:** [Download installations-ZIP fra GitHub](dist/hangar18-ai-stock-scanner-v0.1.0.zip). Du kan også bygge den i en lokal klon med `python scripts/build_wp_package.py`.
+
+**Afgrænsning:** Subdomæne og WordPress er ikke oprettet eller installeret fra ChatGPT; den lokale PC og et live-webhotel er ikke end-to-end-testet. WordPress-opdatering i v0.1.0 udføres med versionsstyret ZIP, ikke endnu med Madplans automatiske opdaterings- og rollback-funktioner. Publikation af Yahoo/yfinance-afledte signaler kræver rettighedsvurdering; derfor er første forbindelsestest baseret på tydeligt mærkede demodata.
