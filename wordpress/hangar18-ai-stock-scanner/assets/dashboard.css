@@ -86,3 +86,16 @@
 .asc-notice-error .asc-subtle,.asc-notice-ok .asc-subtle{color:inherit;opacity:.78;margin-top:.35rem}
 .asc-saved-count{margin:.5rem 0 1rem;padding:.75rem 1rem;border-radius:8px;background:#f0f4f8;color:#203247}
 .asc-add-position:target{outline:2px solid #365a7f;outline-offset:3px}
+
+/* DKK columns - retain original listing currency and show converted amount below */
+.asc-dkk-detail,.asc-dkk-gain{margin-top:.4rem;padding:.4rem .5rem;border-radius:6px;background:#eaf4fc;color:#17436a;font-weight:700;white-space:normal}
+.asc-dkk-gain{background:#edf4fa;color:#193a50}
+.asc-dkk-detail small,.asc-dkk-gain small{display:block;font-size:.74rem;line-height:1.4;color:#42566b;font-weight:400}
+.asc-fx-unavailable{margin-top:.35rem;font-size:.8rem;color:#9f3b3b}
+.asc-dkk-summary{margin:1rem 0;border:1px solid #b9cfe0;border-radius:14px;padding:1rem;background:#f4f8fb;color:#203247}
+.asc-dkk-summary h3{margin:0 0 1rem}
+.asc-dkk-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.8rem}
+.asc-dkk-grid>div{background:#fff;padding:1rem;border:1px solid #dce5ed;border-radius:10px}
+.asc-dkk-grid strong,.asc-dkk-grid span{display:block;overflow-wrap:anywhere}
+.asc-dkk-grid strong{margin:.45rem 0;font-size:1.35rem}
+@media(max-width:660px){.asc-dkk-grid{grid-template-columns:1fr}}
