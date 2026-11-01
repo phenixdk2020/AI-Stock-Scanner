@@ -364,21 +364,89 @@ final class ASC_Portfolio {
     public static function render_home(): string {
         if (!is_user_logged_in()) { return self::login(); }
         wp_enqueue_style('hangar18-asc');
+        $sections = [
+            'overview' => ['Overblik', '⌂'],
+            'portfolio' => ['Min portefølje', '▣'],
+            'watchlist' => ['Watchlist', '☆'],
+            'scanner' => ['Aktiescanner', '▤'],
+            'analysis' => ['Analyse', '◷'],
+            'settings' => ['Indstillinger', '⚙'],
+        ];
+        $raw = isset($_GET['asc_view']) && is_string($_GET['asc_view'])
+            ? sanitize_key(wp_unslash($_GET['asc_view'])) : 'overview';
+        $view = isset($sections[$raw]) ? $raw : 'overview';
+        $url = get_permalink(get_queried_object_id());
+        $url = $url ? $url : home_url('/');
         $user = wp_get_current_user();
-        $first = trim((string)$user->first_name);
-        $first = $first !== '' ? $first : $user->display_name;
+        $name = trim((string)$user->first_name);
+        if ($name === '') { $name = (string)$user->display_name; }
+        $navigation = '';
+        foreach ($sections as $key => $item) {
+            $href = add_query_arg('asc_view', $key, $url);
+            $navigation .= '<a class="asc-side-link' . ($view === $key ? ' is-active' : '')
+                . '" href="' . esc_url($href) . '"' . ($view === $key ? ' aria-current="page"' : '')
+                . '><span aria-hidden="true">' . esc_html($item[1]) . '</span>'
+                . esc_html($item[0]) . '</a>';
+        }
         ob_start();
-        echo '<section class="asc-dashboard asc-home">';
-        echo '<header class="asc-heading"><h2>Velkommen ' . esc_html($first) . '</h2>';
-        echo '<p>Din portefølje og dine aktieanalyser samlet ét sted.</p>';
-        echo '<nav class="asc-home-nav"><a href="#asc-portfolio">Min portefølje</a>'
-            . '<a href="#asc-watchlist">Min watchlist</a>'
-            . '<a href="#asc-research">Aktiescanner</a>'
-            . '<a href="' . esc_url(wp_logout_url(home_url('/'))) . '">Log ud</a></nav></header>';
-        echo self::markup();
-        echo ASC_Watchlist::render();
-        echo '<div id="asc-research">' . do_shortcode('[ai_stock_scanner]') . '</div>';
-        echo '</section>';
+        echo '<div class="asc-app-shell">';
+        echo '<aside class="asc-app-sidebar" aria-label="Hovednavigation">';
+        echo '<div class="asc-app-brand">AI <strong>Stock Scanner</strong><small>Privat investeringsdashboard</small></div>';
+        echo '<nav class="asc-side-nav" aria-label="Sektioner">' . $navigation . '</nav>';
+        echo '<a class="asc-side-link asc-signout" href="'
+            . esc_url(wp_logout_url(home_url('/'))) . '">Log ud</a>';
+        echo '</aside>';
+        echo '<details class="asc-app-mobile-menu"><summary>☰ Menu — '
+            . esc_html($sections[$view][0]) . '</summary>';
+        echo '<nav class="asc-side-nav" aria-label="Mobilnavigation">' . $navigation . '</nav></details>';
+        echo '<main class="asc-app-content asc-dashboard asc-home" id="asc-main">';
+        echo '<header class="asc-app-topbar"><h1>' . esc_html($sections[$view][0]) . '</h1>'
+            . '<span>Velkommen ' . esc_html($name) . '</span></header>';
+        if ($view === 'overview') {
+            $positions = self::positions(get_current_user_id());
+            $watched = get_user_meta(get_current_user_id(), 'asc_watchlist_v1', true);
+            $snapshot = get_option(ASC_OPTION_SNAPSHOT, []);
+            $rows = is_array($snapshot) && is_array($snapshot['rows'] ?? null)
+                ? $snapshot['rows'] : [];
+            echo '<div class="asc-app-overview">';
+            echo '<div class="asc-app-stat"><span>Registrerede køb</span><strong>'
+                . esc_html((string)count($positions)) . '</strong><a href="'
+                . esc_url(add_query_arg('asc_view','portfolio',$url)) . '">Se porteføljen</a></div>';
+            echo '<div class="asc-app-stat"><span>Watchlist</span><strong>'
+                . esc_html((string)(is_array($watched) ? count($watched) : 0))
+                . '</strong><a href="' . esc_url(add_query_arg('asc_view','watchlist',$url))
+                . '">Se watchlist</a></div>';
+            echo '<div class="asc-app-stat"><span>Seneste scannerresultater</span><strong>'
+                . esc_html((string)count($rows)) . '</strong><a href="'
+                . esc_url(add_query_arg('asc_view','scanner',$url)) . '">Åbn scanner</a></div></div>';
+            echo '<p class="asc-disclaimer">Beholdninger er private. Scannerdata opdateres, når '
+                . 'den lokale scanner har sendt et snapshot; gamle kurser er ikke livekurser.</p>';
+            if (is_array($snapshot) && !empty($snapshot['generated_at'])) {
+                echo '<p>Sidste scanner-synkronisering: '
+                    . esc_html((string)$snapshot['generated_at']) . ' UTC</p>';
+            }
+        } elseif ($view === 'portfolio') {
+            echo self::markup();
+        } elseif ($view === 'watchlist') {
+            echo ASC_Watchlist::render();
+        } elseif ($view === 'scanner') {
+            echo '<div id="asc-research">' . do_shortcode('[ai_stock_scanner]') . '</div>';
+        } elseif ($view === 'analysis') {
+            echo do_shortcode('[ai_stock_analysis]');
+        } else {
+            echo '<section class="asc-app-settings"><h2>Indstillinger og datakilder</h2>';
+            echo '<p>Automatiske Yahoo-kurser er valgfrie og eksperimentelle. '
+                . 'Valutakurser til DKK anvender ECB-referencekurser. '
+                . 'Kursdato og datakilde bør kontrolleres før investeringsbeslutninger.</p>';
+            if (current_user_can('manage_options')) {
+                echo '<p><a href="' . esc_url(admin_url('admin.php?page=asc-connection'))
+                    . '">Administrer datakilder</a></p>';
+                echo '<p><a href="' . esc_url(admin_url('admin.php?page=asc-updates'))
+                    . '">Opdater WordPress-plugin</a></p>';
+            }
+            echo '</section>';
+        }
+        echo '</main></div>';
         return (string)ob_get_clean();
     }
 
