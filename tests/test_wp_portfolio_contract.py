@@ -180,6 +180,22 @@ class PortfolioContractTests(unittest.TestCase):
         self.assertIn("EPS", analysis)
         self.assertIn("asc-analysis-grid", css)
 
+    def test_danish_catalog_search_and_safe_portfolio_prefill(self):
+        code = PORTFOLIO.read_text(encoding="utf-8")
+        main = MAIN.read_text(encoding="utf-8")
+        catalog = (PLUGIN / "includes/class-asc-danish-catalog.php").read_text(encoding="utf-8")
+        self.assertIn("'stocks' => ['Danske aktier'", code)
+        self.assertIn("ASC_Danish_Catalog::render()", code)
+        self.assertIn("esc_attr($suggested_ticker)", code)
+        self.assertIn("esc_attr($suggested_name)", code)
+        self.assertIn("ASC_Danish_Catalog::register()", main)
+        for token in ("parse_csv(", "asc_query", "asc_sector", "asc_catalog_page",
+                      "asc_watch_add", "asc_catalog_import", "asc_catalog_refresh",
+                      "current_user_can('manage_options')", "check_admin_referer(",
+                      "MAX_BYTES = 100000", "danish-stocks-snapshot.csv"):
+            self.assertIn(token, catalog)
+        self.assertTrue((PLUGIN / "assets/danish-stocks-snapshot.csv").exists())
+
     def test_yahoo_is_optional_and_rate_limited(self):
         source = QUOTES.read_text(encoding="utf-8")
         for required in (
