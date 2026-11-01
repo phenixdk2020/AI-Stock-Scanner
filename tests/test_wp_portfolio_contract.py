@@ -7,6 +7,7 @@ PLUGIN = ROOT / "wordpress" / "hangar18-ai-stock-scanner"
 PORTFOLIO = PLUGIN / "includes" / "class-asc-portfolio.php"
 QUOTES = PLUGIN / "includes" / "class-asc-market-quotes.php"
 MAIN = PLUGIN / "hangar18-ai-stock-scanner.php"
+WATCHLIST = PLUGIN / "includes" / "class-asc-watchlist.php"
 
 
 class PortfolioContractTests(unittest.TestCase):
@@ -60,6 +61,46 @@ class PortfolioContractTests(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, source)
         self.assertNotIn("file_get_contents('https://www.nordnet", source)
+
+
+    def test_manual_quote_and_csv_export(self):
+        source = PORTFOLIO.read_text(encoding="utf-8")
+        for expected in (
+            "asc_initial_price", "asc_portfolio_edit", "asc_portfolio_export",
+            "check_admin_referer('asc_portfolio_export')",
+            "check_admin_referer('asc_portfolio_edit')",
+            "Content-Type: text/csv", "get_current_user_id()",
+            "asc-demo-overview", "ASC_Watchlist::render()", "position_counts",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, source)
+
+    def test_private_watchlist_and_secure_post_actions(self):
+        source = WATCHLIST.read_text(encoding="utf-8")
+        main = MAIN.read_text(encoding="utf-8")
+        for expected in (
+            "get_user_meta(get_current_user_id()",
+            "update_user_meta(get_current_user_id()",
+            "check_admin_referer('asc_watch_add')",
+            "check_admin_referer('asc_watch_remove')",
+            "is_user_logged_in()", "wp_safe_redirect(",
+            "ASC_Market_Quotes::chart_markup", "MAX = 50",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, source)
+        self.assertIn("ASC_Watchlist::register()", main)
+
+    def test_historical_candles_and_volume_math(self):
+        source = QUOTES.read_text(encoding="utf-8")
+        for expected in (
+            "range=6mo&interval=1d", "parse_history(",
+            "shares_per_day", "value_per_day",
+            "daily_stats($bars, 5)", "daily_stats($bars, 21)",
+            "chart_markup(", "<svg", "close'] * (float)$bar['volume']",
+            "sharesOutstanding",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, source)
 
     def test_yahoo_is_optional_and_rate_limited(self):
         source = QUOTES.read_text(encoding="utf-8")
