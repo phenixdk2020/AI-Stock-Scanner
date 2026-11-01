@@ -26,6 +26,7 @@ def market_of(ticker: str) -> str:
     return "USA" if "." not in ticker and not ticker.startswith("^") else "Andet/ukendt"
 
 
+SUPPORTED_MARKETS = frozenset(SAMPLES)
 ETF_SAMPLES = ("VWCE.DE", "EUNL.DE", "SXR8.DE", "VWRL.AS")
 
 
