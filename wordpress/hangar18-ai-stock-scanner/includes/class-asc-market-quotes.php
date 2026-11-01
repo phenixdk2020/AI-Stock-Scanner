@@ -279,6 +279,18 @@ final class ASC_Market_Quotes {
                 . ' handelsdage.</small></div>';
         }
         $result .= '</div>';
+        // Sector-first scanners often flag abnormal trading volume. Here we use
+        // only observable OHLCV volume, without pretending to know fund flows.
+        if ($week !== null && $month !== null && $month['shares_per_day'] > 0
+            && $week['days'] >= 5 && $month['days'] >= 21) {
+            $ratio = $week['shares_per_day'] / $month['shares_per_day'];
+            if ($ratio >= 1.5) {
+                $result .= '<p class="asc-warning">Volumenadvarsel: seneste 5 '
+                    . 'handelsdage har i gennemsnit '
+                    . self::number($ratio, 2)
+                    . ' × 21-dages gennemsnittet. Dette er ikke et købssignal.</p>';
+            }
+        }
         $outstanding = $quote['shares_outstanding'] ?? null;
         $result .= '<p class="asc-disclaimer">Udestående aktier: '
             . (is_numeric($outstanding) && (float)$outstanding > 0
