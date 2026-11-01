@@ -14,7 +14,7 @@ final class ASC_Market_Quotes {
     private const OPTION = 'asc_yahoo_quotes_opt_in';
     private const AGE = 900;  // 15 minutes between external requests per ticker.
     private const MAX_RESPONSE = 262144;
-    private const MAX_FETCH_PER_PAGE = 4;
+    private const MAX_FETCH_PER_PAGE = 1;
     private static int $fetches_this_page = 0;
 
     public static function enabled(): bool {
@@ -39,9 +39,12 @@ final class ASC_Market_Quotes {
     public static function render_settings(): void {
         if (!current_user_can('manage_options')) { return; }
         echo '<hr><h2>Markedspriser – hjemmeside uden PC</h2>';
-        echo '<p>Porteføljen kan gemmes og bruges uden kurskilde. Ved aktivering prøver WordPress '
-            . 'at hente seneste kurs server-side fra Yahoo Finance hvert 15. minut pr. aktie, '
-            . 'når en logget ind bruger åbner siden. Din PC behøver ikke køre.</p>';
+        echo '<p>Porteføljen kan gemmes og bruges uden kurskilde. Ved aktivering kan WordPress '
+            . 'hente seneste kurser server-side. Af hensyn til webhotellets belastning forsøges '
+            . 'højst én ny ekstern kursforespørgsel pr. sidevisning (maks. tre sekunder), '
+            . 'og samme ticker genhentes højst hvert 15. minut. '
+            . 'De øvrige kurser vises fra cache eller afventer næste besøg. '
+            . 'Din PC behøver ikke køre.</p>';
         echo '<p><strong>Bemærk:</strong> Yahoo chart endpoint er uofficielt og kan stoppe uden varsel. '
             . 'Yahoo begrænser videredistribution. Brug kun som eksperimentel, personlig og '
             . 'loginbeskyttet visning, og kontrollér vilkår for din anvendelse. '
@@ -72,6 +75,8 @@ final class ASC_Market_Quotes {
             return self::last_known($ticker);
         }
         if (self::$fetches_this_page >= self::MAX_FETCH_PER_PAGE) {
+            // Frontend must not time out while adding/viewing the third holding.
+            // Return known data immediately instead of stacking slow HTTP calls.
             return self::last_known($ticker);
         }
         self::$fetches_this_page++;
@@ -79,7 +84,7 @@ final class ASC_Market_Quotes {
         $url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
             . rawurlencode($ticker) . '?range=6mo&interval=1d';
         $response = wp_safe_remote_get($url, [
-            'timeout' => 4,
+            'timeout' => 3,
             'redirection' => 0,
             'limit_response_size' => self::MAX_RESPONSE,
             'headers' => [
