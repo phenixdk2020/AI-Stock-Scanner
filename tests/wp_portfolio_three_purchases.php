@@ -22,6 +22,12 @@ function add_query_arg(string $key, string $value, string $url): string {
     return $url . (strpos($url, '?') === false ? '?' : '&') . $key . '=' . $value;
 }
 function wp_safe_redirect(string $url): bool { echo "REDIRECT: " . $url . "\n"; return true; }
+function set_transient(string $key, string $value, int $seconds): bool {
+    echo "FLASH: " . $value . "\n";
+    return true;
+}
+function get_transient(string $key) { return false; }
+function delete_transient(string $key): bool { return true; }
 function auth_redirect(): void { throw new RuntimeException('Unexpected login redirect'); }
 function get_user_meta(int $id, string $key, bool $single): array {
     $data = json_decode((string)file_get_contents($GLOBALS['fixture']), true);
@@ -92,7 +98,7 @@ try {
         ];
         $output = []; $status = -1;
         exec(implode(' ', $args) . ' 2>&1', $output, $status);
-        if ($status !== 0 || strpos(implode(' ', $output), 'asc_portfolio_status=invalid_quantity') === false) {
+        if ($status !== 0 || strpos(implode(' ', $output), 'FLASH: invalid_quantity') === false) {
             throw new RuntimeException('Fractional/invalid quantity was not rejected: ' . $invalid);
         }
         $check = json_decode((string)file_get_contents($temp), true);
