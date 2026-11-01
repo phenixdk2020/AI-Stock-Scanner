@@ -1,75 +1,41 @@
-# AI Stock Scanner – offentlig GitHub-opdatering (v0.2.2)
+# WordPress – aktuel opdateringsvejledning (v0.5.0)
 
-> **WordPress v0.3.0 – privat portefølje (2026-11-01):** [WordPress ZIP](../dist/hangar18-ai-stock-scanner-v0.3.0.zip). Brug WordPress' almindelige login. Under **AI Stock Scanner → Oversigt** kan en administrator trykke **Opret porteføljeside og sæt som forside** (den eksisterende forside ændres kun ved dette klik). Den personlige portefølje lagrer hvert køb på den indloggede WordPress-bruger, inkl. antal, købskurs, dato og valuta; den viser aktuelt manuel kurs og gevinst/tab pr. valutatype. Flere køb af samme aktie understøttes. Automatisk Yahoo-kurshentning er **slået fra som standard** og kan aktiveres til begrænset privat afprøvning under **AI Stock Scanner → Forbindelse**. Det er en uofficiel integration; priserne kan være forsinkede, og datavilkår skal vurderes. Ingen afhængighed af, at den lokale PC kører. Alternativ shortcode: `[ai_stock_home]` eller `[ai_stock_portfolio]`. Undgå at bruge scannerens Application Password til almindeligt login.
+> Dette er den aktuelle installationsguide. Ældre ZIP-versioner under `dist/` er historik. Vær særlig opmærksom på den tidligere fejlformaterede v0.2.0, som **ikke** må installeres.
 
+## Installation
 
-> **v0.2.5 – API-godkendelse (2026-11-01):** Ved `HTTP 401 rest_not_logged_in` kan Python-scanneren nu automatisk gentage godkendelsen via `X-ASC-Authorization`, som kun godkendes på AI Stock Scanner-ruterne og valideres med WordPress' egen Application Password-funktion. Klienten kræver HTTPS og følger ikke redirects. [Download v0.2.5 ZIP](../dist/hangar18-ai-stock-scanner-v0.2.5.zip). Gå til **AI Stock Scanner → Opdateringer** for at opdatere; synkroniser derefter din Windows-projektmappe via `git pull --ff-only` og kør `python -m stockscanner.site_sync --check-auth`. Bemærk, at `/wp-json/wp/v2/users/me` stadig kan fejle i sådanne miljøer; fallback gælder kun scannerens egne REST-ruter. Hvis hosting også fjerner ekstra headers, er serverrettelse nødvendig.
+1. Tag en backup af WordPress-databasen og pluginfilerne, og prøv helst på staging.
+2. Hent `dist/hangar18-ai-stock-scanner-v0.5.0.zip` fra den udgivne `main`-branch.
+3. Åbn WordPress → **Plugins → Tilføj nyt → Upload plugin**. Vælg ZIP, og erstat den nuværende pluginversion, hvis WordPress spørger.
+4. Kontrollér, at **Hangar18 AI Stock Scanner v0.5.0** er aktivt.
+5. Gå til **AI Stock Scanner → Oversigt**, og vælg om nødvendigt **Opret porteføljeside og sæt som forside**. Dette skal gøres eksplicit; opdateringen ændrer ikke automatisk forsiden.
+6. Åbn forsiden som almindelig bruger. Venstremenuen har Overblik, Portefølje, Watchlist, Aktiescanner, Analyse og Indstillinger. På mobil åbnes den fra **Menu**.
+7. Kontrollér, at tidligere køb, DKK-beløb og watchlist stadig er der. Prøv også et nyt ETF-køb (heltal) og et scannerfilter.
 
+## Pluginets egen opdatering
 
-> **Nyeste version: v0.2.3 (2026-11-01).** Denne version flytter WordPress-administrationen til et synligt hovedmenupunkt **AI Stock Scanner** med undermenuerne **Oversigt**, **Opdateringer** og **Forbindelse**. Under Opdateringer bruges `Tjek GitHub-opdatering` og `Backup og opdater plugin`. Ældre beskrivelser af v0.2.2 og placeringen under **Værktøjer** er historiske. [Hent v0.2.3 ZIP](../dist/hangar18-ai-stock-scanner-v0.2.3.zip). Første opgradering kan foretages via **Plugins → Tilføj nyt → Upload plugin → Erstat nuværende**. Kontrollér at pluginet er aktivt bagefter.
+I **AI Stock Scanner → Opdateringer** vælg **Tjek GitHub-opdatering** → **Backup og opdater plugin**. Updateren henter den offentlige versionsmanifest `update.json` og ZIP via `raw.githubusercontent.com`, kontrollerer SHA-256 og ZIP-stier og håndterer genaktivering.
 
+**Der kræves ikke `ASC_GITHUB_TOKEN`.** Repositoryet er offentligt. GitHub-updateren er uafhængig af det lokale Python/Streamlit-updateværktøj og WordPress' Application Password til sikker datasynkronisering.
 
-**Status 2026-11-01:** Repositoryet `phenixdk2020/AI-Stock-Scanner` er nu **offentligt**. Pluginet er opdateret til **v0.2.2** med tokenfri GitHub-opdatering og PclZip-kompatibel kontrol.
+## Forbindelse til lokal scanner
 
-## Installer v0.2.2
+Konfigurér en WordPress-bruger med rollen **AI Stock Scanner Sync Agent**. Opret Application Password på denne bruger og send scannerresultater via HTTPS fra din Windows-PC. Under **AI Stock Scanner → Forbindelse** kan du kontrollere data og kurskilder.
 
-**Download ZIP:** https://raw.githubusercontent.com/phenixdk2020/AI-Stock-Scanner/main/dist/hangar18-ai-stock-scanner-v0.2.2.zip
+Test fra `C:\AI-Stock-Scanner`:
 
-1. Hent ZIP-filen; den må ikke udpakkes inden upload.
-2. WordPress → Plugins → Tilføj nyt → Upload plugin.
-3. Hvis WordPress allerede har en tidligere version, vælg at erstatte den installerede version. Kontrollér derefter, at pluginet er aktivt.
-4. Opret en WordPress-side med `[ai_stock_scanner]`.
-5. Gå til **Værktøjer → AI Stock Scanner** for at se GitHub-opdateringspanelet.
+```powershell
+git pull --ff-only
+.\.venv\Scripts\python.exe -m stockscanner.site_sync --check-auth
+.\.venv\Scripts\python.exe -m stockscanner.site_sync --demo --preview
+```
 
-**Ingen GitHub-token:** Sæt **ikke** `ASC_GITHUB_TOKEN` i `wp-config.php`. Den nye updater læser offentlige, versionerede ZIP-filer og `update.json` fra `raw.githubusercontent.com`, ikke GitHub-API med adgangstoken.
+Private data bliver i WordPress-brugermetadata. Markedsdataleverandøren Yahoo er uofficiel og **deaktiveret som standard**. Livekursers tidsforsinkelse er ikke garanteret 15 minutter; kursens faktiske tidsstempel vises, når data findes. ECB anvendes til vejledende valutakurser, som normalt opdateres på bankdage.
 
-## Hvad v0.2.2 retter
+## Validering og begrænsninger
 
-- v0.2.0 indeholdt en **forkert formateret ZIP-fil** med fejl i central-directory-strukturen, hvilket gav `PCLZIP_ERR_BAD_FORMAT (-10)` ved installation.
-- v0.2.1 rettede ZIP-strukturen.
-- v0.2.2 indeholder yderligere offentlig GitHub-opdatering **uden token** og validerer ZIP via **PclZip**, som også bruges af WordPress på webhoteller uden PHP ZipArchive.
-- Manifestet `update.json` angiver versionsnummer, forventet ZIP-sti og SHA-256.
-- En opdatering registrerer, om pluginet var aktivt før filudskiftningen, og **genaktiverer efter en vellykket opdatering**.
-- WordPress kan midlertidigt deaktivere pluginet under udskiftningen; den normale aktiveringstilstand gendannes bagefter. Mislykkes genaktiveringen, rapporterer updateren en fejl.
+Kør `python -m unittest discover -s tests -v`, `php -l` på pluginfiler og PHP-integrationstests på staging. `update.json`, plugin-header og ZIP-checksum skal matche.
 
-## Opdateringsflow fremover
+Tidligere køb/salg, udbyttehistorik, fundamental score, automatiske Kronos-forudsigelser og licenseret 15-minutters markedsfeed er **ikke alle implementeret**. Vurder ikke platformen som fuldt handelssystem.
 
-Under **Værktøjer → AI Stock Scanner**:
-
-1. **Tjek GitHub-opdatering** læser `update.json`.
-2. Hvis versionen på GitHub er højere, vises **Backup og opdater plugin**.
-3. Updateren downloader ZIP-filen over HTTPS fra den **faste, tilladte** public GitHub-sti.
-4. Den kontrollerer SHA-256 og verificerer ZIP-filernes stier og hovedfilens versionsnummer ved hjælp af PclZip.
-5. Den bruger WordPress' normale `Plugin_Upgrader` og genaktiverer pluginet, hvis det var aktivt.
-
-WordPress' midlertidige backup ved opdateringsfejl er ikke en vedvarende, manuel rollbackfunktion. Tag en separat serverbackup før større opdateringer.
-
-## Udvikling og pakning
-
-Kilden ligger under `wordpress/hangar18-ai-stock-scanner/`.
-
-Til nye versioner:
-- Hæv plugin-headeren og `ASC_PLUGIN_VERSION`.
-- Byg ZIP med Python-standardbibliotekets `zipfile` gennem `python scripts/build_wp_package.py`.
-- Kontrollér ZIP med `python -m zipfile -t dist/hangar18-ai-stock-scanner-vX.Y.Z.zip`.
-- Kør `python -m unittest discover -s tests -v` samt `php -l` og `php tests/wp_updater_reactivation.php` hvor PHP er tilgængelig.
-- Commit ZIP samt opdater `update.json` med den **præcise** ZIP-checksum.
-- Kontrollér efter en testopdatering, at pluginet fortsat er aktivt, at data stadig findes, og at shortcode/REST virker.
-
-Manifestets format:
-
-~~~json
-{
-  "name": "Hangar18 AI Stock Scanner",
-  "slug": "hangar18-ai-stock-scanner",
-  "version": "0.2.2",
-  "package_path": "dist/hangar18-ai-stock-scanner-v0.2.2.zip",
-  "sha256": "0ed2f56a45f74931d12c6c6b5aa4082da29dbd4e6fb0673a07f151eb210b3db2"
-}
-~~~
-
-## Public repository – privatliv og sikkerhed
-
-Fordi repositoryet nu er offentligt, er **alle filer i det synlige**, herunder kode og research under `docs/`. Bekræft, at ingen hemmeligheder, følsomme filer eller beskyttet materiale ligger i Git-historikken. En fil, som blot slettes i en senere commit, kan stadig findes i tidligere commits. Selve WordPress Application Password til datasynkronisering skal fortsat forblive server-/PC-hemmeligt; det har intet med GitHub-update at gøre.
-
-**Teststatus:** ZIP-arkivets struktur, filstier og manifest er kontrolleret ved generering. PHP-opdatering og faktisk installation på dit webhotel kræver fortsat live-test; ingen har endnu kørt v0.2.2 på din WordPress-server fra denne chat.
+**Produktionsstatus:** GitHub kan vise, at releasekode og ZIP findes. Det beviser ikke, at pluginet er installeret på `aktier.hangar18.dk`. Kontrollér det i WordPress' pluginliste.
