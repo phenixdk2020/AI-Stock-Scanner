@@ -127,6 +127,13 @@ final class ASC_Danish_Catalog {
     }
 
     private static function fallback(): array {
+        // Bundled 2025 CC0 reference snapshot, not a guaranteed live listing.
+        $file = dirname(__DIR__) . '/assets/danish-stocks-snapshot.csv';
+        if (is_readable($file)) {
+            $body = file_get_contents($file);
+            $rows = is_string($body) ? self::parse_csv($body) : [];
+            if (count($rows) >= 100) { return $rows; }
+        }
         // Minimal offline examples. Do NOT label these as all listed stocks.
         $examples = [
             ['Novo Nordisk B', 'NOVO-B.CO'],
@@ -171,17 +178,28 @@ final class ASC_Danish_Catalog {
         $stored = get_option(self::OPTION, []);
         $valid = is_array($stored) && is_array($stored['rows'] ?? null)
             && count($stored['rows']) > 0;
-        if (get_transient(self::COOLDOWN) === false) {
+        if (!$valid) {
+            $seed = self::fallback();
+            $source = count($seed) >= 100
+                ? 'Bundlet CC0-snapshot (2025, ikke live)'
+                : 'Offline-eksempler (ufuldstændige)';
+            $stored = self::source_meta($seed, $source);
+            update_option(self::OPTION, $stored, false);
+            // Avoid blocking the first page view with an external request.
             set_transient(self::COOLDOWN, 1, DAY_IN_SECONDS);
-            // Do not overwrite imported admin CSV with the older public feed.
-            if (!$valid || str_contains((string)($stored['source'] ?? ''), 'CC0')) {
-                if (self::pull_public()) {
-                    $stored = get_option(self::OPTION, []);
-                    $valid = true;
-                }
+            return $stored;
+        }
+        $loaded_at = strtotime((string)($stored['updated_at'] ?? '')) ?: 0;
+        $age = time() - $loaded_at;
+        $is_public = str_contains((string)($stored['source'] ?? ''), 'CC0');
+        if ($is_public && $age > 7 * DAY_IN_SECONDS &&
+            get_transient(self::COOLDOWN) === false) {
+            set_transient(self::COOLDOWN, 1, DAY_IN_SECONDS);
+            if (self::pull_public()) {
+                $stored = get_option(self::OPTION, $stored);
             }
         }
-        return $valid ? $stored : self::source_meta(self::fallback(), 'Offline-eksempler (ufuldstændige)');
+        return $stored;
     }
 
     private static function redirect(string $status): void {
