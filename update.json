@@ -1,7 +1,7 @@
 {
   "name": "Hangar18 AI Stock Scanner",
   "slug": "hangar18-ai-stock-scanner",
-  "version": "0.4.3",
-  "package_path": "dist/hangar18-ai-stock-scanner-v0.4.3.zip",
-  "sha256": "9189ac44edcadbbe8558751d5a3bc60fd4b7c76d675df1b6b1fe4a6c07195330"
+  "version": "0.4.4",
+  "package_path": "dist/hangar18-ai-stock-scanner-v0.4.4.zip",
+  "sha256": "2ac70884ad785c6146b7dbfb3f336ea5fd194ee66ca23fb52b10dd44ef7faa31"
 }
