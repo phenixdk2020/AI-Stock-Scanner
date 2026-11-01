@@ -142,6 +142,7 @@ final class ASC_Portfolio {
         if (function_exists('mb_substr')) { $name = mb_substr($name, 0, 80); }
         else { $name = substr($name, 0, 80); }
         $currency = strtoupper(self::field('asc_currency'));
+        $instrument_type = self::field('asc_instrument_type');
         $quantity = self::integer_quantity(self::field('asc_quantity'));
         $buy_price = self::decimal(self::field('asc_buy_price'));
         $initial_raw = self::field('asc_initial_price');
@@ -157,6 +158,7 @@ final class ASC_Portfolio {
         if (preg_match('/^(DKK|SEK|NOK|EUR|USD)$/D', $currency) !== 1) {
             self::redirect('invalid_currency');
         }
+        if (!in_array($instrument_type, ['Aktie', 'ETF'], true)) { self::redirect('invalid_type'); }
         if ($quantity === null) { self::redirect('invalid_quantity'); }
         if ($buy_price === null || $quantity * $buy_price > 1.0e12) {
             self::redirect('invalid_buy_price');
@@ -175,6 +177,7 @@ final class ASC_Portfolio {
         $entry = [
             'id' => wp_generate_uuid4(),
             'ticker' => $ticker,
+            'instrument_type' => $instrument_type,
             'label' => $name,
             'quantity' => $quantity,
             'buy_price' => $buy_price,
@@ -223,11 +226,13 @@ final class ASC_Portfolio {
         if (!is_user_logged_in()) { auth_redirect(); exit; }
         check_admin_referer('asc_portfolio_edit');
         $id = self::field('asc_position_id');
+        $instrument_type = self::field('asc_instrument_type');
         $quantity = self::integer_quantity(self::field('asc_quantity'));
         $price = self::decimal(self::field('asc_buy_price'));
         $paid_raw = self::field('asc_paid_dkk');
         $paid_dkk = $paid_raw !== '' ? self::decimal($paid_raw) : null;
         if ($id === '') { self::redirect('notfound'); }
+        if (!in_array($instrument_type, ['Aktie', 'ETF'], true)) { self::redirect('invalid_type'); }
         if ($quantity === null) { self::redirect('invalid_quantity'); }
         if ($price === null || $quantity * $price > 1.0e12) {
             self::redirect('invalid_buy_price');
@@ -240,6 +245,7 @@ final class ASC_Portfolio {
         foreach ($positions as &$p) {
             if (($p['id'] ?? '') === $id) {
                 $p['quantity'] = $quantity;
+                $p['instrument_type'] = $instrument_type;
                 $p['buy_price'] = $price;
                 if ($paid_dkk !== null) {
                     $p['paid_dkk'] = $paid_dkk;
@@ -269,7 +275,7 @@ final class ASC_Portfolio {
         if ($out === false) { exit; }
         fwrite($out, "\xEF\xBB\xBF");
         fputcsv($out, ['Aktie','Navn','Antal','Købskurs','Valuta','Købsdato',
-            'Manuel kurs','Tidspunkt for manuel kurs','Betalt i alt DKK'], ';');
+            'Manuel kurs','Tidspunkt for manuel kurs','Betalt i alt DKK','Type'], ';');
         foreach ($rows as $p) {
             $ticker = (string)($p['ticker'] ?? '');
             $name = (string)($p['label'] ?? '');
@@ -282,6 +288,7 @@ final class ASC_Portfolio {
                 (string)($p['buy_date'] ?? ''), (string)($p['manual_price'] ?? ''),
                 (string)($p['manual_price_at'] ?? ''),
                 (string)($p['paid_dkk'] ?? ''),
+                (string)($p['instrument_type'] ?? 'Aktie'),
             ], ';');
         }
         fclose($out);
@@ -513,6 +520,7 @@ final class ASC_Portfolio {
             'priced' => 'Din manuelle kurs er opdateret.',
             'edited' => 'Antal, købskurs og betalt DKK er opdateret.',
             'invalid' => 'En ældre handling blev afvist. Prøv igen, så vises det præcise felt, der skal rettes.',
+            'invalid_type' => 'Vælg enten Aktie eller ETF.',
             'invalid_ticker' => 'Aktiesymbolet er ugyldigt. Brug fx NOVO-B.CO, SAP.DE eller MSFT (uden mellemrum).',
             'invalid_currency' => 'Valutaen skal være DKK, SEK, NOK, EUR eller USD.',
             'invalid_quantity' => 'Antal aktier skal være et positivt heltal, fx 10 eller 1.000. Ingen decimaler eller kr. i antal-feltet.',
@@ -582,7 +590,7 @@ final class ASC_Portfolio {
             }
 
             echo '<tr><th scope="row">' . esc_html((string)($p['label'] ?: $ticker))
-                . '<div class="asc-subtle">' . esc_html($ticker) . self::external_link($ticker) . '</div>'
+                . '<div class="asc-subtle">' . esc_html((string)($p['instrument_type'] ?? 'Aktie')) . ' · ' . esc_html($ticker) . self::external_link($ticker) . '</div>'
                 . '<div class="asc-subtle">' . esc_html((string)($p['buy_date'] ?? '')) . '</div></th>';
             echo '<td>' . self::share_count($quantity) . ' stk.</td><td>' . self::amount($cost) . ' ' . esc_html($currency) . '</td>';
             echo '<td>' . ($price !== null ? self::amount($price) . ' ' . esc_html($currency) : '—')
@@ -667,6 +675,13 @@ final class ASC_Portfolio {
             echo '<input type="hidden" name="asc_position_id" value="' . esc_attr((string)$p['id']) . '">';
             wp_nonce_field('asc_portfolio_edit');
             echo '<label>Antal aktier (heltal) <input name="asc_quantity" type="number" inputmode="numeric" min="1" max="1000000000" step="1" value="' . esc_attr((string)$quantity) . '" required></label>';
+            echo '<label>Instrumenttype<select name="asc_instrument_type">';
+            foreach (['Aktie','ETF'] as $kind) {
+                echo '<option value="' . esc_attr($kind) . '"'
+                    . selected((string)($p['instrument_type'] ?? 'Aktie'), $kind, false)
+                    . '>' . esc_html($kind) . '</option>';
+            }
+            echo '</select></label>';
             echo '<label>Købskurs <input name="asc_buy_price" type="text" inputmode="decimal" value="' . esc_attr((string)$cost) . '" required></label>';
             echo '<label>Betalt i alt (DKK) <input name="asc_paid_dkk" type="text" inputmode="decimal" placeholder="Fx 12.345,67" value="'
                 . esc_attr($paid_dkk !== null ? number_format($paid_dkk, 2, ',', '.') : '') . '"></label>';
@@ -766,8 +781,9 @@ final class ASC_Portfolio {
         echo '<input type="hidden" name="action" value="asc_portfolio_add">';
         wp_nonce_field('asc_portfolio_add');
         echo '<label>Ticker (Yahoo-symbol)<input type="text" name="asc_ticker" maxlength="20" '
-            . 'placeholder="NOBI.ST eller HARB-B.CO" required></label>';
+            . 'placeholder="NOBI.ST, VWCE.DE eller ASML.AS" required></label>';
         echo '<label>Navn (valgfrit)<input type="text" name="asc_label" maxlength="80" placeholder="F.eks. Nobia"></label>';
+        echo '<label>Instrumenttype<select name="asc_instrument_type"><option value="Aktie">Aktie</option><option value="ETF">ETF</option></select></label>';
         echo '<label>Antal aktier (heltal)<input type="number" name="asc_quantity" inputmode="numeric" min="1" max="1000000000" step="1" placeholder="100" required></label>';
         echo '<label>Købskurs pr. aktie<input type="text" name="asc_buy_price" inputmode="decimal" placeholder="12,50" required></label>';
         echo '<label>Betalt i alt (DKK, valgfrit)<input type="text" name="asc_paid_dkk" inputmode="decimal" placeholder="Fx 12.345,67"></label>';
