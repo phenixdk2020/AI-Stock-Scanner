@@ -32,7 +32,11 @@ ETF_SAMPLES = ("VWCE.DE", "EUNL.DE", "SXR8.DE", "VWRL.AS")
 
 def instrument_type_of(ticker: str) -> str:
     """Kun eksplicit kendte ETF-symboler klassificeres automatisk."""
-    return "ETF" if ticker.upper() in ETF_SAMPLES else "Ukendt"
+    if ticker.upper() in ETF_SAMPLES:
+        return "ETF"
+    if ticker.upper() in {symbol for sample in SAMPLES.values() for symbol in sample}:
+        return "Aktie"
+    return "Ukendt"
 
 
 def example_tickers(markets: list[str], include_etfs: bool = False) -> list[str]:
