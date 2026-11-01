@@ -164,3 +164,12 @@ Fase 2 indeholder den første version af en loginbeskyttet WordPress-plugin med 
 **WordPress-plugin v0.1.0:** [Download installations-ZIP fra GitHub](dist/hangar18-ai-stock-scanner-v0.1.0.zip). Du kan også bygge den i en lokal klon med `python scripts/build_wp_package.py`.
 
 **Afgrænsning:** Subdomæne og WordPress er ikke oprettet eller installeret fra ChatGPT; den lokale PC og et live-webhotel er ikke end-to-end-testet. WordPress-opdatering i v0.1.0 udføres med versionsstyret ZIP, ikke endnu med Madplans automatiske opdaterings- og rollback-funktioner. Publikation af Yahoo/yfinance-afledte signaler kræver rettighedsvurdering; derfor er første forbindelsestest baseret på tydeligt mærkede demodata.
+
+
+## WordPress-plugin v0.2.0 – privat GitHub-update og genaktivering
+
+WordPress-delen har nu en **GitHub Update**-funktion under **Værktøjer → AI Stock Scanner**. Den kan hente nye versioner fra det **private** GitHub-repository, verificere SHA-256 og genaktivere et plugin, der var aktivt før opdateringen. Se [komplet vejledning](docs/WORDPRESS-GITHUB-UPDATE.md) og [installations-ZIP v0.2.0](dist/hangar18-ai-stock-scanner-v0.2.0.zip).
+
+Fordi repoet er privat, kræver WordPress en **fine-grained GitHub-token med Contents: Read-only**, konfigureret i serverens `wp-config.php` som `ASC_GITHUB_TOKEN`. Token må ikke committes eller vises i frontend. WordPress bruger sin **midlertidige** kodebackup ved opdatering; permanent manuel rollback er endnu ikke implementeret. v0.1.0 skal opgraderes **én gang manuelt** via ZIP, før pluginets egen opdateringsknap er tilgængelig.
+
+**Status:** ZIP og kode er oprettet i GitHub. Installation og genaktivering er endnu ikke testet på et rigtigt WordPress-webhotel.
