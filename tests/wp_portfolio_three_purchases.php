@@ -50,6 +50,7 @@ if (($argv[1] ?? '') === 'child') {
         'asc_buy_price' => '120,50',
         'asc_initial_price' => '131,25',
         'asc_currency' => 'DKK',
+        'asc_instrument_type' => 'Aktie',
         'asc_buy_date' => '',
     ];
     ASC_Portfolio::add();
