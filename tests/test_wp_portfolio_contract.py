@@ -102,6 +102,22 @@ class PortfolioContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, source)
 
+    def test_three_purchase_diagnostics_and_bounded_quote_requests(self):
+        portfolio = PORTFOLIO.read_text(encoding="utf-8")
+        quotes = QUOTES.read_text(encoding="utf-8")
+        for expected in (
+            "private const MAX_POSITIONS = 100",
+            "asc-saved-count", "invalid_ticker", "invalid_currency",
+            "invalid_quantity", "invalid_current_price", "save_failed",
+            "self::positions($user_id)", "if ($written === false || !$stored)",
+            "private_page_no_cache", "DONOTCACHEPAGE", "nocache_headers()",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, portfolio)
+        self.assertIn("private const MAX_FETCH_PER_PAGE = 1", quotes)
+        self.assertIn("'timeout' => 3", quotes)
+        self.assertTrue((ROOT / "tests/wp_portfolio_three_purchases.php").exists())
+
     def test_yahoo_is_optional_and_rate_limited(self):
         source = QUOTES.read_text(encoding="utf-8")
         for required in (
