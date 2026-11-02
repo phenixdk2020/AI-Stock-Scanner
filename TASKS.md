@@ -1,5 +1,7 @@
 # TASKS – AI-Stock-Scanner
 
+> Samlet backlog med prioritet, kilde og "færdig når": **`docs/BACKLOG.md`**. Denne fil er logbogen.
+
 Åbne punkter. Opdateres ved hver session (Allan 02-11-2026).
 
 ## I gang
