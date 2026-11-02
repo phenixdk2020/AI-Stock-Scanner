@@ -47,6 +47,8 @@ py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
+Derefter kan appen startes (og genstartes efter en opdatering) med et dobbeltklik på `Start-AI-Stock-Scanner.cmd`; den åbner http://localhost:8501.
+
 ```powershell
 .\.venv\Scripts\python.exe scan_cli.py --tickers "NOVO-B.CO,ASML.AS,SAN.MC,NOKIA.HE,VWCE.DE"
 .\.venv\Scripts\python.exe -m stockscanner.site_sync --check-auth
