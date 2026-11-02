@@ -1,3 +1,5 @@
+> Senest opdateret 2. november 2026: 59 nummererede testtilfælde fordelt på denne oprindelige rapport (T01–T23), den supplerende rapport (T24–T52) og den løbende emnelog (T53–T59). Nyere resultater erstatter ældre åbne punkter i det afprøvede omfang. Se 00-Laes-mig.md.
+
 # MyStockScanner – funktionstest
 
 Testdato: 1. november 2026. Webapp version 57.8. Miljø: indlogget konto med aktiv prøveperiode, desktopbrowser. Seneste markedsdag i flere visninger: 30. oktober 2026.
@@ -168,4 +170,8 @@ En fuld accepttest kræver et aftalt funktionsinventar, testkonto med relevante 
 
 Rapporten gemmes både i den ønskede lokale Dropbox-mappe og i chatprojektets outputs. At filen er skrevet lokalt bekræfter ikke i sig selv, at Dropbox-klienten har færdigsynkroniseret den.
 
+
+## Opdatering 2. november 2026
+
+Supplerende funktionstest T24–T52 er nu udført og beskrevet i `MyStockScanner-supplerende-test-2026-11-01.md`. Denne fil erstatter de tidligere åbne punkter i det omfang, de nye tests dækker dem. Der er nu i alt 52 nummererede testtilfælde; blokerede/delvise tests er fortsat ikke fuldt godkendte. Ny emnevis dokumentation føres løbende i `MyStockScanner-loebende-emnelog-2026-11-02.md`.
 

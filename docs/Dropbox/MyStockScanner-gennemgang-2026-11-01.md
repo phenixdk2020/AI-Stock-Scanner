@@ -359,3 +359,46 @@ Hjælpeknapperne for timing i både watchlist og Playbook viste ingen hjælpetop
 
 Ved dette nye opslag viste HY9H's Playbook MSS-score 88, værdi 94 og timing Behold, mens den tidligere liste viste 86, værdi 91 og Købszone med overbevisning. Timinghistorikken pr. 30. oktober 2026 viste første signal i alle tre købszoner den 14. august 2026 og Behold som aktiv. Signalafkastet stod til -10,29 %. Forskellen mellem visningerne blev ikke afklaret; tidligere beskrevne scorer og timing må læses som de konkrete observerede øjebliksbilleder.
 
+## 16. Flere kandidater og entry – kursusdokumentation
+
+Tre yderligere kandidater blev tilføjet til researchlisten efter ønske om flere høje scores:
+
+| Selskab | Børs/ticker | MSS | Kvalitet | Værdi | Moat | Observeret timing og entry |
+|---|---|---:|---:|---:|---:|---|
+| innoscripta SE | XETRA / 1INN | 92 | 93 | 97 | 87 | Stærk købszone. Første køb og stærke køb samt strategiens indgang 23.10.2026; +4,25 % siden signalet pr. 30.10.2026. |
+| Swedish Orphan Biovitrum | Stockholm / SOBI | 80 | 75 | 96 | 70 | Stærk købszone. Strategi-entry 26.06.2026; nyt efterfølgende stærkt signal 30.10.2026. |
+| Schneider Electric | Paris / SU | 86 | 87 | 100 | 72 | Neutral, afventer næste indgangssignal, ingen åben strategiposition. Seneste udgang 04.09.2026. |
+
+Scorerne er observerede appværdier. Kandidaterne er til research, ikke en fuld vurdering af egnethed eller købsanbefaling. Der blev ikke fundet en konkret fremtidig triggerkurs i timingpanelet.
+
+### Kurset Sådan bruges MyStockScanner
+
+Kurset blev åbnet på brugerens anvisning. De relevante tekstlektioner er:
+
+- [TradingView, lektion 100](https://app.mystockscanner.com/Course/32/Course/2382)
+- [Playbook-siden, lektion 113](https://app.mystockscanner.com/Course/32/Course/2395)
+- [Tidsbestemmelse af handler med TPI, lektion 104](https://app.mystockscanner.com/Course/32/Course/2386) – denne viste video, hvis lydindhold ikke blev gennemgået.
+
+TradingView-lektionen siger, at punkt 3 i Playbook handler om at time entry. Den skelner mellem dags-, uge- og månedscandles. MTI bruges til trendretning: de foretrækker som udgangspunkt både grøn daglig MTI og grøn ugentlig MTI, kaldet dobbelt grøn. TPI anvendes til at finjustere tidspunktet; grøn Trend beskrives som gunstig for fortsat optrend. På Weekly og Daily betegner gul oversolgt og grå overkøbt, hvilket ifølge kurset kan pege mod vendinger. Det understreges i kurset, at TPI ikke altid rammer rigtigt.
+
+Candles indgår altså i kursgrafen, og tidsrammen har betydning. Den læste lektion fastlægger dog ikke en bestemt candlestickformation, et brud over et bestemt candles højeste kurs eller en eksakt automatisk triggerregel. Disse ting må ikke opfindes ud fra indikatorsammenfald. Det er heller ikke dokumenteret, at de generelle MTI/TPI-præferencer er den fulde formel bag de nuværende timingzoner.
+
+Kurset omtaler også støtte/modstand og glidende gennemsnit; de bruger ofte SMA 20, 50 og 200. Playbook-lektionen bekræfter, at indtjeningsscenarierne bruger samme forventede indtjening og forskellige P/E-multipler. Teksten kan afspejle et ældre sidelayout og bør læses sammen med den aktuelle app.
+
+## 17. Funktionstest og scorekontrol
+
+Den samlede funktionstest står i `MyStockScanner-funktionstest-2026-11-01.md` i denne mappe. Den indeholder 23 målrettede testtilfælde, dækning fra den tidligere gennemgang, fejlbeskrivelser og en eksplicit liste over ikke sluttestede funktioner. Rapporten er ikke en fuld acceptgodkendelse af alle funktioner.
+
+Ti selskabers samlede MSS-score er efterregnet ud fra de viste kvalitets-, værdi- og moat-scorer. Ni matcher almindelig afrunding. HY9H giver (94+91+75)/3 = 86,67, mens listen viser 86. Skjult præcision eller forskellige snapshots kan være forklaringen, men er ikke verificeret. De enkelte delscorer er ikke uafhængigt genskabt fra årsrapporter.
+
+Researchlisten indeholder fortsat ni aktier. Timingfilteret er tilbage på Alle og heatmap på én uge. Pensionsberegnerens kapital blev gendannet til 100000. Der er ikke foretaget handler eller oprettet forumindlæg.
+
+## Seneste status – 2. november 2026
+
+Der er nu 59 nummererede testtilfælde. T53–T59 er dokumenteret i den løbende emnelog: ukendt importticker, daterede HY9H-snapshots, kalender med konkret watchlist, regnskabsfilter, globale/regionale/nationale peergrupper, notifikationsmenu og slutkontrol af ni aktier.
+
+HY9H-tabellen viser Last Close Date 29.10.2026, mens Playbooks timingpanel viser Pr.30.10.2026. Det dokumenterer forskellige datodækninger og er en mulig forklaring på de tidligere modstridende værdier; årsagen er ikke endeligt fastslået. Kalenderen viser Novo-regnskab 4.november, når researchlisten vælges som kilde.
+
+Kontoens ni aktier er bevaret. Kalenderen er sat tilbage til Favoritlister med regnskabsfilter til. Peervisningen er sat tilbage til Global. Ingen betalinger, handler, emailbeskeder eller forumopslag er gennemført.
+
+Se `00-Laes-mig.md` for dokumentoversigt og `MyStockScanner-loebende-emnelog-2026-11-02.md` for den nyeste emnevise dokumentation. Åbne og blokerede tests er fortsat ikke en godkendelse af alle funktioner.
