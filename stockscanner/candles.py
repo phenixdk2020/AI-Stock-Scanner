@@ -130,6 +130,136 @@ def forward_returns(prices: pd.DataFrame, horizons=DEFAULT_HORIZONS, cost_pct: f
     return out
 
 
+def setups(prices: pd.DataFrame, require_pullback: bool = True) -> pd.DataFrame:
+    """Handelsopsætninger i stil med Daytrader.dk-guidens Inside Bar.
+
+    Én række pr. opsætning: dagen den kendes (lukning), købsstop-niveau (trigger)
+    og stop-loss. Inside bar: trigger = mother bar-top, stop = mother bar-bund.
+    Øvrige mønstre: trigger = signaldagens top, stop = laveste bund i mønsteret.
+    Kun i optrend (og efter tilbagerekyl, som standard) på opsætningsdagen.
+    """
+    f = _ohlcv(prices)
+    h, l = f["High"], f["Low"]
+    valid = f[["Open", "High", "Low", "Close"]].notna().all(axis=1)
+    context = trend_context(prices)
+    ok = context["uptrend"] & (context["pullback"] if require_pullback else True)
+    patterns = detect_patterns(prices)
+    inside = (h < h.shift(1)) & (l > l.shift(1)) & valid & valid.shift(1, fill_value=False)
+    candidates = {
+        "inside_bar_breakout": (inside, h.shift(1), l.shift(1)),
+        "bullish_engulfing": (patterns["bullish_engulfing"], h, l.rolling(2).min()),
+        "hammer": (patterns["hammer"], h, l),
+        "morning_star": (patterns["morning_star"], h, l.rolling(3).min()),
+        "close_above_prev_high_volume": (patterns["close_above_prev_high_volume"], h, l),
+    }
+    rows = []
+    for name, (mask, trigger, stop) in candidates.items():
+        for position in np.flatnonzero((mask & ok).to_numpy()):
+            rows.append((name, position, float(trigger.iloc[position]), float(stop.iloc[position])))
+    return pd.DataFrame(rows, columns=["pattern", "position", "trigger", "stop"])
+
+
+def simulate_trade(prices: pd.DataFrame, position: int, trigger: float, stop: float, hold_days: int,
+                   entry_window: int = 5, target_r: float | None = None, cost_pct: float = DEFAULT_COST_PCT):
+    """Købsstop over `trigger` de næste `entry_window` dage; stop-loss ved `stop`.
+
+    Konservativ ved dagsdata: rammer entrydagen også stoppet, regnes det som stoppet.
+    Gap over trigger giver køb til åbningskursen; gap under stop giver salg til åbningen.
+    Ellers salg ved lukning på holdedag nr. `hold_days` (1 = samme dag som købet).
+    Returnerer (afkast %, R-multipel, exit-årsag) eller None, hvis købet aldrig udløses.
+    """
+    f = _ohlcv(prices)
+    o, h, l, c = (f[col].to_numpy() for col in ("Open", "High", "Low", "Close"))
+    if not (trigger > stop > 0):
+        return None
+    n = len(f)
+    entry_day = None
+    for j in range(position + 1, min(position + 1 + entry_window, n)):
+        if np.isnan(o[j]) or np.isnan(h[j]):
+            return None
+        if l[j] <= stop and h[j] < trigger:
+            return None  # opsætningen brudt nedad, før købet blev udløst
+        if h[j] >= trigger:
+            entry_day = j
+            break
+    if entry_day is None:
+        return None
+    entry = max(o[entry_day], trigger)
+    last_day = entry_day + hold_days - 1
+    risk = entry - stop
+    target = entry + target_r * risk if target_r else None
+    exit_price, reason = None, "tid"
+    for j in range(entry_day, min(last_day, n - 1) + 1):
+        if j > entry_day and o[j] <= stop:
+            exit_price, reason = o[j], "stop (gap)"
+            break
+        if l[j] <= stop:
+            exit_price, reason = stop, "stop"
+            break
+        if target is not None and h[j] >= target:
+            exit_price, reason = (o[j] if j > entry_day and o[j] >= target else target), "mål"
+            break
+    if exit_price is None:
+        if last_day >= n:
+            return None  # handlen er stadig åben ved dataenes slutning
+        exit_price = c[last_day]
+    pct = (exit_price / entry - 1) * 100 - 2 * cost_pct
+    r_multiple = (exit_price - entry) / risk - 2 * cost_pct / 100 * entry / risk
+    return pct, r_multiple, reason
+
+
+@dataclass(frozen=True)
+class TradeRow:
+    pattern: str
+    hold_days: int
+    trades: int
+    mean_pct: float | None
+    hit_rate_pct: float | None
+    mean_r: float | None
+    stopped_pct: float | None
+    baseline_pct: float | None
+    edge_pct: float | None
+
+
+def trade_backtest(histories: dict[str, pd.DataFrame], hold_days=(1, 5, 10, 20), entry_window: int = 5,
+                   target_r: float | None = None, cost_pct: float = DEFAULT_COST_PCT,
+                   require_pullback: bool = True) -> list[TradeRow]:
+    """Guidens handelsregler på dagsdata, sammenlignet med køb på åbning en tilfældig dag.
+
+    Baseline: køb ved åbning og salg ved lukning efter samme antal holdedage, alle dage.
+    Overlappende handler tælles hver for sig.
+    """
+    results = {(name, days): [] for name in PATTERNS for days in hold_days}
+    baseline = {days: [] for days in hold_days}
+    for frame in histories.values():
+        f = _ohlcv(frame)
+        for days in hold_days:
+            base = (f["Close"].shift(-(days - 1)) / f["Open"] - 1) * 100 - 2 * cost_pct
+            baseline[days].append(base.dropna())
+        for row in setups(frame, require_pullback=require_pullback).itertuples(index=False):
+            for days in hold_days:
+                trade = simulate_trade(frame, row.position, row.trigger, row.stop, days,
+                                       entry_window, target_r, cost_pct)
+                if trade is not None:
+                    results[(row.pattern, days)].append(trade)
+    rows = []
+    for days in hold_days:
+        base_values = pd.concat(baseline[days]) if baseline[days] else pd.Series(dtype=float)
+        base_mean = float(base_values.mean()) if len(base_values) else None
+        for name in PATTERNS:
+            trades = results[(name, days)]
+            if not trades:
+                rows.append(TradeRow(name, days, 0, None, None, None, None, base_mean, None))
+                continue
+            pct = np.array([t[0] for t in trades])
+            r = np.array([t[1] for t in trades])
+            stopped = np.mean([t[2].startswith("stop") for t in trades]) * 100
+            mean = float(pct.mean())
+            rows.append(TradeRow(name, days, len(trades), mean, float((pct > 0).mean() * 100), float(r.mean()),
+                                 float(stopped), base_mean, None if base_mean is None else mean - base_mean))
+    return rows
+
+
 @dataclass(frozen=True)
 class BacktestRow:
     pattern: str

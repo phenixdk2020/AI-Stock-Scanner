@@ -5,7 +5,8 @@ import numpy as np
 import pandas as pd
 
 from stockscanner.candles import (
-    PATTERNS, backtest, detect_patterns, eligible_signals, forward_returns, trend_context,
+    PATTERNS, backtest, detect_patterns, eligible_signals, forward_returns, simulate_trade, trade_backtest,
+    trend_context,
 )
 
 
@@ -118,5 +119,57 @@ class ContextAndBacktestTests(unittest.TestCase):
                 self.assertAlmostEqual(row.edge_pct, row.mean_pct - row.baseline_mean_pct)
 
 
+class TradeSimulationTests(unittest.TestCase):
+    # Mother bar 90-110 på position 0, inside bar på position 1.
+    BASE = [(100, 110, 90, 105), (104, 108, 95, 100)]
+
+    def test_buy_stop_fills_at_trigger_and_exits_on_time(self):
+        rows = self.BASE + [(105, 112, 104, 111), (111, 115, 110, 114)]
+        pct, r, reason = simulate_trade(bars(rows), 1, 110, 90, hold_days=2, cost_pct=0)
+        self.assertEqual(reason, "tid")
+        self.assertAlmostEqual(pct, (114 / 110 - 1) * 100)
+        self.assertAlmostEqual(r, 4 / 20)
+
+    def test_gap_above_trigger_fills_at_open(self):
+        rows = self.BASE + [(113, 116, 112, 115)]
+        pct, _, _ = simulate_trade(bars(rows), 1, 110, 90, hold_days=1, cost_pct=0)
+        self.assertAlmostEqual(pct, (115 / 113 - 1) * 100)
+
+    def test_stop_hit_and_gap_through_stop(self):
+        rows = self.BASE + [(105, 111, 104, 109), (100, 101, 88, 95)]
+        self.assertEqual(simulate_trade(bars(rows), 1, 110, 90, hold_days=3, cost_pct=0)[1], -1)
+        rows = self.BASE + [(105, 111, 104, 109), (85, 87, 80, 86)]
+        pct, r, reason = simulate_trade(bars(rows), 1, 110, 90, hold_days=3, cost_pct=0)
+        self.assertEqual(reason, "stop (gap)")
+        self.assertAlmostEqual(r, -25 / 20)
+
+    def test_entry_day_touching_stop_counts_as_stopped(self):
+        rows = self.BASE + [(100, 111, 89, 109)]
+        self.assertEqual(simulate_trade(bars(rows), 1, 110, 90, hold_days=1, cost_pct=0)[2], "stop")
+
+    def test_no_entry_when_setup_breaks_down_or_expires(self):
+        self.assertIsNone(simulate_trade(bars(self.BASE + [(95, 99, 88, 89)]), 1, 110, 90, 1))
+        self.assertIsNone(simulate_trade(bars(self.BASE + [(100, 105, 95, 100)] * 3), 1, 110, 90, 1, entry_window=3))
+
+    def test_target_in_r(self):
+        rows = self.BASE + [(105, 111, 104, 109), (130, 155, 129, 150), (150, 151, 149, 150)]
+        _, r, reason = simulate_trade(bars(rows), 1, 110, 90, hold_days=3, target_r=2, cost_pct=0)
+        self.assertEqual(reason, "mål")
+        self.assertAlmostEqual(r, 2)  # mål 110 + 2 × 20 = 150 ramt intradag
+        rows[3] = (160, 165, 158, 162)  # gap over målet: salg til åbningen
+        self.assertAlmostEqual(simulate_trade(bars(rows), 1, 110, 90, 3, target_r=2, cost_pct=0)[1], 2.5)
+
+    def test_trade_backtest_runs_on_random_walk(self):
+        rng = np.random.default_rng(3)
+        close = 100 * np.cumprod(1 + rng.normal(0.001, 0.02, 600))
+        opens = close * (1 + rng.normal(0, 0.005, 600))
+        frame = bars(list(zip(opens, np.maximum(opens, close) * 1.01, np.minimum(opens, close) * 0.99, close)),
+                     rng.uniform(500, 3000, 600))
+        rows = trade_backtest({"TEST": frame}, hold_days=(1, 5))
+        self.assertEqual(len(rows), len(PATTERNS) * 2)
+        self.assertTrue(any(row.trades for row in rows))
+
+
 if __name__ == "__main__":
+
     unittest.main()
