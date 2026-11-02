@@ -81,3 +81,29 @@ with right:
         PORTFOLIO.write_text("# ticker;antal;koebskurs;koebsdato (ÅÅÅÅ-MM-DD)\n" +
                              edited_portfolio.dropna(subset=["ticker"]).to_csv(sep=";", index=False), encoding="utf-8")
         st.success("Gemt – salgsreglerne gælder fra næste kørsel.")
+
+    from stockscanner.portfolio import fetch_quotes, load_portfolio, valuation
+
+    @st.cache_data(ttl=900, show_spinner="Henter kurser …")
+    def cached_quotes(tickers: tuple[str, ...]):
+        return fetch_quotes(tickers)
+
+    positions = load_portfolio(PORTFOLIO)
+    if positions:
+        if st.button("Opdatér kurser"):
+            cached_quotes.clear()
+        table = valuation(positions, cached_quotes(tuple(sorted(positions))))
+        st.dataframe(table.style.format({"kurs": "{:.2f}", "vaerdi": "{:,.0f}", "gevinst": "{:+,.0f}",
+                                         "gevinst_pct": "{:+.1f} %", "koebskurs": "{:.2f}", "dag": "{:+,.0f}",
+                                         "dag_pct": "{:+.1f} %"}, na_rep="–"),
+                     width="stretch", hide_index=True)
+        for currency, part in table.dropna(subset=["vaerdi"]).groupby("valuta"):
+            cost = (part["koebskurs"] * part["antal"]).sum()
+            day = part["dag"].sum()
+            yesterday = part["vaerdi"].sum() - day
+            st.caption(f"{currency}: værdi {part['vaerdi'].sum():,.0f}, gevinst {part['gevinst'].sum():+,.0f} "
+                       f"({(part['vaerdi'].sum() / cost - 1) * 100:+.1f} %), siden i går {day:+,.0f}"
+                       f" ({(day / yesterday * 100 if yesterday else 0):+.1f} %)")
+        st.caption("Kurser fra yfinance, op til 15 min. gamle (gemmes i 15 min.).")
+    else:
+        st.caption("Ingen aktier i porteføljen endnu – tilføj dem ovenfor og tryk Gem.")
