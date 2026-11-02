@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict
+from datetime import date
 import json
 from pathlib import Path
 import sys
@@ -18,7 +19,10 @@ from stockscanner.exits import (
 from stockscanner.market_data import fetch_history
 from stockscanner.mss_compare import compare, load_observations, summary
 from stockscanner.quality import score_quality
+from stockscanner.quality_rank import quality_percentiles
 from stockscanner.regimes import REGIMES, regime_backtest
+from stockscanner.scores import momentum_scores, value_scores
+from stockscanner.weekly_list import build_rows
 from stockscanner.valuation import fetch_inputs as fetch_value_inputs, value_channel
 from stockscanner.storage import load_or_fetch_fundamentals, load_watchlist, save_scans
 
@@ -212,6 +216,43 @@ def print_exit_study(tickers: list[str], period: str, benchmark: str, holdout_st
     return 0
 
 
+def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None) -> int:
+    """Mandagsliste: StockMap-signal + Quality/Value/Momentum-percentiler + værdikanal og PEG."""
+    import yfinance as yf
+
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="yfinance")
+    bench = fetch_history(benchmark, period="3y")[0]
+    histories, infos, qualities, channels = {}, {}, [], {}
+    for ticker in tickers:
+        try:
+            histories[ticker] = fetch_history(ticker, period="3y")[0]
+            infos[ticker] = yf.Ticker(ticker).info or {}
+            qualities.append(score_quality(load_or_fetch_fundamentals(ticker)))
+        except Exception as error:
+            print(f"{ticker}: FEJL – {error}", file=sys.stderr)
+            continue
+        try:
+            channels[ticker] = value_channel(fetch_value_inputs(ticker))
+        except Exception:
+            pass
+    rows = build_rows(list(histories), histories, bench, quality_percentiles(qualities),
+                      value_scores(infos).to_dict(), momentum_scores(histories).to_dict(), channels)
+    fmt = lambda x: "–" if x is None or (isinstance(x, float) and x != x) else f"{x:.0f}"
+    print(f"Mandagsliste {date.today()} – {len(rows)} aktier, StockMap mod {benchmark}. Percentiler er inden for listen.")
+    print(f"{'Aktie':<11}{'Handling':<14}{'StockMap':<18}{'TPI-lite':<18}{'Q':>4}{'V%':>5}{'Mom':>5}{'Kanal':>7}{'PEG':>6}  Begrundelse")
+    for r in rows:
+        peg = "–" if r.peg is None else f"{r.peg:.1f}"
+        print(f"{r.ticker:<11}{r.action:<14}{r.stockmap:<18}{(r.tpi or '–'):<18}{fmt(r.quality):>4}{fmt(r.value_pct):>5}"
+              f"{fmt(r.momentum):>5}{fmt(r.channel_score):>7}{peg:>6}  {r.reasons}")
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f"mandagsliste_{date.today()}.csv"
+        pd.DataFrame([r.__dict__ for r in rows]).to_csv(path, sep=";", index=False, encoding="utf-8-sig")
+        print(f"Gemt: {path}")
+    print("Screening efter egne regler inspireret af MSS – ikke en købsanbefaling.")
+    return 0
+
+
 def main() -> int:
     # Dansk tekst skal være læsbar, også når output sendes gennem en pipe på Windows (cp1252).
     for stream in (sys.stdout, sys.stderr):
@@ -232,6 +273,8 @@ def main() -> int:
     parser.add_argument("--maal", type=float, help="--candles: kursmål i R (fx 2 = to gange risikoen)")
     parser.add_argument("--regimer", action="store_true", help="Fase 5 A–C: trend, relativ styrke, tilbagerekyl")
     parser.add_argument("--salg", action="store_true", help="Punkt 9: test af salgsregler på samme køb")
+    parser.add_argument("--mandagsliste", action="store_true",
+                        help="Ugentlig liste: køb-kandidater/salg ud fra StockMap, Quality, Value og PEG")
     parser.add_argument("--vaerdi", action="store_true", help="Værdikanal og værdiansættelsesscore")
     parser.add_argument("--horisont", type=float, default=2.0, help="--vaerdi: år frem (MSS' standard er 2)")
     parser.add_argument("--sammenlign-mss", action="store_true",
@@ -253,6 +296,8 @@ def main() -> int:
         return print_quality(selected)
     if arguments.vaerdi:
         return print_value_channels(selected, arguments.horisont)
+    if arguments.mandagsliste:
+        return print_weekly_list(selected, arguments.benchmark, Path("data"))
     if arguments.salg:
         return print_exit_study(selected, arguments.periode, arguments.benchmark, arguments.urort, arguments.kurtage)
     if arguments.regimer:

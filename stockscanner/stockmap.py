@@ -39,7 +39,10 @@ def weekly(prices: pd.DataFrame) -> pd.DataFrame:
     frame = prices[["Open", "Close"]].apply(pd.to_numeric, errors="coerce").copy()
     frame.index = _dates(prices.index)
     frame = frame[~frame.index.duplicated(keep="last")].sort_index().dropna()
-    return frame.resample("W-FRI").agg({"Open": "first", "Close": "last"}).dropna()
+    bars = frame.resample("W-FRI").agg({"Open": "first", "Close": "last"}).dropna()
+    if not bars.empty and not frame.empty and frame.index[-1] < bars.index[-1]:
+        bars = bars.iloc[:-1]  # ugen er ikke afsluttet endnu (signal først ved fredagens lukning)
+    return bars
 
 
 def _smooth(series: pd.Series, span: int, ema: bool) -> pd.Series:
