@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+from contextlib import closing
 from datetime import datetime, timezone
 import json
 import os
@@ -41,7 +42,7 @@ def build_snapshot(db_path: Path = DB_PATH, demo: bool = False) -> dict:
         }
     if not Path(db_path).exists():
         raise ValueError("Ingen scanninger fundet. Kør scan_cli.py først.")
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:  # lukkes eksplicit (Windows holder ellers filen låst)
         rows = conn.execute(
             """SELECT ticker, market_date, score, signal, scanned_at_utc
                FROM scans ORDER BY scanned_at_utc DESC, id DESC"""

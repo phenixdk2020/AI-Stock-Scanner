@@ -11,14 +11,45 @@ import pandas as pd
 
 from stockscanner.core import DEFAULT_TICKERS, analyze_prices, parse_tickers
 from stockscanner.market_data import fetch_history
-from stockscanner.storage import load_watchlist, save_scans
+from stockscanner.quality import score_quality
+from stockscanner.storage import load_or_fetch_fundamentals, load_watchlist, save_scans
+
+
+def print_quality(tickers: list[str]) -> int:
+    """Udskriv kvalitetsscore pr. symbol. Screening, ikke en købsanbefaling."""
+    shown = 0
+    for ticker in tickers:
+        try:
+            result = score_quality(load_or_fetch_fundamentals(ticker))
+        except Exception as error:
+            print(f"{ticker}: FEJL – {error}", file=sys.stderr)
+            continue
+        shown += 1
+        total = "–" if result.total is None else f"{result.total:.1f}"
+        pillars = ", ".join(
+            f"{name} {'–' if score is None else f'{score:.0f}'}" for name, score in result.pillars.items()
+        )
+        print(f"{result.ticker}: kvalitet {total}/100 ({result.label}) | dækning {result.coverage * 100:.0f} % | "
+              f"{pillars} | {result.model_note} | år: {', '.join(result.data_years)}")
+        if result.missing:
+            print(f"    mangler: {', '.join(result.missing)}")
+    print("Screening ud fra uofficielle regnskabsdata – ikke en købsanbefaling.")
+    return 0 if shown else 1
 
 
 def main() -> int:
+    # Dansk tekst skal være læsbar, også når output sendes gennem en pipe på Windows (cp1252).
+    for stream in (sys.stdout, sys.stderr):
+        if not stream.isatty() and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description="AI-Stock-Scanner – daglig batchscanning")
     parser.add_argument("--tickers", help="Komma-separerede symboler; ellers gemt watchlist")
     parser.add_argument("--csv", type=Path, help="Skriv seneste resultater til CSV")
     parser.add_argument("--no-save", action="store_true", help="Undlad at gemme i SQLite")
+    parser.add_argument(
+        "--kvalitet", action="store_true",
+        help="Vis kvalitetsscore (regnskabstal, cachet i 7 dage) i stedet for teknisk scanning",
+    )
     arguments = parser.parse_args()
 
     try:
@@ -26,6 +57,9 @@ def main() -> int:
     except ValueError as error:
         print(str(error), file=sys.stderr)
         return 2
+
+    if arguments.kvalitet:
+        return print_quality(selected)
 
     results = []
     failed = []

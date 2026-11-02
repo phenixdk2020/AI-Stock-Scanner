@@ -57,6 +57,10 @@ WordPress-synkronisering bruger `ASC_WP_SITE_URL`, `ASC_WP_USER` og `ASC_WP_APP_
 
 Den gennemsigtige **tekniske score** anvender SMA50/200, RSI14, MACD, 21-dages afkast og volumen (20/20/20/20/10/10 point). Score er ikke en købsanbefaling eller et mål for en akties fundamentale kvalitet. Historiske data kommer fra yfinance/Yahoo, er ikke garanteret aktuelle og er ikke en licenseret realtids-API.
 
+## Kvalitetsscore (lokal Python-scanner, fase 1–2)
+
+Regnskabsbaseret kvalitetsscore (lønsomhed, stabilitet og vækst, cashflow, balance) i vores egen, gennemsigtige model – ikke en kopi af MyStockScanner. Kør `scan_cli.py --kvalitet --tickers MSFT,NOVO-B.CO` eller brug sektionen "Kvalitet" i Streamlit-appen. Datakilden er uofficiel (yfinance), manglende tal vises som mangler, og scoren er en screening, ikke en købsanbefaling. Formler, tærskler og begrænsninger: [docs/QUALITY-MODEL.md](docs/QUALITY-MODEL.md).
+
 ## Tests og repository
 
 ```powershell
