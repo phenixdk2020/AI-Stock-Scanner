@@ -14,6 +14,6 @@ Scriptet kontrollerer ren Git-arbejdskopi, branch `main`, korrekt origin og fast
 
 **Sikkerhed:** Repoet er offentligt. Læs nye MD/PDF/CSV/PNG-filer før push og kontrollér persondata, licensbegrænset indhold og adgangskoder. Filnavnefiltre kan ikke opdage alle hemmeligheder. En hemmelighed, som pushes og senere slettes, kan fortsat findes i Git-historikken.
 
-**Status 2026-11-01:** MyStockScanner-funktionstest-2026-11-01.md er verificeret identisk i Dropbox/GitHub. MyStockScanner-gennemgang-2026-11-01.md i GitHub var kortere end Dropbox-versionen ved seneste kontrol; synkroniser igen for at udligne den.
+**Status 2026-11-02:** docs/Dropbox er bragt ajour med Dropbox-mappen (gennemgang, funktionstest, supplerende test, emnelog, restliste, læs-mig og billeder) og udvidet med datakatalog og screenshots-2026-11-02/. PDF-e-bøgerne i Dropbox er bevidst ikke kopieret til det offentlige repo.
 
 Dropbox-sync er uafhængig af WordPress-opdateringsknappen og scannerens Application Password.

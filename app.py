@@ -13,7 +13,10 @@ from stockscanner.sectors import group_sectors
 from stockscanner.updater import authorized, check_update, install_update
 from stockscanner.market_data import fetch_history
 from stockscanner.ollama import explain
-from stockscanner.storage import load_watchlist, recent_scans, save_scans, save_watchlist
+from stockscanner.quality import score_quality
+from stockscanner.storage import (
+    get_cached_fundamentals, load_or_fetch_fundamentals, load_watchlist, recent_scans, save_scans, save_watchlist,
+)
 
 
 st.set_page_config(page_title="AI-Stock-Scanner", page_icon="📈", layout="wide")
@@ -193,6 +196,55 @@ if results:
                     "Ollama kunne ikke gennemføre analysen. Kontrollér at Ollama kører "
                     f"og modellen findes. Fejl: {error}"
                 )
+    st.subheader(f"Kvalitet – {symbol}")
+    st.caption(
+        "Regnskabsbaseret kvalitetsscore (vores egen, gennemsigtige model). "
+        "Screening ud fra uofficielle yfinance-data – ikke en købsanbefaling. Se docs/QUALITY-MODEL.md."
+    )
+    quality_key = f"quality_{symbol}"
+    # Cachen læses én gang; udløbet cache må ikke omgås via session state.
+    cached_fundamentals = get_cached_fundamentals(symbol)
+    if cached_fundamentals is None:
+        st.session_state.pop(quality_key, None)
+    else:
+        st.session_state[quality_key] = score_quality(cached_fundamentals)
+    if st.button("Hent regnskabstal og beregn kvalitet", key=f"quality_btn_{symbol}"):
+        try:
+            with st.spinner("Henter regnskabstal (cachet i 7 dage)"):
+                st.session_state[quality_key] = score_quality(load_or_fetch_fundamentals(symbol))
+        except Exception as error:
+            st.session_state.pop(quality_key, None)
+            st.error(f"Kvalitet kunne ikke beregnes: {error}")
+    quality = st.session_state.get(quality_key)
+    if quality is not None:
+        q1, q2, q3 = st.columns(3)
+        q1.metric("Kvalitetsscore", "–" if quality.total is None else f"{quality.total:.1f}/100")
+        q2.metric("Vurdering", quality.label)
+        q3.metric("Datadækning", f"{quality.coverage * 100:.0f} %")
+        st.write(" · ".join(
+            f"**{name}:** {'–' if value is None else f'{value:.0f}'}" for name, value in quality.pillars.items()
+        ))
+        st.dataframe(pd.DataFrame([
+            {
+                "Måling": metric.label,
+                "Søjle": metric.pillar,
+                "Værdi": None if metric.value is None else round(metric.value, 4),
+                "Point (0-100)": metric.score,
+                "Begrundelse": metric.reason,
+            }
+            for metric in quality.metrics
+            if metric.applicable
+        ]), hide_index=True, use_container_width=True)
+        st.caption(
+            f"Model: {quality.model_note} · Regnskabsår: {', '.join(quality.data_years) or '–'} · "
+            f"Valuta: {quality.currency or '–'} · Kilde: {quality.source} · Hentet: {quality.fetched_at_utc or '–'}"
+        )
+        if quality.missing:
+            st.warning("Mangler / ikke beregnet: " + ", ".join(quality.missing))
+        for note in quality.notes:
+            st.caption(note)
+        st.caption("Screening, ikke investeringsrådgivning. Absolutte tærskler; ingen sektorsammenligning endnu.")
+
 else:
     st.info("Vælg aktier i venstre side og klik på 'Scan nu'. Data hentes først ved scanning.")
 

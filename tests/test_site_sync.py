@@ -1,5 +1,6 @@
 """Fase 1/2 integrationskontrakter; ingen internetadgang nødvendig."""
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 import tempfile
 import unittest
@@ -18,7 +19,7 @@ class SnapshotTests(unittest.TestCase):
     def test_latest_per_ticker(self):
         with tempfile.TemporaryDirectory() as folder:
             db = Path(folder) / "data.sqlite3"
-            with sqlite3.connect(db) as c:
+            with closing(sqlite3.connect(db)) as c:
                 c.execute("CREATE TABLE scans (id INTEGER PRIMARY KEY, "
                           "ticker TEXT, market_date TEXT, score INTEGER, "
                           "signal TEXT, scanned_at_utc TEXT)")
@@ -31,6 +32,7 @@ class SnapshotTests(unittest.TestCase):
                         ("NOVO-B.CO", "2026-11-01", 60, "Hold øje", "2026-11-01T07:00:00Z"),
                     ],
                 )
+                c.commit()
             payload = build_snapshot(db)
             self.assertEqual(payload["mode"], "research")
             self.assertEqual(len(payload["rows"]), 2)
