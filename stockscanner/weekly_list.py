@@ -44,6 +44,8 @@ class WeeklyRow:
     asymmetry: float | None = None
     earnings: str | None = None     # næste regnskabsdato
     eps_trend: str | None = None    # value trap-tekst eller None
+    shares: int | None = None       # foreslået antal aktier (B-09), kun køb-kandidater
+    stop: float | None = None       # stop = kurs − 3 × ATR(14)
 
 
 def latest_signal(prices: pd.DataFrame, benchmark: pd.DataFrame, weeks: int) -> tuple[str, str | None, float | None]:

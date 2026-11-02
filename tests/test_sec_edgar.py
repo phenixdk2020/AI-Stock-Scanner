@@ -1,8 +1,10 @@
 """Offline tests af SEC EDGAR-udtrækket (ingen netværk)."""
 import unittest
+from unittest import mock
 
 import pandas as pd
 
+from stockscanner import sec_edgar
 from stockscanner.sec_edgar import annual_eps_from_facts, split_adjust
 
 
@@ -35,6 +37,19 @@ class SecEdgarTests(unittest.TestCase):
         splits = pd.Series([4.0], index=pd.to_datetime(["2024-06-10"]))
         adjusted = split_adjust(eps, splits)
         self.assertEqual(list(adjusted.round(2)), [2.5, 3.0, 3.5])
+
+    def test_cik_for_uses_exact_ticker_map(self):
+        mapping = {"V": 1403161, "BRK.B": 1067983, "MSFT": 789019}
+        with mock.patch.object(sec_edgar, "_ticker_map", return_value=mapping),                 mock.patch.object(sec_edgar, "_get", side_effect=AssertionError("ingen søgning")):
+            self.assertEqual(sec_edgar.cik_for("v"), 1403161)
+            self.assertEqual(sec_edgar.cik_for("BRK-B"), 1067983)
+            self.assertEqual(sec_edgar.cik_for("BRK.B"), 1067983)
+
+    def test_cik_for_falls_back_to_search_when_not_in_map(self):
+        hits = {"hits": {"hits": [{"_id": "42", "_source": {"tickers": "ZZZ, YYY"}}]}}
+        with mock.patch.object(sec_edgar, "_ticker_map", return_value={"V": 1}),                 mock.patch.object(sec_edgar, "_cached", side_effect=lambda n, f, **k: hits):
+            self.assertEqual(sec_edgar.cik_for("ZZZ"), 42)
+            self.assertIsNone(sec_edgar.cik_for("QQQ"))
 
 
 if __name__ == "__main__":
