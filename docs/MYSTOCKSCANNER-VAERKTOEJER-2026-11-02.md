@@ -411,3 +411,13 @@ Prioriteret efter værdi pr. minut. Alt som skærmbilleder (datoer synlige) plus
 - Whisper-udskrifter har hørefejl; hvor et tal er uklart, står "(usikkert)". Videoernes datoer er skøn, medmindre de står i titlen.
 - Vores modeller er screening og forskning, ikke rådgivning. Ingen købs- eller salgsanbefaling; aktienavne er kalibreringspunkter.
 - Dokumentet må ikke bruges som facitliste for at ændre en test, til den bliver grøn. Hvis en kalibrering ikke lykkes, skal modellen dokumenteres som afvigende, ikke tunes til resultatet.
+
+## 8. Bekræftet på høstede data (318 danske aktier, 02-11-2026)
+
+Kilde: MSS' Playbook-sider læst i Allans trial (data i `data/`, ikke i git). 182 aktier med scorer, 119 med valuegraf.
+
+- **MSS-score = gennemsnit af Kvalitet, Værdiansættelse og Moat**: passer på alle 109 aktier med alle fire tal (afvigelse ±0,67 = afrunding).
+- **Valuegrafen er symmetrisk**: bear = base − d, bull = base + d (største afvigelse 1,5 %).
+- **Værdiansættelsesscore = kursens placering i kanalen i dag** (100 på bear-linjen, 0 på bull-linjen). Uden analytikerestimater er kanalen flad, og scoren er præcis placeringen; med estimater er dagens linjer = horisontens linjer ÷ EPS-vækst. Implicit EPS-vækst: median 1,00, typisk 1,0–1,2; Pandora 0,74 (faldende indtjening ventes).
+- **Båndbredden er ikke fast**: d/base fra 0,05 (Tivoli) til 0,98, median 0,31. Kun svag sammenhæng med P/E-udsving i de 4 års yfinance-historik (rangkorrelation 0,37); MSS bruger formentlig 10 års historik. Base-P/E ligger tæt på nuværende P/E (median 0,93×), ikke på gennemsnittet.
+- Konsekvens for `stockscanner/valuation.py`: brug scoren "i dag" (`score_today`), og bredere bånd end ±20 % (median ±31 %) indtil reglen kan kalibreres på længere P/E-historik.
