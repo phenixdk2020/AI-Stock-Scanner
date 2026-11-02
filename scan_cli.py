@@ -16,6 +16,7 @@ from stockscanner.market_data import fetch_history
 from stockscanner.mss_compare import compare, load_observations, summary
 from stockscanner.quality import score_quality
 from stockscanner.regimes import REGIMES, regime_backtest
+from stockscanner.valuation import fetch_inputs as fetch_value_inputs, value_channel
 from stockscanner.storage import load_or_fetch_fundamentals, load_watchlist, save_scans
 
 
@@ -143,6 +144,32 @@ def print_mss_comparison(benchmark: str) -> int:
     return 0
 
 
+def print_value_channels(tickers: list[str], horizon: float) -> int:
+    """Værdikanal (EPS × P/E bear/base/bull) og værdiansættelsesscore pr. symbol."""
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="yfinance")
+    fmt = lambda x, d=0: "–" if x is None else f"{x:.{d}f}"
+    print(f"Værdikanal, horisont {horizon:g} år: base-P/E = historisk gennemsnit, bear/bull = ±20 %. "
+          "Score 100 = bear-linjen, 0 = bull-linjen (ikke afkortet).")
+    print(f"{'Aktie':<11}{'Kurs':>9}{'P/E bear/base/bull':>21}{'Bear %':>8}{'Base %':>8}{'Bull %':>8}"
+          f"{'Score':>7}{'I dag':>7}{'Asym.':>7}{'PEG':>6}{'Impl. P/E':>10}  Noter")
+    shown = 0
+    for ticker in tickers:
+        try:
+            channel = value_channel(fetch_value_inputs(ticker), horizon=horizon)
+        except Exception as error:
+            print(f"{ticker}: FEJL – {error}", file=sys.stderr)
+            continue
+        shown += 1
+        pes = "/".join(fmt(x, 1) for x in (channel.pe_bear, channel.pe_base, channel.pe_bull))
+        up = channel.upside_pct
+        print(f"{ticker:<11}{channel.price:>9.1f}{pes:>21}{fmt(up.get('bear')):>8}{fmt(up.get('base')):>8}"
+              f"{fmt(up.get('bull')):>8}{fmt(channel.score):>7}{fmt(channel.score_today):>7}"
+              f"{fmt(channel.asymmetry, 1):>7}{fmt(channel.peg, 2):>6}{fmt(channel.implied_pe, 1):>10}  "
+              f"{'; '.join(channel.notes)}")
+    print("Analytikertal fra yfinance (uofficiel) – screening, ikke en købsanbefaling.")
+    return 0 if shown else 1
+
+
 def main() -> int:
     # Dansk tekst skal være læsbar, også når output sendes gennem en pipe på Windows (cp1252).
     for stream in (sys.stdout, sys.stderr):
@@ -162,6 +189,8 @@ def main() -> int:
     parser.add_argument("--uden-rekyl", action="store_true", help="--candles: kræv kun optrend, ikke tilbagerekyl")
     parser.add_argument("--maal", type=float, help="--candles: kursmål i R (fx 2 = to gange risikoen)")
     parser.add_argument("--regimer", action="store_true", help="Fase 5 A–C: trend, relativ styrke, tilbagerekyl")
+    parser.add_argument("--vaerdi", action="store_true", help="Værdikanal og værdiansættelsesscore")
+    parser.add_argument("--horisont", type=float, default=2.0, help="--vaerdi: år frem (MSS' standard er 2)")
     parser.add_argument("--sammenlign-mss", action="store_true",
                         help="Sammenlign vores tal med data/mss_observations.csv")
     parser.add_argument("--benchmark", default="RSP", help="--regimer: benchmark til relativ styrke")
@@ -179,6 +208,8 @@ def main() -> int:
 
     if arguments.kvalitet:
         return print_quality(selected)
+    if arguments.vaerdi:
+        return print_value_channels(selected, arguments.horisont)
     if arguments.regimer:
         return print_regimes(selected, arguments.periode, arguments.kurtage, arguments.benchmark, arguments.urort)
     if arguments.candles:
