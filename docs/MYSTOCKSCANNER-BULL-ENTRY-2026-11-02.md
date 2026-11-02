@@ -343,3 +343,19 @@ Konklusion:
 - Efter StockMap-køb er **brud på SMA50** (evt. SMA20 ved eksplosive løb) bedre end MSS' eget StockMap-salg.
 - SMA200-brud holder ikke i den urørte periode; SMA50-brud efter trendkøb giver for mange falske salg.
 - Forbehold: overlappende handler, kun nuværende aktier, ingen portefølje-simulering endnu.
+
+## 11. Porteføljesimulering (punkt 6, 02-11-2026)
+
+`scripts/simulate_portfolio.py`: 296 aktier (DK, US, Europa), 2019-01 → 2026-10, uge for uge, op til 40 lige store positioner, køb på StockMap simpelt køb, salg når Supertrend ×3 vender ned eller StockMap-salg, 0,1 % kurtage pr. handel.
+
+| Variant | CAGR | Største fald | Handler | Vindere |
+|---|---:|---:|---:|---:|
+| RSP køb-og-hold | 13,6 % | −36,7 % | – | – |
+| StockMap alene | 12,5 % | −25,2 % | 6348 | 46 % |
+| + MTI-lite | 1,4 % | −8,4 % | 1789 | 44 % |
+| + markedsindeks (>50 % over SMA50) | 5,9 % | −19,2 % | 4581 | 43 % |
+| + MTI + markedsindeks | 0,7 % | −6,4 % | 1291 | 42 % |
+
+Urørt periode (2024-11 →): StockMap alene 12,2 % mod RSP 13,6 %, største fald −16,4 % mod −15,5 %.
+
+Konklusion: rene kursregler giver omtrent markedets afkast med mindre fald over hele perioden; ekstra filtre gør porteføljen for kontantrig. MSS' egenrapporterede 34 % (2025) kan ikke genskabes med kursregler alene – deres kvalitets- og værdifilter og skønsmæssige udvælgelse kan ikke backtestes ærligt uden point-in-time-regnskaber. Forbehold: overlevelsesbias (kun aktier, der findes i dag).
