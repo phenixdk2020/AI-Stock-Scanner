@@ -221,6 +221,7 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None) 
     import yfinance as yf
 
     from stockscanner import universe
+    from stockscanner.analyst import fetch_analyst
     from stockscanner.mti_lite import home_index, mti_state
     from stockscanner.portfolio import load_portfolio
 
@@ -228,7 +229,7 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None) 
     positions = load_portfolio()
     tickers = list(dict.fromkeys(list(tickers) + list(positions)))  # ejede aktier kommer altid med
     bench = fetch_history(benchmark, period="3y")[0]
-    histories, channels, factor_rows, mti, index_cache = {}, {}, [], {}, {}
+    histories, channels, factor_rows, mti, index_cache, analyst = {}, {}, [], {}, {}, {}
     for ticker in tickers:
         try:
             histories[ticker] = fetch_history(ticker, period="3y")[0]
@@ -239,6 +240,10 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None) 
                                                lambda t: yf.Ticker(t).info or {}, lambda t: histories[t]))
         try:
             channels[ticker] = value_channel(fetch_value_inputs(ticker))
+        except Exception:
+            pass
+        try:
+            analyst[ticker] = fetch_analyst(ticker)
         except Exception:
             pass
         index_symbol = home_index(ticker)
@@ -253,7 +258,8 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None) 
     scores = universe.percentiles(targets, reference)
     rows = build_rows(list(histories), histories, bench, scores["quality"].dropna().to_dict(),
                       scores["value"].dropna().to_dict(), scores["momentum"].dropna().to_dict(), channels,
-                      positions=positions, moat_pct=scores["moat"].dropna().to_dict(), mti_states=mti)
+                      positions=positions, moat_pct=scores["moat"].dropna().to_dict(), mti_states=mti,
+                      analyst=analyst)
     fmt = lambda x: "–" if x is None or (isinstance(x, float) and x != x) else f"{x:.0f}"
     basis = f"mod {len(reference)} aktier i universet" if reference is not None else "kun inden for listen (byg universet)"
     market = universe.breadth(reference)
@@ -263,12 +269,13 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None) 
         print("Markedsindeks (andel over SMA20/50/200): " + " / ".join(f"{market[d]:.0f} %" for d in sorted(market))
               + f" → marked {trend}")
     print(f"{'Aktie':<11}{'Handling':<15}{'StockMap':<18}{'TPI-lite':<17}{'MTI':<13}{'Q':>4}{'Moat':>5}{'MSS':>5}"
-          f"{'V%':>5}{'Mom':>5}{'Kanal':>7}{'PEG':>6}  Begrundelse")
+          f"{'V%':>5}{'Mom':>5}{'Kanal':>7}{'PEG':>6}{'Asym':>6}{'Regnskab':>12}  Begrundelse")
     for r in rows:
         peg = "–" if r.peg is None else f"{r.peg:.1f}"
+        asym = "–" if r.asymmetry is None else ("∞" if r.asymmetry == float("inf") else f"{r.asymmetry:.1f}")
         print(f"{r.ticker:<11}{r.action:<15}{r.stockmap:<18}{(r.tpi or '–'):<17}{(r.mti or '–'):<13}{fmt(r.quality):>4}"
               f"{fmt(r.moat):>5}{fmt(r.mss_score):>5}{fmt(r.value_pct):>5}{fmt(r.momentum):>5}{fmt(r.channel_score):>7}"
-              f"{peg:>6}  {r.reasons}")
+              f"{peg:>6}{asym:>6}{(r.earnings or '–'):>12}  {r.reasons}")
     if out_dir is not None:
         out_dir.mkdir(parents=True, exist_ok=True)
         frame = pd.DataFrame([r.__dict__ for r in rows]).assign(dato=str(date.today()))

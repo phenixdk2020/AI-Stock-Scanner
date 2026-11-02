@@ -49,7 +49,7 @@ else:
     actions = sorted(frame["action"].dropna().unique())
     chosen = st.multiselect("Vis handlinger", actions, default=actions)
     columns = [c for c in ("ticker", "action", "stockmap", "tpi", "mti", "quality", "moat", "mss_score", "value_pct",
-                           "momentum", "channel_score", "peg", "reasons") if c in frame.columns]
+                           "momentum", "channel_score", "peg", "asymmetry", "earnings", "eps_trend", "reasons") if c in frame.columns]
     shown = frame[frame["action"].isin(chosen)][columns]
     st.dataframe(shown, width="stretch", hide_index=True,
                  column_config={c: st.column_config.NumberColumn(format="%.0f") for c in

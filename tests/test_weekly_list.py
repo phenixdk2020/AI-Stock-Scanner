@@ -28,6 +28,32 @@ class ClassifyTests(unittest.TestCase):
     def test_no_signal(self):
         self.assertEqual(classify("", False, 99, 99, 0.5)[0], "hold øje")
 
+    def test_low_asymmetry_blocks_buy(self):
+        action, reasons = classify("køb 2026-10-30", False, 75, 60, 1.2, asymmetry=2.0)
+        self.assertEqual(action, "hold øje")
+        self.assertIn("asymmetri 2.0 < 3", reasons)
+        self.assertEqual(classify("køb 2026-10-30", False, 75, 60, 1.2, asymmetry=float("inf"))[0], "KØB-KANDIDAT")
+
+    def test_earnings_within_a_week_blocks_buy(self):
+        self.assertEqual(classify("køb 2026-10-30", False, 75, 60, 1.2, earnings_days=2)[1], ["regnskab om 2 d"])
+        self.assertEqual(classify("køb 2026-10-30", False, 75, 60, 1.2, earnings_days=8)[0], "KØB-KANDIDAT")
+        self.assertEqual(classify("køb 2026-10-30", False, 75, 60, 1.2, earnings_days=-1)[0], "KØB-KANDIDAT")
+
+    def test_value_trap_blocks_buy_and_is_shown_for_owned(self):
+        trap = "value trap: EPS +1y -6.0 % på 90 d"
+        self.assertEqual(classify("køb 2026-10-30", False, 75, 60, 1.2, trap=trap), ("hold øje", [trap]))
+        self.assertIn(trap, classify("", False, 90, 80, 1.0, [], trap=trap)[1])
+
+
+class AsymmetryOfTests(unittest.TestCase):
+    def test_below_bear_line_is_infinite(self):
+        from types import SimpleNamespace
+        from stockscanner.weekly_list import asymmetry_of
+        below = SimpleNamespace(score=120, asymmetry=None, upside_pct={"bear": 5.0})
+        self.assertEqual(asymmetry_of(below), float("inf"))
+        self.assertIsNone(asymmetry_of(SimpleNamespace(score=None, asymmetry=None, upside_pct={})))
+        self.assertEqual(asymmetry_of(SimpleNamespace(score=60, asymmetry=2.5, upside_pct={"bear": -4})), 2.5)
+
 
 if __name__ == "__main__":
     unittest.main()
