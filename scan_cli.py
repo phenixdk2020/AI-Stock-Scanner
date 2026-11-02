@@ -14,6 +14,7 @@ from stockscanner.candles import PATTERNS, backtest, eligible_signals, trade_bac
 from stockscanner.core import DEFAULT_TICKERS, analyze_prices, parse_tickers
 from stockscanner.market_data import fetch_history
 from stockscanner.quality import score_quality
+from stockscanner.regimes import REGIMES, regime_backtest
 from stockscanner.storage import load_or_fetch_fundamentals, load_watchlist, save_scans
 
 
@@ -80,6 +81,39 @@ def print_candles(tickers: list[str], period: str, cost_pct: float, require_pull
     return 0
 
 
+def print_regimes(tickers: list[str], period: str, cost_pct: float, benchmark: str, holdout_start: str) -> int:
+    """Fase 5 A–C: trend, relativ styrke og tilbagerekyl mod en tilfældig dag."""
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="yfinance")
+    histories = {}
+    for ticker in tickers:
+        try:
+            histories[ticker] = fetch_history(ticker, period=period)[0]
+        except Exception as error:
+            print(f"{ticker}: FEJL – {error}", file=sys.stderr)
+    if not histories:
+        return 1
+    try:
+        bench = fetch_history(benchmark, period=period)[0]
+    except Exception as error:
+        print(f"Benchmark {benchmark}: FEJL – {error}; B springes over", file=sys.stderr)
+        bench = None
+    print(f"Fase 5 A–C: {len(histories)} aktier, {period}, benchmark {benchmark} (dagen før), kurtage {cost_pct} % "
+          f"pr. handel. Køb næste åbning, salg ved lukning efter N dage. Urørt periode fra {holdout_start}.")
+    print("Dagene overlapper, så N er ikke uafhængige observationer. Edge = regime minus alle dage i perioden.")
+    fmt = lambda x: "–" if x is None else f"{x:.2f}"
+    last = None
+    for row in regime_backtest(histories, bench, holdout_start=holdout_start, cost_pct=cost_pct):
+        if (row.period, row.horizon) != last:
+            last = (row.period, row.horizon)
+            print(f"\n  [{row.period}, {row.horizon}]  {'Regime':<32}{'Dage':>8}{'Snit %':>9}{'Median %':>10}"
+                  f"{'Hit %':>8}{'Edge %':>9}{'Værste 5 %':>12}")
+        print(f"  {'':<{len(row.period) + len(row.horizon) + 4}}  {REGIMES[row.regime]:<32}{row.days:>8}"
+              f"{fmt(row.mean_pct):>9}{fmt(row.median_pct):>10}{fmt(row.hit_rate_pct):>8}{fmt(row.edge_pct):>9}"
+              f"{fmt(row.worst5_pct):>12}")
+    print("\nHistorisk test (overlevelsesbias: kun aktier der findes i dag) – ikke en købsanbefaling.")
+    return 0
+
+
 def main() -> int:
     # Dansk tekst skal være læsbar, også når output sendes gennem en pipe på Windows (cp1252).
     for stream in (sys.stdout, sys.stderr):
@@ -98,6 +132,9 @@ def main() -> int:
     parser.add_argument("--kurtage", type=float, default=0.1, help="Kurtage i %% pr. handel til --candles")
     parser.add_argument("--uden-rekyl", action="store_true", help="--candles: kræv kun optrend, ikke tilbagerekyl")
     parser.add_argument("--maal", type=float, help="--candles: kursmål i R (fx 2 = to gange risikoen)")
+    parser.add_argument("--regimer", action="store_true", help="Fase 5 A–C: trend, relativ styrke, tilbagerekyl")
+    parser.add_argument("--benchmark", default="RSP", help="--regimer: benchmark til relativ styrke")
+    parser.add_argument("--urort", default="2024-11-01", help="--regimer: start på urørt slutperiode (ÅÅÅÅ-MM-DD)")
     arguments = parser.parse_args()
 
     try:
@@ -108,6 +145,8 @@ def main() -> int:
 
     if arguments.kvalitet:
         return print_quality(selected)
+    if arguments.regimer:
+        return print_regimes(selected, arguments.periode, arguments.kurtage, arguments.benchmark, arguments.urort)
     if arguments.candles:
         return print_candles(selected, arguments.periode, arguments.kurtage, not arguments.uden_rekyl, arguments.maal)
 

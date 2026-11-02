@@ -202,7 +202,7 @@ def er_solid(symbol, dato):
 ```
 def er_bull(prices, bench, dato):
     d = prices till dato;  w = resample_week(prices till dato)               # (ny) ugebarer
-    dag_ok  = d.Close > sma(d.Close, 50) and sma(d.Close,50) > sma(d.Close,200)   # som trend_context.uptrend
+    dag_ok  = d.Close > sma(d.Close, 200) and sma(d.Close,50) > sma(d.Close,200)  # = trend_context.uptrend (én fælles definition)
     uge_ok  = w.Close > sma(w.Close, 10)                  # (ny) variant A: 10-ugers SMA (ca. 50 handelsdage); variant B: 50-ugers SMA
     rs      = d.Close / bench.Close                                           # (ny) RS-linje
     rs_ok   = rs > sma(rs, 50) and rs_momentum(rs, 8 uger) > 0                 # (ny) variant: kun RS-momentum
@@ -306,3 +306,20 @@ Alle udskrifter ligger i `C:\AI-Stock-Scanner\data\video-transcripts\`. MSS-vide
 Andre kilder:
 - RealTrading: "Derfor køber jeg IKKE GENMAB og NKT nu! - RLT analyse" (ikke MSS).
 - Interne: `docs/QUALITY-MODEL.md`, `TASKS.md`, `stockscanner/candles.py`, `stockscanner/quality.py`.
+
+## 9. Første resultater for A–C (02-11-2026)
+
+Kørt med `scan_cli.py --regimer --periode 15y` på 47 aktier (DK, DE, SE, NO, NL, FR, CH og USA, også tidligere tabere som Ørsted, Bayer, Intel og Boeing). Benchmark RSP med dagen før. Signal ved lukning, køb næste åbning, salg ved lukning efter N dage, 0,1 % kurtage pr. handel. Udvikling til 31-10-2024; urørt periode fra 01-11-2024. Ingen parametre er tunet.
+
+| 60 dage | Udvikling: edge | Udvikling: værste 5 % | Urørt: edge | Urørt: værste 5 % |
+|---|---:|---:|---:|---:|
+| Alle dage (basis) | 0,00 | −17,8 % | 0,00 | −19,7 % |
+| A: optrend | +0,16 | −16,3 % | −0,28 | −18,2 % |
+| B: optrend + relativ styrke | +0,48 | −16,1 % | −0,05 | −19,2 % |
+| C: optrend + tilbagerekyl | +0,57 | −16,7 % | −0,10 | −18,4 % |
+| C: optrend uden tilbagerekyl | −0,45 | −15,7 % | −0,68 | −17,6 % |
+
+Konklusion:
+- Trend, relativ styrke og tilbagerekyl giver ingen sikker merafkast ved køb; den lille fordel i udviklingsperioden holder ikke i den urørte periode.
+- Trendfilteret mindsker de værste udfald lidt (ca. 1–1,5 %-point ved 60 dage).
+- MSS' påståede lave drawdown kommer derfor sandsynligvis fra **exit** (salg ved trendbrud under SMA50/SMA200), ikke fra entry. Næste test: samme køb, men exit ved trendbrud mod fast holdetid – målt på maks. drawdown og afkast.
