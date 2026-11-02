@@ -12,6 +12,9 @@ import pandas as pd
 
 from stockscanner.candles import PATTERNS, backtest, eligible_signals, trade_backtest
 from stockscanner.core import DEFAULT_TICKERS, analyze_prices, parse_tickers
+from stockscanner.exits import (
+    ALL_RULES as EXIT_RULES, exit_signals, simulate, stockmap_entries, stockmap_exit_days, summarize, trend_entries,
+)
 from stockscanner.market_data import fetch_history
 from stockscanner.mss_compare import compare, load_observations, summary
 from stockscanner.quality import score_quality
@@ -170,6 +173,45 @@ def print_value_channels(tickers: list[str], horizon: float) -> int:
     return 0 if shown else 1
 
 
+def print_exit_study(tickers: list[str], period: str, benchmark: str, holdout_start: str, cost_pct: float) -> int:
+    """Punkt 9: salgsregler på samme køb (StockMap-køb og trendkøb), udvikling mod urørt periode."""
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="yfinance")
+    bench = fetch_history(benchmark, period=period)[0]
+    results: dict[tuple[str, str, str], list] = {}
+    for ticker in tickers:
+        try:
+            prices = fetch_history(ticker, period=period)[0]
+        except Exception as error:
+            print(f"{ticker}: FEJL – {error}", file=sys.stderr)
+            continue
+        daily_exits = exit_signals(prices)
+        sells = stockmap_exit_days(prices, bench)
+        entry_sets = {"StockMap-køb": stockmap_entries(prices, bench), "Trendkøb": trend_entries(prices)}
+        for entry_name, entries in entry_sets.items():
+            for rule in EXIT_RULES:
+                for trade in simulate(prices, entries, rule, daily_exits, sells, cost_pct):
+                    part = "urørt" if trade.entry_day >= pd.Timestamp(holdout_start) else "udvikling"
+                    results.setdefault((entry_name, part, rule), []).append(trade)
+    fmt = lambda x, d=1: "–" if x is None else f"{x:.{d}f}"
+    print(f"Salgsregler, {len(tickers)} aktier, {period}, kurtage {cost_pct} %/handel, salg næste åbning. "
+          f"Urørt periode fra {holdout_start}.")
+    print("Værste = gns. dybeste fald under handlen; Fanget = median andel af bedste gevinst undervejs, der blev hjemtaget.")
+    for entry_name in ("StockMap-køb", "Trendkøb"):
+        for part in ("udvikling", "urørt"):
+            print(f"\n  [{entry_name}, {part}]  {'Regel':<15}{'Handler':>8}{'Snit %':>8}{'Median':>8}{'Win %':>7}"
+                  f"{'PF':>6}{'Dage':>6}{'%/100d':>8}{'Værste':>8}{'Værste5%':>9}{'Fanget %':>9}")
+            for rule in EXIT_RULES:
+                s = summarize(results.get((entry_name, part, rule), []))
+                if not s["trades"]:
+                    continue
+                print(f"  {'':<{len(entry_name) + len(part) + 4}}  {rule:<15}{s['trades']:>8}{fmt(s['mean_pct']):>8}"
+                      f"{fmt(s['median_pct']):>8}{fmt(s['win_rate'], 0):>7}{fmt(s['profit_factor'], 2):>6}"
+                      f"{fmt(s['days'], 0):>6}{fmt(s['pct_per_100d'], 2):>8}{fmt(s['worst_mean']):>8}"
+                      f"{fmt(s['worst_p5']):>9}{fmt(s['capture'], 0):>9}")
+    print("\nOverlappende handler tælles hver for sig; kun aktier der findes i dag – ikke en købsanbefaling.")
+    return 0
+
+
 def main() -> int:
     # Dansk tekst skal være læsbar, også når output sendes gennem en pipe på Windows (cp1252).
     for stream in (sys.stdout, sys.stderr):
@@ -189,6 +231,7 @@ def main() -> int:
     parser.add_argument("--uden-rekyl", action="store_true", help="--candles: kræv kun optrend, ikke tilbagerekyl")
     parser.add_argument("--maal", type=float, help="--candles: kursmål i R (fx 2 = to gange risikoen)")
     parser.add_argument("--regimer", action="store_true", help="Fase 5 A–C: trend, relativ styrke, tilbagerekyl")
+    parser.add_argument("--salg", action="store_true", help="Punkt 9: test af salgsregler på samme køb")
     parser.add_argument("--vaerdi", action="store_true", help="Værdikanal og værdiansættelsesscore")
     parser.add_argument("--horisont", type=float, default=2.0, help="--vaerdi: år frem (MSS' standard er 2)")
     parser.add_argument("--sammenlign-mss", action="store_true",
@@ -210,6 +253,8 @@ def main() -> int:
         return print_quality(selected)
     if arguments.vaerdi:
         return print_value_channels(selected, arguments.horisont)
+    if arguments.salg:
+        return print_exit_study(selected, arguments.periode, arguments.benchmark, arguments.urort, arguments.kurtage)
     if arguments.regimer:
         return print_regimes(selected, arguments.periode, arguments.kurtage, arguments.benchmark, arguments.urort)
     if arguments.candles:

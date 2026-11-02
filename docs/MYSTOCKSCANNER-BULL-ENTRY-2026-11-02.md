@@ -323,3 +323,23 @@ Konklusion:
 - Trend, relativ styrke og tilbagerekyl giver ingen sikker merafkast ved køb; den lille fordel i udviklingsperioden holder ikke i den urørte periode.
 - Trendfilteret mindsker de værste udfald lidt (ca. 1–1,5 %-point ved 60 dage).
 - MSS' påståede lave drawdown kommer derfor sandsynligvis fra **exit** (salg ved trendbrud under SMA50/SMA200), ikke fra entry. Næste test: samme køb, men exit ved trendbrud mod fast holdetid – målt på maks. drawdown og afkast.
+
+## 10. Salgsregler på samme køb (punkt 9, 02-11-2026)
+
+Kørt med `scan_cli.py --salg --periode 15y` på 47 aktier. To købsmetoder: MSS' simple StockMap-køb (ugentlig) og trendkøb (luk krydser over SMA50, mens luk > SMA200). Salg er et **brud** (luk krydser ned under gennemsnittet eller Supertrend vender), ikke en tilstand. Salg næste åbning, 0,1 % kurtage pr. handel, urørt periode fra 01-11-2024. %/100d = gennemsnitligt afkast pr. 100 handelsdage i handlen.
+
+| Køb / regel | Udvikling %/100d | Urørt %/100d | Urørt værste 5 % |
+|---|---:|---:|---:|
+| Trendkøb, Supertrend ×3 | 7,4 | 6,5 | −13,2 % |
+| Trendkøb, fast 60 dage | 6,7 | 8,1 | −23,3 % |
+| Trendkøb, SMA200 | 7,2 | −2,2 | −13,1 % |
+| StockMap-køb, SMA50 | 5,2 | 6,2 | −18,6 % |
+| StockMap-køb, hybrid 20/50 | 5,2 | 6,6 | −18,6 % |
+| StockMap-køb, StockMap-salg | 5,9 | 3,4 | −32,5 % |
+| StockMap-køb, fast 60 dage | 6,0 | 7,9 | −25,3 % |
+
+Konklusion:
+- **Supertrend (ATR 10 × 3)** er den mest robuste salgsregel: næsten samme afkast pr. tid som at holde fast, men de værste udfald er ca. 40 % mindre, og det holder i den urørte periode.
+- Efter StockMap-køb er **brud på SMA50** (evt. SMA20 ved eksplosive løb) bedre end MSS' eget StockMap-salg.
+- SMA200-brud holder ikke i den urørte periode; SMA50-brud efter trendkøb giver for mange falske salg.
+- Forbehold: overlappende handler, kun nuværende aktier, ingen portefølje-simulering endnu.
