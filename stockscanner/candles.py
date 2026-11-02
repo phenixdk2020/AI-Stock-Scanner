@@ -168,6 +168,8 @@ def simulate_trade(prices: pd.DataFrame, position: int, trigger: float, stop: fl
     Ellers salg ved lukning på holdedag nr. `hold_days` (1 = samme dag som købet).
     Returnerer (afkast %, R-multipel, exit-årsag) eller None, hvis købet aldrig udløses.
     """
+    if hold_days < 1:
+        raise ValueError("hold_days skal være mindst 1.")
     f = _ohlcv(prices)
     o, h, l, c = (f[col].to_numpy() for col in ("Open", "High", "Low", "Close"))
     if not (trigger > stop > 0):
@@ -186,23 +188,28 @@ def simulate_trade(prices: pd.DataFrame, position: int, trigger: float, stop: fl
         return None
     entry = max(o[entry_day], trigger)
     last_day = entry_day + hold_days - 1
+    if last_day >= n:
+        return None  # horisonten rækker ud over data: tæl hverken vindere eller tabere (som baseline)
     risk = entry - stop
     target = entry + target_r * risk if target_r else None
     exit_price, reason = None, "tid"
-    for j in range(entry_day, min(last_day, n - 1) + 1):
+    for j in range(entry_day, last_day + 1):
+        if np.isnan(o[j]) or np.isnan(h[j]) or np.isnan(l[j]):
+            return None
         if j > entry_day and o[j] <= stop:
             exit_price, reason = o[j], "stop (gap)"
             break
         if l[j] <= stop:
             exit_price, reason = stop, "stop"
             break
-        if target is not None and h[j] >= target:
-            exit_price, reason = (o[j] if j > entry_day and o[j] >= target else target), "mål"
+        # Mål først fra dagen efter købet: på dagsdata ved vi ikke, om toppen kom før købet.
+        if target is not None and j > entry_day and h[j] >= target:
+            exit_price, reason = max(o[j], target), "mål"
             break
     if exit_price is None:
-        if last_day >= n:
-            return None  # handlen er stadig åben ved dataenes slutning
         exit_price = c[last_day]
+    if np.isnan(exit_price):
+        return None
     pct = (exit_price / entry - 1) * 100 - 2 * cost_pct
     r_multiple = (exit_price - entry) / risk - 2 * cost_pct / 100 * entry / risk
     return pct, r_multiple, reason

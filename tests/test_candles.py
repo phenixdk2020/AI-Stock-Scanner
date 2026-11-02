@@ -136,9 +136,9 @@ class TradeSimulationTests(unittest.TestCase):
         self.assertAlmostEqual(pct, (115 / 113 - 1) * 100)
 
     def test_stop_hit_and_gap_through_stop(self):
-        rows = self.BASE + [(105, 111, 104, 109), (100, 101, 88, 95)]
+        rows = self.BASE + [(105, 111, 104, 109), (100, 101, 88, 95), (95, 96, 94, 95)]
         self.assertEqual(simulate_trade(bars(rows), 1, 110, 90, hold_days=3, cost_pct=0)[1], -1)
-        rows = self.BASE + [(105, 111, 104, 109), (85, 87, 80, 86)]
+        rows = self.BASE + [(105, 111, 104, 109), (85, 87, 80, 86), (86, 87, 85, 86)]
         pct, r, reason = simulate_trade(bars(rows), 1, 110, 90, hold_days=3, cost_pct=0)
         self.assertEqual(reason, "stop (gap)")
         self.assertAlmostEqual(r, -25 / 20)
@@ -158,6 +158,24 @@ class TradeSimulationTests(unittest.TestCase):
         self.assertAlmostEqual(r, 2)  # mål 110 + 2 × 20 = 150 ramt intradag
         rows[3] = (160, 165, 158, 162)  # gap over målet: salg til åbningen
         self.assertAlmostEqual(simulate_trade(bars(rows), 1, 110, 90, 3, target_r=2, cost_pct=0)[1], 2.5)
+
+    def test_horizon_beyond_data_is_dropped_even_if_stopped(self):
+        rows = self.BASE + [(105, 111, 104, 109), (100, 101, 88, 95)]
+        self.assertIsNone(simulate_trade(bars(rows), 1, 110, 90, hold_days=3, cost_pct=0))
+
+    def test_missing_low_or_close_drops_trade(self):
+        rows = self.BASE + [(105, 111, 104, 109), (100, 101, np.nan, 95)]
+        self.assertIsNone(simulate_trade(bars(rows), 1, 110, 90, hold_days=2, cost_pct=0))
+        rows = self.BASE + [(105, 111, 104, np.nan)]
+        self.assertIsNone(simulate_trade(bars(rows), 1, 110, 90, hold_days=1, cost_pct=0))
+
+    def test_target_not_counted_on_entry_day(self):
+        rows = self.BASE + [(105, 155, 104, 120)]
+        self.assertEqual(simulate_trade(bars(rows), 1, 110, 90, hold_days=1, target_r=2, cost_pct=0)[2], "tid")
+
+    def test_hold_days_must_be_positive(self):
+        with self.assertRaises(ValueError):
+            simulate_trade(bars(self.BASE + [(105, 111, 104, 109)]), 1, 110, 90, hold_days=0)
 
     def test_trade_backtest_runs_on_random_walk(self):
         rng = np.random.default_rng(3)
