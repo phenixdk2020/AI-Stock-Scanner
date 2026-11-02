@@ -18,7 +18,7 @@
 - [ ] **Næste i fase 5: exit ved trendbrud** (SMA50/SMA200, evt. Supertrend) mod fast holdetid, målt på maks. drawdown og afkast.
 - [ ] Fase 5 (oprindelig plan): Timing-zoner med egne regler + backtest. Copilot-review 02-11-2026 af `docs/MYSTOCKSCANNER-BULL-ENTRY-2026-11-02.md` afsnit 7: start med kun tre tests – A trendfilter alene (én trenddefinition, harmonisér 7.2 med `trend_context`), B + relativ styrke mod RSP, C med/uden tilbagerekyl. Urørt slutperiode, flere aktier inkl. afnoterede. Udskyd Supertrend-exit og positionsstørrelse. Kvalitetsfilteret kan ikke backtestes ærligt med yfinance (ingen filing-datoer; `altman_z` bruger nuværende market cap) – test det fremad med daterede snapshots.
 - [ ] Fase 6: Playbook-side (app, derefter WordPress).
-- [ ] Fase 7: Fornuftstjek mod MyStockScanners tal for de 9 researchaktier (ikke kopiering).
+- [ ] **Fase 7: sammenligning med MSS** – `stockscanner/mss_compare.py`, `scan_cli.py --sammenlign-mss` (02-11-2026). Observationer i `data/mss_observations.csv` (lokalt, ikke i git). Første resultat, 9 aktier 30-10-2026: kvalitet rangkorrelation 0,27 (gns. 13 point fra); StockMap-vinkel median 86° fra (≈ tilfældigt) med RSP/SPY/URTH. MSS gav Novo "Købszone" uden optrend → deres timing er ikke ren trendfølge. **Allans trial udløber ca. 09–12-11-2026:** dagligt Export af en større watchlist + skærmbilleder af TPI/MTI-signalhistorik og StockMap. Importer bygges, når første eksportfil foreligger.
 - [ ] Kvalitetstærskler: sektor-/branche-relativ scoring (i dag absolutte tærskler, ikke backtestet).
 
 ## Kendte forhold

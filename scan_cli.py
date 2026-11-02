@@ -13,6 +13,7 @@ import pandas as pd
 from stockscanner.candles import PATTERNS, backtest, eligible_signals, trade_backtest
 from stockscanner.core import DEFAULT_TICKERS, analyze_prices, parse_tickers
 from stockscanner.market_data import fetch_history
+from stockscanner.mss_compare import compare, load_observations, summary
 from stockscanner.quality import score_quality
 from stockscanner.regimes import REGIMES, regime_backtest
 from stockscanner.storage import load_or_fetch_fundamentals, load_watchlist, save_scans
@@ -114,6 +115,34 @@ def print_regimes(tickers: list[str], period: str, cost_pct: float, benchmark: s
     return 0
 
 
+def print_mss_comparison(benchmark: str) -> int:
+    """Vores tal mod observerede MSS-tal i data/mss_observations.csv (fase 7)."""
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="yfinance")
+    try:
+        observations = load_observations()
+    except FileNotFoundError:
+        print("Mangler data/mss_observations.csv", file=sys.stderr)
+        return 1
+    bench = fetch_history(benchmark, period="2y")[0]
+    prices = lambda ticker: fetch_history(ticker, period="2y")[0]
+    quality = lambda ticker: score_quality(load_or_fetch_fundamentals(ticker)).total
+    rows = compare(observations, prices, quality, bench)
+    fmt = lambda x: "–" if x is None else f"{x:.0f}"
+    print(f"{'Dato':<11}{'Aktie':<11}{'MSS Q':>6}{'Vores Q':>8}  {'MSS timingzone':<28}{'Vores trend':<17}"
+          f"{'MSS °':>6}{'Vores °':>8}{'Forskel':>8}")
+    for row in rows:
+        print(f"{row.date:<11}{row.ticker:<11}{fmt(row.mss_quality):>6}{fmt(row.our_quality):>8}  "
+              f"{row.mss_zone:<28}{row.our_trend:<17}{fmt(row.mss_angle):>6}{fmt(row.our_angle):>8}"
+              f"{fmt(row.angle_diff):>8}")
+    result = summary(rows)
+    two = lambda x: "–" if x is None else f"{x:.2f}"
+    print(f"\nKvalitet: rangkorrelation {two(result['quality_spearman'])}, gns. afvigelse "
+          f"{two(result['quality_mean_abs_diff'])} point.  StockMap ({benchmark}): median vinkelforskel "
+          f"{two(result['angle_median_diff'])}°, {two(result['angle_within_45'])} % inden for 45°.")
+    print("Få observationer – kun en første pejling.")
+    return 0
+
+
 def main() -> int:
     # Dansk tekst skal være læsbar, også når output sendes gennem en pipe på Windows (cp1252).
     for stream in (sys.stdout, sys.stderr):
@@ -133,9 +162,14 @@ def main() -> int:
     parser.add_argument("--uden-rekyl", action="store_true", help="--candles: kræv kun optrend, ikke tilbagerekyl")
     parser.add_argument("--maal", type=float, help="--candles: kursmål i R (fx 2 = to gange risikoen)")
     parser.add_argument("--regimer", action="store_true", help="Fase 5 A–C: trend, relativ styrke, tilbagerekyl")
+    parser.add_argument("--sammenlign-mss", action="store_true",
+                        help="Sammenlign vores tal med data/mss_observations.csv")
     parser.add_argument("--benchmark", default="RSP", help="--regimer: benchmark til relativ styrke")
     parser.add_argument("--urort", default="2024-11-01", help="--regimer: start på urørt slutperiode (ÅÅÅÅ-MM-DD)")
     arguments = parser.parse_args()
+
+    if arguments.sammenlign_mss:
+        return print_mss_comparison(arguments.benchmark)
 
     try:
         selected = parse_tickers(arguments.tickers) if arguments.tickers else load_watchlist()
