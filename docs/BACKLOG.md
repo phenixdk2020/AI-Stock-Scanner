@@ -12,16 +12,13 @@ Prioritet: **P1** høj værdi / lav indsats, **P2** middel, **P3** lav eller sv�
 
 | ID | Funktion | Prio | Indsats | Kilde | Færdig når |
 |---|---|---|---|---|---|
-| B-01 | **Ingen køb tæt på regnskab**: blokér køb-kandidat hvis næste regnskab er inden for N dage | P1 | S | [MSS] Q&A, flere videoer | Mandagslisten viser regnskabsdato og blokerer køb ≤ 7 dage før; test |
-| B-02 | **Value trap-alarm**: analytikernes EPS-estimater falder (7/30/60/90 dage) | P1 | S | [MSS] "Value Traps" | Rødt flag i mandagslisten ved faldende estimater; test |
-| B-03 | **Asymmetri-filter**: base-upside ≥ 3 × bear-nedside som krav til køb | P1 | S | [MSS] Playbook-videoer | Krav i `weekly_list.classify`, tærskel i konstant; test |
 | B-04 | **Screener: Triple Green** (lang + uge + dag grøn, markedsværdi ≥ 2 mia.) | P2 | M | [MSS] H1 | `scan_cli.py --screener triple-green` over universet |
 | B-05 | **Screener: TPI-trend** (lang grøn + uge oversolgt, ≥ 25 mia., DK/NO/SE) | P2 | M | [MSS] H1 | Som B-04 |
 | B-06 | **Screener: Stock of the Day** (lang grøn + uge oversolgt + analytiker-upside ≥ 10 % + ≥ 10 mia.) | P2 | M | [MSS] H8 | Som B-04 |
 | B-07 | **StockMap-bekræftelse fra branche/sektor** (sektor-ETF eller -indeks tipper også op) | P2 | M | [MSS] G5, Playbook-siden | Vinkel for sektor i listen; backtest med/uden krav |
 | B-08 | **Regressionskanal som salgsregel** (±2σ, R ≥ 0,9, brud nedad) | P2 | M | [MSS]/[MT] G8, H9, H10 | Med i `exits.py`-studiet; sammenlign med Supertrend |
 | B-09 | **Positionsstørrelse**: 0,5–1 % risiko pr. handel, stop = ATR(14) × 3, maks. 2,5–3,3 % pr. aktie | P2 | S | [MSS]/[MT] "Styr din risiko", H13 | Antal aktier pr. køb-kandidat i listen, ud fra porteføljens størrelse |
-| B-10 | **De fire algostrategier** (Quality Momentum, TPI Plus, Value Momentum, Value Quality; top 15, månedlig) | P2 | L | [MSS] "Profitable strategier", strategy mixer | Momentum-varianter backtestet ærligt; Quality/Value kun fremad (papirportefølje) |
+| B-10 | **De fire algostrategier** (Quality Momentum, TPI Plus, Value Momentum, Value Quality; top 15, månedlig) | P2 | L | [MSS] "Profitable strategier", strategy mixer, månedsopdatering (lydspor 505255aa…) | Momentum-varianter backtestet ærligt med 1,5 %/år i handelsomkostninger; Quality/Value kun fremad (papirportefølje); valg af 5 eller 15 aktier pr. strategi |
 | B-11 | **MTI sektor-del** (relativ styrke mod sektor ud over hjemmeindeks) | P2 | M | [MSS] G-dokument 3.7 | `mti_lite` med sektor; test |
 | B-12 | **ADX > 25 som trendfilter** | P3 | S | [MT] H9 | Backtest i `regimes`/`exits` med og uden filter |
 | B-13 | **Ugentlig notifikation** med ÆNDRING-linjer (Windows-toast eller e-mail) | P2 | S | Allan | Besked mandag morgen når noget skifter |
@@ -62,3 +59,4 @@ Prioritet: **P1** høj værdi / lav indsats, **P2** middel, **P3** lav eller sv�
 | Mandagsliste + historik + portefølje | `weekly_list.py`, `portfolio.py`, `scan_cli.py --mandagsliste` | Windows-opgave mandag kl. 8 |
 | Streamlit-side | `pages/1_Mandagsliste.py` | Liste, historik, research-liste, portefølje |
 | UI-røgtest | `scripts/ui_smoke.py`, Playwright | Grøn |
+| Køb-filtre: regnskab ≤ 7 dage, value trap (EPS-estimat −2 %/30 d eller −5 %/90 d), asymmetri ≥ 3 (B-01–B-03) | `analyst.py`, `weekly_list.py` | Kørt på research-listen 02-11-2026; 1INN.DE fik value trap-flag |
