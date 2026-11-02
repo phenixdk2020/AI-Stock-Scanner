@@ -220,30 +220,55 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None) 
     """Mandagsliste: StockMap-signal + Quality/Value/Momentum-percentiler + værdikanal og PEG."""
     import yfinance as yf
 
+    from stockscanner import universe
+    from stockscanner.mti_lite import home_index, mti_state
+    from stockscanner.portfolio import load_portfolio
+
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="yfinance")
+    positions = load_portfolio()
+    tickers = list(dict.fromkeys(list(tickers) + list(positions)))  # ejede aktier kommer altid med
     bench = fetch_history(benchmark, period="3y")[0]
-    histories, infos, qualities, channels = {}, {}, [], {}
+    histories, channels, factor_rows, mti, index_cache = {}, {}, [], {}, {}
     for ticker in tickers:
         try:
             histories[ticker] = fetch_history(ticker, period="3y")[0]
-            infos[ticker] = yf.Ticker(ticker).info or {}
-            qualities.append(score_quality(load_or_fetch_fundamentals(ticker)))
         except Exception as error:
             print(f"{ticker}: FEJL – {error}", file=sys.stderr)
             continue
+        factor_rows.append(universe.factor_row(ticker, load_or_fetch_fundamentals,
+                                               lambda t: yf.Ticker(t).info or {}, lambda t: histories[t]))
         try:
             channels[ticker] = value_channel(fetch_value_inputs(ticker))
         except Exception:
             pass
-    rows = build_rows(list(histories), histories, bench, quality_percentiles(qualities),
-                      value_scores(infos).to_dict(), momentum_scores(histories).to_dict(), channels)
+        index_symbol = home_index(ticker)
+        try:
+            if index_symbol not in index_cache:
+                index_cache[index_symbol] = fetch_history(index_symbol, period="3y")[0]
+            mti[ticker] = mti_state(histories[ticker], index_cache[index_symbol])
+        except Exception:
+            pass
+    reference = universe.load()
+    targets = pd.DataFrame(factor_rows).set_index("ticker")
+    scores = universe.percentiles(targets, reference)
+    rows = build_rows(list(histories), histories, bench, scores["quality"].dropna().to_dict(),
+                      scores["value"].dropna().to_dict(), scores["momentum"].dropna().to_dict(), channels,
+                      positions=positions, moat_pct=scores["moat"].dropna().to_dict(), mti_states=mti)
     fmt = lambda x: "–" if x is None or (isinstance(x, float) and x != x) else f"{x:.0f}"
-    print(f"Mandagsliste {date.today()} – {len(rows)} aktier, StockMap mod {benchmark}. Percentiler er inden for listen.")
-    print(f"{'Aktie':<11}{'Handling':<14}{'StockMap':<18}{'TPI-lite':<18}{'Q':>4}{'V%':>5}{'Mom':>5}{'Kanal':>7}{'PEG':>6}  Begrundelse")
+    basis = f"mod {len(reference)} aktier i universet" if reference is not None else "kun inden for listen (byg universet)"
+    market = universe.breadth(reference)
+    print(f"Mandagsliste {date.today()} – {len(rows)} aktier, StockMap mod {benchmark}. Percentiler {basis}.")
+    if market:
+        trend = "bull" if market.get(50, 0) > 50 else "svagt"
+        print("Markedsindeks (andel over SMA20/50/200): " + " / ".join(f"{market[d]:.0f} %" for d in sorted(market))
+              + f" → marked {trend}")
+    print(f"{'Aktie':<11}{'Handling':<15}{'StockMap':<18}{'TPI-lite':<17}{'MTI':<13}{'Q':>4}{'Moat':>5}{'MSS':>5}"
+          f"{'V%':>5}{'Mom':>5}{'Kanal':>7}{'PEG':>6}  Begrundelse")
     for r in rows:
         peg = "–" if r.peg is None else f"{r.peg:.1f}"
-        print(f"{r.ticker:<11}{r.action:<14}{r.stockmap:<18}{(r.tpi or '–'):<18}{fmt(r.quality):>4}{fmt(r.value_pct):>5}"
-              f"{fmt(r.momentum):>5}{fmt(r.channel_score):>7}{peg:>6}  {r.reasons}")
+        print(f"{r.ticker:<11}{r.action:<15}{r.stockmap:<18}{(r.tpi or '–'):<17}{(r.mti or '–'):<13}{fmt(r.quality):>4}"
+              f"{fmt(r.moat):>5}{fmt(r.mss_score):>5}{fmt(r.value_pct):>5}{fmt(r.momentum):>5}{fmt(r.channel_score):>7}"
+              f"{peg:>6}  {r.reasons}")
     if out_dir is not None:
         out_dir.mkdir(parents=True, exist_ok=True)
         frame = pd.DataFrame([r.__dict__ for r in rows]).assign(dato=str(date.today()))

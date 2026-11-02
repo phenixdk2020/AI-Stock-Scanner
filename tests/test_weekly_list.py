@@ -5,8 +5,12 @@ from stockscanner.weekly_list import classify
 
 
 class ClassifyTests(unittest.TestCase):
-    def test_sell_signal_wins(self):
-        self.assertEqual(classify("salg 2026-10-30", True, 90, 80, 1.0)[0], "SALG")
+    def test_sell_signal_not_owned_is_only_arrow_down(self):
+        self.assertEqual(classify("salg 2026-10-30", True, 90, 80, 1.0)[0], "pil ned")
+
+    def test_owned_stock_uses_exit_reasons(self):
+        self.assertEqual(classify("", False, 90, 80, 1.0, ["Supertrend ×3 er vendt ned"])[0], "SÆLG (ejet)")
+        self.assertEqual(classify("køb 2026-10-30", False, 90, 80, 1.0, [])[0], "BEHOLD (ejet)")
 
     def test_buy_candidate_when_all_filters_pass(self):
         action, reasons = classify("køb 2026-10-30", False, 75, 60, 1.2)

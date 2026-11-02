@@ -20,6 +20,19 @@ MSS_LIKE_METRICS = (
 )
 
 
+# Moat-tilnærmelse: delmål der bedst rangerer som MSS' Moat-score (131 høstede danske aktier,
+# 02-11-2026: rangkorrelation 0,70; MSS' egen Quality mod Moat er kun 0,48).
+MOAT_METRICS = ("fcf_margin", "roe", "operating_margin", "interest_coverage", "revenue_cagr")
+
+
+def mss_score(quality: float | None, channel_score: float | None, moat: float | None) -> float | None:
+    """MSS-score = gennemsnit af Quality, værdiansættelse (kanalscore afskåret til 0–100) og Moat
+    (bekræftet på 109 høstede aktier). None hvis noget mangler."""
+    if quality is None or channel_score is None or moat is None:
+        return None
+    return (quality + min(max(channel_score, 0.0), 100.0) + moat) / 3
+
+
 def quality_percentiles(results: list[QualityResult], metrics=MSS_LIKE_METRICS,
                         min_share: float = 0.5) -> dict[str, float]:
     """Percentil 0–100 pr. ticker: gennemsnit af delmålenes percentiler, rangeret igen.
@@ -29,6 +42,11 @@ def quality_percentiles(results: list[QualityResult], metrics=MSS_LIKE_METRICS,
     """
     values = pd.DataFrame({r.ticker: {m.key: m.value for m in r.metrics if m.key in metrics} for r in results}).T
     scores = pd.DataFrame({r.ticker: {m.key: m.score for m in r.metrics if m.key in metrics} for r in results}).T
+    return percentiles_from_tables(values, scores, min_share)
+
+
+def percentiles_from_tables(values: pd.DataFrame, scores: pd.DataFrame, min_share: float = 0.5) -> dict[str, float]:
+    """Som `quality_percentiles`, men på tabeller (række = ticker, kolonne = delmål), fx et cachet univers."""
     if values.empty:
         return {}
     ranks = {}
