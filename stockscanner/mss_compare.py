@@ -6,7 +6,6 @@ Observationer ligger lokalt i `data/mss_observations.csv` (semikolon, én række
 from __future__ import annotations
 
 import csv
-import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from stockscanner.candles import trend_context
+from stockscanner.stockmap import StockMapParams, angle_on
 
 OBSERVATIONS = Path(__file__).resolve().parent.parent / "data" / "mss_observations.csv"
 
@@ -24,27 +24,12 @@ def load_observations(path: Path = OBSERVATIONS) -> list[dict[str, str]]:
 
 
 def stockmap_angle(prices: pd.DataFrame, benchmark: pd.DataFrame, date: str,
-                   ratio_days: int = 50, momentum_days: int = 10, trail_days: int = 5) -> float | None:
-    """Første bud på StockMap-pilens retning (kompasgrader: 0 = op, 90 = højre).
+                   params: StockMapParams = StockMapParams()) -> float | None:
+    """StockMap-pilens retning på datoen (kompasgrader: 0 = op, 90 = højre), ugebarer.
 
-    RRG-lignende: x = RS-niveau (RS-linje i forhold til sit gennemsnit), y = RS-momentum
-    (ændring i x over `momentum_days`). Retningen er bevægelsen over de sidste `trail_days`.
-    MSS' egne parametre kendes ikke; disse er udgangspunkt for kalibrering.
+    Se `stockscanner.stockmap`; parametrene er kalibreret mod MSS-observationer.
     """
-    close = _dated(prices["Close"])
-    bench = _dated(benchmark["Close"]).reindex(close.index, method="ffill")
-    rs = close / bench
-    ratio = 100 * rs / rs.rolling(ratio_days, min_periods=ratio_days).mean()
-    momentum = 100 * ratio / ratio.shift(momentum_days)
-    upto = pd.Timestamp(date)
-    ratio, momentum = ratio[:upto].dropna(), momentum[:upto].dropna()
-    if len(momentum) <= trail_days:
-        return None
-    dx = ratio.iloc[-1] - ratio.iloc[-1 - trail_days]
-    dy = momentum.iloc[-1] - momentum.iloc[-1 - trail_days]
-    if dx == 0 and dy == 0:
-        return None
-    return math.degrees(math.atan2(dx, dy)) % 360
+    return angle_on(prices, benchmark, date, params)
 
 
 def angle_difference(a: float, b: float) -> float:

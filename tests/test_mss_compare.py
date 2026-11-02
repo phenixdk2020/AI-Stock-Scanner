@@ -9,6 +9,7 @@ import pandas as pd
 from stockscanner.mss_compare import (
     angle_difference, compare, load_observations, spearman, stockmap_angle, summary, trend_state,
 )
+from stockscanner.stockmap import angle_on
 
 
 def frame(close, start="2025-01-01"):
@@ -23,24 +24,19 @@ class AngleTests(unittest.TestCase):
         self.assertEqual(angle_difference(350, 10), 20)
         self.assertEqual(angle_difference(0, 180), 180)
 
-    def test_new_outperformer_points_up_right(self):
-        bench = frame(np.full(200, 100.0))
-        stock = frame(np.concatenate([np.full(150, 100.0), 100 * 1.01 ** np.arange(1, 51)]))  # flad, så stigning
-        angle = stockmap_angle(stock, bench, str(bench.index[158].date()))
-        self.assertTrue(0 < angle < 90, angle)
-
-    def test_falling_underperformer_points_down_left(self):
-        bench = frame(np.full(200, 100.0))
-        stock = frame(100 * np.exp(-np.linspace(0, 1, 200) ** 2))
-        angle = stockmap_angle(stock, bench, str(bench.index[-1].date()))
-        self.assertTrue(180 < angle < 270, angle)
+    def test_stockmap_angle_uses_weekly_stockmap(self):
+        bench = frame(np.full(700, 100.0))
+        stock = frame(100 * np.exp(0.25 * np.sin(2 * np.pi * np.arange(700) / 260)))
+        date = str(bench.index[-1].date())
+        self.assertEqual(stockmap_angle(stock, bench, date), angle_on(stock, bench, date))
+        self.assertIsNone(stockmap_angle(stock.iloc[:100], bench.iloc[:100], date))  # for lidt historik
 
     def test_angle_uses_only_data_until_date(self):
-        bench = frame(np.full(200, 100.0))
-        close = 100 * np.exp(np.linspace(0, 1, 200) ** 2)
-        date = str(bench.index[150].date())
+        bench = frame(np.full(700, 100.0))
+        close = 100 * np.exp(0.25 * np.sin(2 * np.pi * np.arange(700) / 260))
+        date = str(bench.index[500].date())
         changed = close.copy()
-        changed[151:] = 1.0
+        changed[520:] = 1.0  # ændringer efter datoens uge må ikke påvirke vinklen
         self.assertEqual(stockmap_angle(frame(close), bench, date), stockmap_angle(frame(changed), bench, date))
 
 
