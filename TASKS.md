@@ -5,7 +5,8 @@
 ## I gang
 - [x] Kode-commit `764d08c` (fase 1–2) lavet lokalt 02-11-2026. Ikke pushet.
 - [x] Dokumentations-commit `efbd0db` med alle billeder; grenen pushet 02-11-2026 (Allan valgte "push alt alligevel" trods brugernavnet `allanm_ller` i `test-watchlist-beskrivelse.png`).
-- [ ] **Videoanalyse:** `D:\AI-Stock-Scanner videos` (24 filer, 1,2 GB). 10 af dem er delvist set ud fra stillbilleder i `docs/MYSTOCKSCANNER-VIDEOANALYSE-2026-11-01.md`, og intet er transskriberet. Whisper large-v3-turbo godkendt til download 02-11-2026 (Wan2GP-venv). Næste: transskribér, opsummér værdiansættelse/kvalitet/timing med lokal AI.
+- [x] **Videoanalyse** 02-11-2026: 23 videoer skrevet ud med Whisper large-v3-turbo (`data/video-transcripts/`, ikke i git). Samlet i `docs/MYSTOCKSCANNER-BULL-ENTRY-2026-11-02.md` (udvælgelse, trend, timing, entry/exit, huller, forslag til fase 5). Stikprøver tjekket mod udskrifterne.
+- [ ] MSS' kursus "Sådan bruges MyStockScanner" (appens lektioner) er ikke i videomappen – venter på Allan, hvis det skal med.
 
 ## Næste
 - [x] Candle-detektor `stockscanner/candles.py` + `scan_cli.py --candles` (02-11-2026, 13 tests). Første backtest (20 aktier, 10 år, 0,1 % kurtage): kun **hammer** slår basis (+0,3/+0,5/+0,9 %-point ved 5/10/20 dage); Inside Bar-udbrud og lukning over top med volumen er under basis. Mangler: out-of-sample, flere aktier, signifikans (signaler overlapper), visning i appen (DAY-03).
