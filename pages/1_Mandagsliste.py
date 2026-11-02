@@ -49,12 +49,13 @@ else:
     actions = sorted(frame["action"].dropna().unique())
     chosen = st.multiselect("Vis handlinger", actions, default=actions)
     columns = [c for c in ("ticker", "action", "stockmap", "tpi", "mti", "quality", "moat", "mss_score", "value_pct",
-                           "momentum", "channel_score", "peg", "asymmetry", "earnings", "eps_trend", "reasons") if c in frame.columns]
+                           "momentum", "channel_score", "peg", "asymmetry", "earnings", "eps_trend", "shares", "stop", "reasons") if c in frame.columns]
     shown = frame[frame["action"].isin(chosen)][columns]
     st.dataframe(shown, width="stretch", hide_index=True,
                  column_config={c: st.column_config.NumberColumn(format="%.0f") for c in
                                 ("quality", "moat", "mss_score", "value_pct", "momentum", "channel_score")})
-    st.caption("Handling: KØB-KANDIDAT = StockMap-køb + Quality ≥ 60 + nederste halvdel af værdikanalen + PEG < 2. "
+    st.caption("Handling: KØB-KANDIDAT = StockMap-køb + Quality ≥ 60 + nederste halvdel af værdikanalen + PEG < 2 "
+               "+ asymmetri ≥ 3 + intet regnskab inden for 7 dage + ingen value trap. shares/stop = foreslået antal og stop. "
                "SÆLG/BEHOLD (ejet) gælder kun aktier i porteføljen. \"pil ned\" = StockMap-salg på en aktie du ikke ejer.")
 
 if HISTORY.exists():
@@ -107,3 +108,54 @@ with right:
         st.caption("Kurser fra yfinance, op til 15 min. gamle (gemmes i 15 min.).")
     else:
         st.caption("Ingen aktier i porteføljen endnu – tilføj dem ovenfor og tryk Gem.")
+
+
+st.divider()
+st.subheader("Positionsstørrelse")
+from stockscanner.sizing import load_settings, save_settings
+
+settings = load_settings()
+c1, c2, c3, c4 = st.columns(4)
+capital = c1.number_input("Kapital", min_value=0.0, value=float(settings["kapital"]), step=10000.0,
+                          help="Hele porteføljens størrelse; bruges til antal aktier pr. køb-kandidat.")
+currency = c2.selectbox("Valuta", ["DKK", "SEK", "NOK", "EUR", "USD"],
+                        index=["DKK", "SEK", "NOK", "EUR", "USD"].index(settings["valuta"])
+                        if settings["valuta"] in ["DKK", "SEK", "NOK", "EUR", "USD"] else 0)
+risk = c3.number_input("Risiko pr. handel (%)", min_value=0.1, max_value=5.0, value=float(settings["risiko_pct"]),
+                       step=0.25, help="MSS/MarketTimer: 0,5–1 % af kapitalen tabes, hvis stoppet rammes.")
+cap_pct = c4.number_input("Maks. pr. aktie (%)", min_value=0.5, max_value=100.0, value=float(settings["max_pct"]),
+                          step=0.5, help="Loft over hvor stor en del af kapitalen der må ligge i én aktie (ca. 3 %).")
+if st.button("Gem indstillinger"):
+    save_settings(dict(settings, kapital=capital, valuta=currency, risiko_pct=risk, max_pct=cap_pct))
+    st.success("Gemt – gælder fra næste kørsel af mandagslisten.")
+st.caption("Stop = kurs − 3 × ATR(14). Antal = det mindste af risikogrænsen og loftet. Valutakurser er omtrentlige.")
+
+st.divider()
+st.subheader("Screenere over universet")
+from stockscanner import universe as universe_module
+from stockscanner.screeners import SCREENERS, screen
+
+factors = universe_module.load()
+if factors is None or "t_long_green" not in factors.columns:
+    st.info("Universet skal bygges med de nye kolonner: scripts/build_universe.py --force (sker også mandag).")
+else:
+    choice = st.selectbox("Screener", list(SCREENERS), format_func=lambda k: SCREENERS[k])
+    regional = st.checkbox("Percentiler pr. region (som MSS)", value=True)
+    hits = screen(choice, factors, universe_module.percentiles(factors, None, by_region=regional))
+    st.dataframe(hits, width="stretch", column_config={c: st.column_config.NumberColumn(format="%.0f") for c in
+                                                       ("stock_score", "quality", "value", "momentum", "moat",
+                                                        "x_upside", "mcap_mia_usd")})
+    st.caption(f"{len(hits)} hits af {len(factors)} aktier. \"Grøn\" uge/dag er vores tilnærmelse af MSS' TPI.")
+
+st.divider()
+st.subheader("Papirportefølje")
+from stockscanner import paper
+
+trades = paper.load()
+if trades.empty:
+    st.caption("Ingen papirhandler endnu. Mandagslistens køb-kandidater købes automatisk på papir og sælges "
+               "med samme salgsregler som dine egne aktier.")
+else:
+    st.dataframe(trades, width="stretch", hide_index=True)
+    st.caption(f"{len(paper.open_positions(trades))} åbne af {len(trades)} handler; "
+               f"{paper.AMOUNT:,.0f} pr. handel. Afkast vises i mandagslistens tekst.")

@@ -45,9 +45,25 @@ def _cached(name: str, fetch, max_age_days: int = CACHE_DAYS):
     return data
 
 
+def _ticker_map() -> dict[str, int]:
+    """SEC's officielle ticker→CIK-liste (company_tickers.json), cachet; nøgler med store bogstaver."""
+    raw = _cached("company_tickers.json", lambda: _get("https://www.sec.gov/files/company_tickers.json"))
+    return {str(row["ticker"]).upper(): int(row["cik_str"]) for row in raw.values() if row.get("ticker")}
+
+
 def cik_for(ticker: str) -> int | None:
-    """CIK for en amerikansk ticker (eksakt match i EDGAR's søgeindeks)."""
+    """CIK for en amerikansk ticker: eksakt match i SEC's ticker-liste (BRK-B/BRK.B begge), ellers EDGAR's søgeindeks."""
     symbol = ticker.upper().replace(".", "-")
+    try:
+        mapping = _ticker_map()
+    except (requests.RequestException, ValueError, KeyError):
+        mapping = {}
+    for key in (symbol, symbol.replace("-", ".")):
+        if key in mapping:
+            return mapping[key]
+    for key, cik in mapping.items():  # SEC bruger '-' eller '.' som delimiter
+        if key.replace(".", "-") == symbol:
+            return cik
     hits = _cached(f"cik_{symbol}.json", lambda: _get(
         f"https://efts.sec.gov/LATEST/search-index?keysTyped={symbol}"), max_age_days=365)
     for hit in hits.get("hits", {}).get("hits", []):

@@ -216,9 +216,40 @@ def print_exit_study(tickers: list[str], period: str, benchmark: str, holdout_st
     return 0
 
 
-def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None) -> int:
+def print_screener(name: str, by_region: bool) -> int:
+    """B-04–B-06: kør en eller alle screenere over det cachede univers (byg det med scripts/build_universe.py)."""
+    from stockscanner import universe
+    from stockscanner.screeners import SCREENERS, screen
+
+    factors = universe.load()
+    if factors is None or "t_long_green" not in factors.columns:
+        print("Universet mangler, er for gammelt eller er uden trend-kolonner – kør: "
+              "scripts/build_universe.py --force", file=sys.stderr)
+        return 2
+    scores = universe.percentiles(factors, None, by_region=by_region)
+    names = list(SCREENERS) if name == "alle" else [name]
+    fmt = lambda x: "–" if x is None or x != x else f"{x:.0f}"
+    for current in names:
+        hits = screen(current, factors, scores)
+        print(f"\n{SCREENERS[current]} – {len(hits)} hits af {len(factors)}")
+        for ticker, r in hits.head(20).iterrows():
+            peg = r.get("x_peg")
+            peg = "–" if peg is None or peg != peg else f"{peg:.1f}"
+            print(f"  {ticker:<13}{r.get('region', ''):<8}score {fmt(r.get('stock_score')):>3}  Q {fmt(r.get('quality')):>3}"
+                  f"  V {fmt(r.get('value')):>3}  Mom {fmt(r.get('momentum')):>3}  upside {fmt(r.get('x_upside')):>4} %"
+                  f"  PEG {peg:>4}  {fmt(r.get('mcap_mia_usd'))} mia. USD")
+    print("\nScreening efter egne regler inspireret af MSS – ikke købsanbefalinger.")
+    return 0
+
+
+def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, by_region: bool = False) -> int:
     """Mandagsliste: StockMap-signal + Quality/Value/Momentum-percentiler + værdikanal og PEG."""
+    import dataclasses
+
     import yfinance as yf
+
+    from stockscanner import paper
+    from stockscanner.sizing import atr, fx_rate, load_settings, position_size
 
     from stockscanner import universe
     from stockscanner.analyst import fetch_analyst
@@ -227,7 +258,9 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None) 
 
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="yfinance")
     positions = load_portfolio()
-    tickers = list(dict.fromkeys(list(tickers) + list(positions)))  # ejede aktier kommer altid med
+    paper_trades = paper.load()
+    held = list(positions) + list(paper.open_positions(paper_trades)["ticker"])
+    tickers = list(dict.fromkeys(list(tickers) + held))  # ejede aktier og åbne papirhandler kommer altid med
     bench = fetch_history(benchmark, period="3y")[0]
     histories, channels, factor_rows, mti, index_cache, analyst = {}, {}, [], {}, {}, {}
     for ticker in tickers:
@@ -255,11 +288,24 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None) 
             pass
     reference = universe.load()
     targets = pd.DataFrame(factor_rows).set_index("ticker")
-    scores = universe.percentiles(targets, reference)
+    scores = universe.percentiles(targets, reference, by_region=by_region)
     rows = build_rows(list(histories), histories, bench, scores["quality"].dropna().to_dict(),
                       scores["value"].dropna().to_dict(), scores["momentum"].dropna().to_dict(), channels,
                       positions=positions, moat_pct=scores["moat"].dropna().to_dict(), mti_states=mti,
                       analyst=analyst)
+    settings = load_settings()
+    currencies = targets["x_currency"].to_dict() if "x_currency" in targets.columns else {}
+    for i, r in enumerate(rows):
+        if r.action != "KØB-KANDIDAT":
+            continue
+        prices = histories[r.ticker]
+        fx = fx_rate(currencies.get(r.ticker), settings["valuta"])
+        size = None if fx is None else position_size(float(pd.to_numeric(prices["Close"]).dropna().iloc[-1]),
+                                                     atr(prices), settings, fx)
+        if size is not None:
+            rows[i] = dataclasses.replace(r, shares=size.shares, stop=size.stop,
+                                          reasons=f"{r.reasons}; køb {size.shares} stk., stop {size.stop:.2f}, "
+                                                  f"risiko {size.risk:,.0f} {settings['valuta']}")
     fmt = lambda x: "–" if x is None or (isinstance(x, float) and x != x) else f"{x:.0f}"
     basis = f"mod {len(reference)} aktier i universet" if reference is not None else "kun inden for listen (byg universet)"
     market = universe.breadth(reference)
@@ -277,6 +323,7 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None) 
               f"{fmt(r.moat):>5}{fmt(r.mss_score):>5}{fmt(r.value_pct):>5}{fmt(r.momentum):>5}{fmt(r.channel_score):>7}"
               f"{peg:>6}{asym:>6}{(r.earnings or '–'):>12}  {r.reasons}")
     if out_dir is not None:
+        changes_seen = []
         out_dir.mkdir(parents=True, exist_ok=True)
         frame = pd.DataFrame([r.__dict__ for r in rows]).assign(dato=str(date.today()))
         path = out_dir / f"mandagsliste_{date.today()}.csv"
@@ -293,11 +340,24 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None) 
                                if str(old[col]) != str(new)]
                     if changes:
                         print(f"  ÆNDRING {r.ticker}: " + "; ".join(changes))
+                        changes_seen.append(f"{r.ticker}: " + "; ".join(changes))
             history = pd.concat([history[history["dato"] != str(date.today())], frame])
         else:
             history = frame
         history.to_csv(history_path, sep=";", index=False, encoding="utf-8-sig")
         print(f"Gemt: {path} og historik i {history_path}")
+        paper_trades, messages = paper.update(paper_trades, rows, histories, date.today())
+        paper.save(paper_trades)
+        for message in messages:
+            print("  " + message)
+        changes_seen += messages
+        last = {t: float(pd.to_numeric(h["Close"]).dropna().iloc[-1]) for t, h in histories.items() if not h.empty}
+        result = paper.summary(paper_trades, last)
+        if result["afkast_pct"] is not None:
+            print(f"Papirportefølje: {result['handler']} handler, {result['aabne']} åbne, gennemsnit "
+                  f"{result['afkast_pct']:+.1f} % pr. handel, vundne {result['vundne_pct']:.0f} %")
+        # B-13: scripts/notify.ps1 viser linjerne som Windows-besked
+        (out_dir / "aendringer.txt").write_text("\n".join(changes_seen), encoding="utf-8")
     print("Screening efter egne regler inspireret af MSS – ikke en købsanbefaling.")
     return 0
 
@@ -324,6 +384,10 @@ def main() -> int:
     parser.add_argument("--salg", action="store_true", help="Punkt 9: test af salgsregler på samme køb")
     parser.add_argument("--mandagsliste", action="store_true",
                         help="Ugentlig liste: køb-kandidater/salg ud fra StockMap, Quality, Value og PEG")
+    parser.add_argument("--screener", choices=["triple-green", "tpi-trend", "stock-of-the-day", "alle"],
+                        help="B-04–B-06: screener over det cachede univers")
+    parser.add_argument("--region", action="store_true",
+                        help="Percentiler kun mod samme region (USA/Norden/Europa), som MSS")
     parser.add_argument("--vaerdi", action="store_true", help="Værdikanal og værdiansættelsesscore")
     parser.add_argument("--horisont", type=float, default=2.0, help="--vaerdi: år frem (MSS' standard er 2)")
     parser.add_argument("--sammenlign-mss", action="store_true",
@@ -332,6 +396,8 @@ def main() -> int:
     parser.add_argument("--urort", default="2024-11-01", help="--regimer: start på urørt slutperiode (ÅÅÅÅ-MM-DD)")
     arguments = parser.parse_args()
 
+    if arguments.screener:
+        return print_screener(arguments.screener, arguments.region)
     if arguments.sammenlign_mss:
         return print_mss_comparison(arguments.benchmark)
 
@@ -350,7 +416,8 @@ def main() -> int:
         if not arguments.tickers and research.exists():
             selected = [line.strip() for line in research.read_text(encoding="utf-8").splitlines()
                         if line.strip() and not line.startswith("#")]
-        return print_weekly_list(selected, arguments.benchmark, Path(__file__).resolve().parent / "data")
+        return print_weekly_list(selected, arguments.benchmark, Path(__file__).resolve().parent / "data",
+                                 arguments.region)
     if arguments.salg:
         return print_exit_study(selected, arguments.periode, arguments.benchmark, arguments.urort, arguments.kurtage)
     if arguments.regimer:

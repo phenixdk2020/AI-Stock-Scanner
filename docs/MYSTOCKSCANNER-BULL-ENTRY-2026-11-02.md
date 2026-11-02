@@ -359,3 +359,33 @@ Konklusion:
 Urørt periode (2024-11 →): StockMap alene 12,2 % mod RSP 13,6 %, største fald −16,4 % mod −15,5 %.
 
 Konklusion: rene kursregler giver omtrent markedets afkast med mindre fald over hele perioden; ekstra filtre gør porteføljen for kontantrig. MSS' egenrapporterede 34 % (2025) kan ikke genskabes med kursregler alene – deres kvalitets- og værdifilter og skønsmæssige udvælgelse kan ikke backtestes ærligt uden point-in-time-regnskaber. Forbehold: overlevelsesbias (kun aktier, der findes i dag).
+
+## 12. Regressionskanal og ADX (B-08, B-12)
+
+`scripts/study_b08_b12.py` (funktioner i `stockscanner/regression.py`, tests i `tests/test_regression.py`; `exits.py` er uændret). 295 aktier fra `data/universe.txt` (de, der kunne hentes), 15 år, samme køb og samme `simulate()`/`summarize()` som afsnit 10, 0,1 % kurtage, urørt fra 01-11-2024.
+
+**B-08.** Lineær regression på log(luk) over N dage (126 og 252), bånd ±2σ af residualerne. Regel: R ≥ 0,9 dagen før, og lukningen krydser ned under nedre bånd (brud). Salg næste åbning. %/100d = gennemsnitligt afkast pr. 100 handelsdage; Maks % = andel handler uden signal, holdt til 504 dage.
+
+| Køb / regel | Udvikling %/100d | Udvikling værste 5 % | Maks % | Urørt %/100d | Urørt handler |
+|---|---:|---:|---:|---:|---:|
+| Trendkøb, Supertrend ×3 | 5,8 | −16,2 % | 0 | 4,6 | 3185 |
+| Trendkøb, Regression 126 | 6,3 | −47,7 % | 32 | 16,5 | 1195 |
+| Trendkøb, Regression 252 | 6,8 | −46,3 % | 39 | 14,7 | 1067 |
+| StockMap-køb, Supertrend ×3 | 6,9 | −21,1 % | 0 | 5,2 | 3069 |
+| StockMap-køb, Regression 126 | 6,1 | −57,1 % | 36 | 19,8 | 988 |
+| StockMap-køb, Regression 252 | 6,9 | −56,5 % | 49 | 18,6 | 805 |
+
+**B-12.** ADX(14) > 25 på signaldagen som filter på købet (Wilder), samme salgsregler.
+
+| Køb / regel | Udv. %/100d uden → med | Urørt %/100d uden → med | Udv. værste 5 % uden → med | Handler (udv.) uden → med |
+|---|---:|---:|---:|---:|
+| StockMap-køb, Supertrend ×3 | 6,9 → 6,5 | 5,2 → 7,1 | −21,1 → −25,5 % | 18345 → 6566 |
+| StockMap-køb, SMA50 | 7,1 → 6,5 | 5,4 → 8,6 | −18,4 → −24,4 % | 18345 → 6566 |
+| Trendkøb, Supertrend ×3 | 5,8 → 5,2 | 4,6 → 2,9 | −16,2 → −21,7 % | 20526 → 3583 |
+| Trendkøb, SMA50 | 4,6 → 1,0 | 1,5 → −3,2 | −5,6 → −7,8 % | 20526 → 3583 |
+
+Konklusion:
+- **Regressionskanalen slår ikke Supertrend ×3.** Den udløses sjældent (kræver R ≥ 0,9 før bruddet), så 32–49 % af handlerne får aldrig et salgssignal og holdes til 504 dage. Gennemsnitligt afkast pr. tid er på niveau med Supertrend ×3 i udviklingsperioden (6,1–6,9 mod 6,9 %/100d), men de værste udfald er 2–3 gange så store (værste 5 %: −46 til −57 % mod −16 til −21 %). Som salgsregel beskytter den altså ikke.
+- De høje urørt-tal (15–20 %/100d) må **ikke** tages for pålydende: handler, der endnu ikke er solgt og ikke har nået 504 dage, tælles ikke (kun ca. 800–1200 af ca. 3000 handler), så kun afsluttede handler indgår. Samtidig er perioden en kraftig bull-periode og aktierne overlevelsesvalgte.
+- **ADX > 25 hjælper ikke konsekvent.** Det halverer (StockMap) eller reducerer til en sjettedel (trendkøb) antallet af handler. Efter StockMap-køb er afkastet pr. tid lidt lavere i udviklingsperioden og højere i den urørte; efter trendkøb er det lavere i begge. De værste udfald bliver større, ikke mindre. Ingen robust fordel, så filteret anbefales ikke.
+- Forbehold som i afsnit 10: overlappende handler, kun nuværende aktier, ingen porteføljesimulering.
