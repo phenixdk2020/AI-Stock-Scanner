@@ -14,7 +14,7 @@
 - [x] Kvalitetsvisningen prøvet i browser 02-11-2026 (MSFT 84,8 Stærk, ingen fejl).
 - [ ] Fase 3: Pris/værdi (EPS × P/E-scenarier fra egen historik, værdiscore).
 - [ ] Fase 4: Moat-tilnærmelse (stabile marginer, vedvarende ROIC).
-- [ ] Fase 5: Timing-zoner med egne regler + backtest (bruger candle-detektoren).
+- [ ] Fase 5: Timing-zoner med egne regler + backtest. Copilot-review 02-11-2026 af `docs/MYSTOCKSCANNER-BULL-ENTRY-2026-11-02.md` afsnit 7: start med kun tre tests – A trendfilter alene (én trenddefinition, harmonisér 7.2 med `trend_context`), B + relativ styrke mod RSP, C med/uden tilbagerekyl. Urørt slutperiode, flere aktier inkl. afnoterede. Udskyd Supertrend-exit og positionsstørrelse. Kvalitetsfilteret kan ikke backtestes ærligt med yfinance (ingen filing-datoer; `altman_z` bruger nuværende market cap) – test det fremad med daterede snapshots.
 - [ ] Fase 6: Playbook-side (app, derefter WordPress).
 - [ ] Fase 7: Fornuftstjek mod MyStockScanners tal for de 9 researchaktier (ikke kopiering).
 - [ ] Kvalitetstærskler: sektor-/branche-relativ scoring (i dag absolutte tærskler, ikke backtestet).
