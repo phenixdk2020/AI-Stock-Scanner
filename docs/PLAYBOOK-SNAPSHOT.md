@@ -33,7 +33,10 @@ PC'en henter først `/tickers`, så mandagslisten også dækker aktier, brugerne
       "quality": 82, "moat": 95, "mss_score": 92, "value_pct": 13, "momentum": 51,
       "channel_score": 115, "peg": 1.0, "asymmetry": null, "asymmetry_inf": true,
       "earnings": "2027-01-27", "eps_trend": null,
-      "exit": {"supertrend_down": false, "sma50_breaks": ["2026-10-14"], "stockmap_sell": true}
+      "exit": {"supertrend_down": false, "sma50_breaks": ["2026-10-14"], "stockmap_sell": true},
+      "news_summary": "nyheder: 5+ 0−; stor positiv nyhed: …",
+      "news": [{"title": "…", "source": "Børsen", "url": "https://…", "published": "2026-11-02",
+                "sentiment": "positiv", "impact": 3, "reason": "…"}]
     }
   },
   "universe": {
@@ -62,4 +65,6 @@ PC'en henter først `/tickers`, så mandagslisten også dækker aktier, brugerne
   (samme regel som `portfolio.exit_check`).
 - Positionsstørrelse på siden: stop = `price − 3 × atr14`; antal = min(kapital × risiko % / (price − stop),
   kapital × maks % / price), omregnet med pluginets ECB-kurser. Kapital, valuta, risiko og maks gemmes pr. bruger.
+- `news` (plugin ≥ 0.6.1): højst 5 overskrifter fra Google News (kun til personlig brug), vurderet af lokal Ollama.
+  `impact` 1–3; en stor negativ nyhed de seneste 3 dage blokerer køb, når de negative overskrifter er flest.
 - Screening, ikke købs- eller salgsanbefalinger – det skal stå på siden.
