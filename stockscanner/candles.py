@@ -1,0 +1,188 @@
+"""Candle-detektor til timing (Playbook punkt 3) og simpel backtest.
+
+Alle mønstre bruger kun data til og med signaldagen (ingen look-ahead).
+Signal ved lukning, køb næste dags åbning. Screening, IKKE en købsanbefaling.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+import pandas as pd
+
+
+PATTERNS = {
+    "inside_bar_breakout": "Inside Bar-udbrud",
+    "bullish_engulfing": "Bullish engulfing",
+    "hammer": "Hammer",
+    "morning_star": "Morning star",
+    "close_above_prev_high_volume": "Lukning over forrige top med volumen",
+}
+
+DEFAULT_HORIZONS = (5, 10, 20)
+DEFAULT_COST_PCT = 0.1  # kurtage pr. handel (køb og salg hver), i procent
+
+
+def _ohlcv(prices: pd.DataFrame) -> pd.DataFrame:
+    missing = [c for c in ("Open", "High", "Low", "Close") if c not in prices.columns]
+    if missing:
+        raise ValueError(f"Mangler kolonner: {', '.join(missing)}")
+    frame = prices[["Open", "High", "Low", "Close"]].apply(pd.to_numeric, errors="coerce")
+    volume = prices["Volume"] if "Volume" in prices.columns else pd.Series(np.nan, index=prices.index)
+    frame["Volume"] = pd.to_numeric(volume, errors="coerce")
+    return frame.replace([np.inf, -np.inf], np.nan)
+
+
+def detect_patterns(prices: pd.DataFrame, breakout_window: int = 5, volume_factor: float = 1.5) -> pd.DataFrame:
+    """Én boolsk kolonne pr. mønster; True betyder signal ved dagens lukning.
+
+    Rækker med manglende OHLC giver aldrig signal.
+    """
+    f = _ohlcv(prices)
+    o, h, l, c, v = f["Open"], f["High"], f["Low"], f["Close"], f["Volume"]
+    valid = f[["Open", "High", "Low", "Close"]].notna().all(axis=1)
+    body = (c - o).abs()
+    rng = h - l
+    out = pd.DataFrame(index=f.index)
+
+    # Inside bar: dagens range ligger strengt inden for gårsdagens (mother bar).
+    inside = (h < h.shift(1)) & (l > l.shift(1)) & valid & valid.shift(1, fill_value=False)
+    mother_high = h.shift(1).where(inside)
+    # Første lukning over mother bar-toppen inden for breakout_window dage efter inside bar.
+    breakout = pd.Series(False, index=f.index)
+    hi = mother_high.to_numpy()
+    closes = c.to_numpy()
+    for i in np.flatnonzero(inside.to_numpy()):
+        for j in range(i + 1, min(i + 1 + breakout_window, len(f))):
+            if np.isnan(closes[j]):
+                break
+            if closes[j] > hi[i]:
+                breakout.iloc[j] = True
+                break
+    out["inside_bar_breakout"] = breakout & valid
+
+    prev_red = c.shift(1) < o.shift(1)
+    out["bullish_engulfing"] = (
+        valid & valid.shift(1, fill_value=False) & prev_red & (c > o)
+        & (o <= c.shift(1)) & (c >= o.shift(1)) & (body > body.shift(1))
+    )
+
+    lower_wick = pd.concat([o, c], axis=1).min(axis=1) - l
+    upper_wick = h - pd.concat([o, c], axis=1).max(axis=1)
+    out["hammer"] = (
+        valid & (rng > 0) & (body > 0) & (lower_wick >= 2 * body)
+        & (upper_wick <= 0.3 * rng) & (c >= l + 2 / 3 * rng)
+    )
+
+    body2, rng2 = body.shift(2), rng.shift(2)
+    red2 = c.shift(2) < o.shift(2)
+    mid2 = (o.shift(2) + c.shift(2)) / 2
+    out["morning_star"] = (
+        valid & valid.shift(1, fill_value=False) & valid.shift(2, fill_value=False)
+        & red2 & (rng2 > 0) & (body2 >= 0.5 * rng2)
+        & (body.shift(1) <= 0.3 * body2) & (c > o) & (c > mid2)
+    )
+
+    avg_volume = v.shift(1).rolling(20, min_periods=20).mean()
+    out["close_above_prev_high_volume"] = (
+        valid & (c > h.shift(1)) & (avg_volume > 0) & (v >= volume_factor * avg_volume)
+    )
+    return out.fillna(False).astype(bool)
+
+
+def trend_context(prices: pd.DataFrame, pullback_days: int = 10, pullback_pct: float = 5.0) -> pd.DataFrame:
+    """Optrend og tilbagerekyl målt ved dagens lukning.
+
+    Optrend: lukning over SMA200 og SMA50 over SMA200.
+    Tilbagerekyl: inden for de seneste `pullback_days` dage har kursen rørt SMA50
+    (low ≤ SMA50) eller ligget mindst `pullback_pct` % under 20-dages toppen.
+    """
+    f = _ohlcv(prices)
+    c, l = f["Close"], f["Low"]
+    sma50 = c.rolling(50, min_periods=50).mean()
+    sma200 = c.rolling(200, min_periods=200).mean()
+    uptrend = (c > sma200) & (sma50 > sma200)
+    touched = (l <= sma50).astype(float).rolling(pullback_days, min_periods=1).max() > 0
+    drawdown = (c / c.rolling(20, min_periods=20).max() - 1) * 100
+    dipped = (drawdown <= -pullback_pct).astype(float).rolling(pullback_days, min_periods=1).max() > 0
+    return pd.DataFrame({"uptrend": uptrend, "pullback": touched | dipped}, index=f.index).fillna(False)
+
+
+def eligible_signals(prices: pd.DataFrame, require_pullback: bool = True) -> pd.DataFrame:
+    """Mønstre der kun tæller i optrend (og efter tilbagerekyl, som standard)."""
+    patterns = detect_patterns(prices)
+    context = trend_context(prices)
+    ok = context["uptrend"] & (context["pullback"] if require_pullback else True)
+    return patterns.mul(ok, axis=0).astype(bool)
+
+
+def forward_returns(prices: pd.DataFrame, horizons=DEFAULT_HORIZONS, cost_pct: float = DEFAULT_COST_PCT) -> pd.DataFrame:
+    """Afkast i % for signal ved lukning dag t: køb åbning t+1, sælg lukning t+h.
+
+    Kurtage trækkes for både køb og salg. NaN når fremtiden mangler.
+    """
+    f = _ohlcv(prices)
+    entry = f["Open"].shift(-1)
+    out = pd.DataFrame(index=f.index)
+    for horizon in horizons:
+        exit_ = f["Close"].shift(-horizon)
+        out[f"{horizon}d"] = (exit_ / entry - 1) * 100 - 2 * cost_pct
+    return out
+
+
+@dataclass(frozen=True)
+class BacktestRow:
+    pattern: str
+    horizon: str
+    signals: int
+    mean_pct: float | None
+    median_pct: float | None
+    hit_rate_pct: float | None
+    baseline_mean_pct: float | None
+    edge_pct: float | None
+    context_baseline_pct: float | None = None
+    context_edge_pct: float | None = None
+
+
+def backtest(histories: dict[str, pd.DataFrame], horizons=DEFAULT_HORIZONS,
+             cost_pct: float = DEFAULT_COST_PCT, require_pullback: bool = True) -> list[BacktestRow]:
+    """Sammenlign mønstrenes afkast med en tilfældig dag.
+
+    Baseline = gennemsnit over ALLE dage med kendt fremtid for de samme aktier og
+    samme købs-/salgsregel (svarer til forventningen ved en tilfældigt valgt dag).
+    Kontekst-baseline = kun dage i samme optrend/tilbagerekyl; viser om fordelen
+    kommer fra mønsteret eller blot fra konteksten.
+    """
+    signal_parts, return_parts, context_parts = [], [], []
+    for ticker, frame in histories.items():
+        signals = eligible_signals(frame, require_pullback=require_pullback)
+        returns = forward_returns(frame, horizons, cost_pct)
+        context = trend_context(frame)
+        ok = context["uptrend"] & (context["pullback"] if require_pullback else True)
+        index = pd.MultiIndex.from_product([[ticker], frame.index])
+        signal_parts.append(signals.set_axis(index))
+        return_parts.append(returns.set_axis(index))
+        context_parts.append(ok.set_axis(index))
+    if not signal_parts:
+        return []
+    signals = pd.concat(signal_parts)
+    returns = pd.concat(return_parts)
+    in_context = pd.concat(context_parts).astype(bool)
+
+    def stats(values: pd.Series):
+        values = values.dropna()
+        if values.empty:
+            return 0, None, None, None
+        return len(values), float(values.mean()), float(values.median()), float((values > 0).mean() * 100)
+
+    rows = []
+    for horizon in returns.columns:
+        baseline = stats(returns[horizon])[1]
+        context_baseline = stats(returns.loc[in_context, horizon])[1]
+        for pattern in PATTERNS:
+            count, mean, median, hit = stats(returns.loc[signals[pattern], horizon])
+            edge = None if mean is None or baseline is None else mean - baseline
+            context_edge = None if mean is None or context_baseline is None else mean - context_baseline
+            rows.append(BacktestRow(pattern, horizon, count, mean, median, hit, baseline, edge,
+                                    context_baseline, context_edge))
+    return rows

@@ -8,8 +8,8 @@
 - [ ] **Videoanalyse:** `D:\AI-Stock-Scanner videos` (24 filer, 1,2 GB). 10 af dem er delvist set ud fra stillbilleder i `docs/MYSTOCKSCANNER-VIDEOANALYSE-2026-11-01.md`, og intet er transskriberet. Whisper large-v3-turbo godkendt til download 02-11-2026 (Wan2GP-venv). Næste: transskribér, opsummér værdiansættelse/kvalitet/timing med lokal AI.
 
 ## Næste
-- [ ] **Candle-detektor (timing, punkt 3):** Inside Bar-udbrud, bullish engulfing, hammer, morning star, lukning over forrige top med volumen. Kun tæller i optrend/efter tilbagerekyl. Backtest 5/10/20 dage mod tilfældig dag, signal ved lukning og køb næste åbning, kurtage med. Se `docs/DAYTRADER-INSIDE-BAR-2026-11-01.md` (DAY-01–05). Afventer Allans OK.
-- [ ] Kvalitetsvisningen i Streamlit-appen er ikke prøvet i en browser.
+- [x] Candle-detektor `stockscanner/candles.py` + `scan_cli.py --candles` (02-11-2026, 13 tests). Første backtest (20 aktier, 10 år, 0,1 % kurtage): kun **hammer** slår basis (+0,3/+0,5/+0,9 %-point ved 5/10/20 dage); Inside Bar-udbrud og lukning over top med volumen er under basis. Mangler: out-of-sample, flere aktier, signifikans (signaler overlapper), visning i appen (DAY-03), stop/mål (DAY-04).
+- [x] Kvalitetsvisningen prøvet i browser 02-11-2026 (MSFT 84,8 Stærk, ingen fejl).
 - [ ] Fase 3: Pris/værdi (EPS × P/E-scenarier fra egen historik, værdiscore).
 - [ ] Fase 4: Moat-tilnærmelse (stabile marginer, vedvarende ROIC).
 - [ ] Fase 5: Timing-zoner med egne regler + backtest (bruger candle-detektoren).
