@@ -18,6 +18,7 @@ Prioritet: **P1** høj værdi / lav indsats, **P2** middel, **P3** lav eller sv�
 | B-15 | **Kalibrér mod facitlisten** (1180 video-observationer): brug dem med dato som stikprøver | P3 | M | `data/mss_video_observations.csv` | Rapport over hvor mange signaler/zoner vi rammer |
 | B-16 | **TPI fuld metode** (sammenligning med 20–30 års mønstre i aktiens egen historik) | P3 | L | [MSS] H4, H6 | Analog-model; skal slå TPI-lite i urørt periode |
 | B-17 | **WordPress Playbook-side** (fase 6) | P3 | L | TASKS | Side på hangar18.dk med mandagslisten |
+| B-20 | **Nyhedsscanner**: overskrifter for watchlist og portefølje (yfinance), vurderet positiv/negativ/neutral af lokal Ollama | P1 | M | Allan 02-11-2026 | Nyheder pr. aktie i mandagslisten og på hjemmesiden; markering ved stærkt negative nyheder |
 
 ## 2. Udsat
 

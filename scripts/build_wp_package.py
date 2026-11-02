@@ -16,6 +16,7 @@ SLUG = "hangar18-ai-stock-scanner"
 PLUGIN = ROOT / "wordpress" / SLUG
 MAIN = PLUGIN / (SLUG + ".php")
 DIST = ROOT / "dist"
+TEXT_SUFFIXES = {".php", ".css", ".js", ".json", ".txt", ".md", ".csv"}
 
 
 def build_package() -> tuple[Path, dict]:
@@ -40,7 +41,10 @@ def build_package() -> tuple[Path, dict]:
             info = ZipInfo(f"{SLUG}/{relative}", (2020, 1, 1, 0, 0, 0))
             info.compress_type = ZIP_DEFLATED
             info.external_attr = 0o644 << 16
-            out.writestr(info, file.read_bytes())
+            data = file.read_bytes()
+            if file.suffix.lower() in TEXT_SUFFIXES:
+                data = data.replace(b"\r\n", b"\n")  # samme ZIP uanset Windows-checkout (core.autocrlf)
+            out.writestr(info, data)
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
     manifest = {"slug": SLUG, "version": version,
                 "filename": target.name, "sha256": digest, "source": "local-package"}

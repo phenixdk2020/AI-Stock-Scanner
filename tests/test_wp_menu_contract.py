@@ -34,8 +34,8 @@ class AdminMenuTests(unittest.TestCase):
 
     def test_plugin_version_consistent(self):
         source = MAIN.read_text(encoding="utf-8")
-        self.assertIn("* Version: 0.5.2", source)
-        self.assertIn("define('ASC_PLUGIN_VERSION', '0.5.2')", source)
+        self.assertIn("* Version: 0.6.0", source)
+        self.assertIn("define('ASC_PLUGIN_VERSION', '0.6.0')", source)
 
 
 if __name__ == "__main__":

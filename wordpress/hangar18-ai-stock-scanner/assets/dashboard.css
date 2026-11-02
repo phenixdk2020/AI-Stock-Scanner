@@ -166,3 +166,18 @@
 .asc-catalog-status.is-missing{background:#fff3d9;color:#804b0c}
 .asc-catalog-audit{margin:.8rem 0;border-left:4px solid #477eaa;background:#eef5fb;padding:.8rem}
 .asc-catalog-audit strong{font-weight:750}
+
+/* v0.6.0: Playbook */
+.asc-pb-tabs{display:flex;flex-wrap:wrap;gap:.5rem;margin:1rem 0}
+.asc-pb-tab{display:inline-block;padding:.5rem 1rem;border:1px solid #b9c8d8;border-radius:24px;text-decoration:none;color:#173248;font-weight:650}
+.asc-pb-tab:hover,.asc-pb-tab:focus-visible{background:#edf4fb}
+.asc-pb-tab.is-active{background:#093c70;border-color:#093c70;color:#fff}
+.asc-pb-breadth{margin:.5rem 0}
+.asc-pb-changes{margin:1rem 0;padding:.8rem 1rem;border-left:4px solid #477eaa;background:#eef5fb;color:#183f66}
+.asc-pb-changes ul{margin:.4rem 0 0 1.1rem;padding:0}
+.asc-playbook td.asc-pb-sell{color:#a72f2f;font-weight:700;white-space:normal}
+.asc-playbook td.asc-pb-buy{color:#176044;font-weight:700}
+.asc-playbook td.asc-subtle{white-space:normal;min-width:12rem}
+.asc-pb-sizing form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:800px){.asc-pb-sizing form{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:550px){.asc-pb-sizing form{grid-template-columns:1fr}}
