@@ -246,9 +246,26 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None) 
               f"{fmt(r.momentum):>5}{fmt(r.channel_score):>7}{peg:>6}  {r.reasons}")
     if out_dir is not None:
         out_dir.mkdir(parents=True, exist_ok=True)
+        frame = pd.DataFrame([r.__dict__ for r in rows]).assign(dato=str(date.today()))
         path = out_dir / f"mandagsliste_{date.today()}.csv"
-        pd.DataFrame([r.__dict__ for r in rows]).to_csv(path, sep=";", index=False, encoding="utf-8-sig")
-        print(f"Gemt: {path}")
+        frame.to_csv(path, sep=";", index=False, encoding="utf-8-sig")
+        history_path = out_dir / "mandagsliste_historik.csv"
+        if history_path.exists():
+            history = pd.read_csv(history_path, sep=";", encoding="utf-8-sig")
+            previous = history[history["dato"] < str(date.today())].sort_values("dato").groupby("ticker").last()
+            for r in rows:
+                if r.ticker in previous.index:
+                    old = previous.loc[r.ticker]
+                    changes = [f"{name}: {old[col]} → {new}" for name, col, new in
+                               (("handling", "action", r.action), ("StockMap", "stockmap", r.stockmap), ("TPI", "tpi", r.tpi))
+                               if str(old[col]) != str(new)]
+                    if changes:
+                        print(f"  ÆNDRING {r.ticker}: " + "; ".join(changes))
+            history = pd.concat([history[history["dato"] != str(date.today())], frame])
+        else:
+            history = frame
+        history.to_csv(history_path, sep=";", index=False, encoding="utf-8-sig")
+        print(f"Gemt: {path} og historik i {history_path}")
     print("Screening efter egne regler inspireret af MSS – ikke en købsanbefaling.")
     return 0
 
@@ -297,7 +314,11 @@ def main() -> int:
     if arguments.vaerdi:
         return print_value_channels(selected, arguments.horisont)
     if arguments.mandagsliste:
-        return print_weekly_list(selected, arguments.benchmark, Path("data"))
+        research = Path(__file__).resolve().parent / "data" / "research_watchlist.txt"
+        if not arguments.tickers and research.exists():
+            selected = [line.strip() for line in research.read_text(encoding="utf-8").splitlines()
+                        if line.strip() and not line.startswith("#")]
+        return print_weekly_list(selected, arguments.benchmark, Path(__file__).resolve().parent / "data")
     if arguments.salg:
         return print_exit_study(selected, arguments.periode, arguments.benchmark, arguments.urort, arguments.kurtage)
     if arguments.regimer:
