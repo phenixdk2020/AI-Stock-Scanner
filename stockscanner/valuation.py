@@ -97,24 +97,24 @@ def base_pe(pe_history: pd.Series, as_of: date, min_pe: float = 3.0, max_pe: flo
 
 
 def pe_candidates(pe_history: pd.Series, as_of: date, current_pe: float | None,
-                  min_pe: float = 3.0, max_pe: float = 60.0) -> list[float]:
-    """Gennemsnitlig P/E over 3, 5, 10 og 20 år (de perioder, der er data til) plus nuværende P/E.
+                  windows=(1, 3, 5, 10, 20), max_pe: float = 500.0) -> list[float]:
+    """Median af daglig P/E over 1, 3, 5, 10 og 20 år (de perioder, der er data til) plus nuværende P/E.
 
-    Samme år-filter som `base_pe`. MSS ("Nye features i valuegrafen" 0:02:45): bear = laveste,
-    bull = højeste af disse, base = midtpunktet.
+    MSS ("Nye features i valuegrafen" 0:02:45): bear = laveste, bull = højeste af disse, base =
+    midtpunktet. Varianten er valgt mod 113 høstede amerikanske MSS-kanaler (02-11-2026, SEC-historik):
+    rangkorrelation 0,70 for bear/bull-forholdet (årsgennemsnit med P/E 3–60: 0,37).
     """
     series = pe_history.dropna()
-    series = series[(series > 0) & np.isfinite(series) & (series.index <= pd.Timestamp(as_of))]
+    end = pd.Timestamp(as_of)
+    series = series[(series > 0) & (series < max_pe) & np.isfinite(series) & (series.index <= end)]
     candidates = []
     if not series.empty:
-        yearly = series.groupby(series.index.year).median()
-        yearly = yearly[(yearly >= min_pe) & (yearly <= max_pe)]
-        first_year = int(series.index.year.min())
-        for years in (3, 5, 10, 20):
-            window = yearly[yearly.index > as_of.year - years]
-            if not window.empty and (years == 3 or first_year <= as_of.year - years + 1):
-                candidates.append(float(window.mean()))
-    if current_pe is not None and min_pe <= current_pe <= max_pe:
+        for years in windows:
+            window = series[series.index > end - pd.DateOffset(years=years)]
+            covered = series.index.min() <= end - pd.DateOffset(years=years - 1)
+            if len(window) >= 20 and (years == windows[0] or covered):
+                candidates.append(float(window.median()))
+    if current_pe is not None and 0 < current_pe < max_pe:
         candidates.append(float(current_pe))
     return candidates
 
@@ -202,15 +202,20 @@ def trailing_pe_history(prices: pd.Series, annual_eps: pd.Series, lag_days: int 
     return pe[(eps_daily > 0)].dropna()
 
 
-def fetch_inputs(symbol: str, as_of: date | None = None) -> ValuationInputs:
-    """Hent data fra yfinance (uofficiel). EPS omregnes til handelsvaluta ved forskellig regnskabsvaluta."""
+def fetch_inputs(symbol: str, as_of: date | None = None, use_sec: bool = True) -> ValuationInputs:
+    """Hent data fra yfinance (uofficiel). EPS omregnes til handelsvaluta ved forskellig regnskabsvaluta.
+
+    For amerikanske aktier (`use_sec`) forlænges EPS-historikken med SEC EDGAR, så P/E-gennemsnit
+    over 10–20 år kan beregnes (yfinance har ca. 4 års regnskaber).
+    """
     import yfinance as yf
 
     ticker = yf.Ticker(symbol)
     info = ticker.info or {}
     currency = str(info.get("currency") or "")
     fin_currency = str(info.get("financialCurrency") or currency)
-    history = ticker.history(period="11y", interval="1d", auto_adjust=False, actions=False)
+    is_us = use_sec and "." not in symbol and currency == "USD" and fin_currency == "USD"
+    history = ticker.history(period="21y" if is_us else "11y", interval="1d", auto_adjust=False, actions=False)
     if history is None or history.empty:
         raise ValueError(f"{symbol}: ingen kursdata.")
     close = pd.to_numeric(history["Close"], errors="coerce")
@@ -227,6 +232,8 @@ def fetch_inputs(symbol: str, as_of: date | None = None) -> ValuationInputs:
     annual = annual.sort_index()
     if fx is not None:
         annual = annual * fx.reindex(annual.index, method="ffill").bfill().values
+    if is_us:
+        annual = _extend_with_sec(symbol, annual, ticker.splits)
     estimates = ticker.earnings_estimate
     fx_now = 1.0 if fx is None else float(fx.iloc[-1])
     eps0 = _estimate(estimates, "0y")
@@ -242,6 +249,21 @@ def fetch_inputs(symbol: str, as_of: date | None = None) -> ValuationInputs:
         eps_next_year=None if eps1 is None else eps1 * fx_now,
         pe_history=pe_hist, target_price=None if target is None else target * scale, currency=currency,
     )
+
+
+def _extend_with_sec(symbol: str, annual: pd.Series, splits: pd.Series) -> pd.Series:
+    """Tilføj ældre årlig EPS fra SEC EDGAR (splitjusteret) før yfinance' første regnskabsår."""
+    from stockscanner.sec_edgar import annual_eps, split_adjust
+
+    try:
+        sec = annual_eps(symbol)
+    except Exception:
+        return annual
+    if sec.empty:
+        return annual
+    sec = split_adjust(sec, splits if splits is not None else pd.Series(dtype=float))
+    older = sec[sec.index < annual.index.min() - pd.Timedelta(days=200)]
+    return pd.concat([older, annual]).sort_index()
 
 
 def _estimate(frame, period: str) -> float | None:
