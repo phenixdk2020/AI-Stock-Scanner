@@ -33,8 +33,20 @@ class EpsPathTests(unittest.TestCase):
 
 
 class ChannelTests(unittest.TestCase):
+    def test_minmax_rule_uses_lowest_and_highest_pe_with_midpoint_base(self):
+        # 4 års historik med P/E 20 og nuværende P/E 100/4 = 25 → bear 20, bull 25, base 22,5
+        channel = value_channel(inputs(price=100, pe=20, eps=(4, 5, 6)))
+        self.assertAlmostEqual(channel.pe_bear, 20)
+        self.assertAlmostEqual(channel.pe_bull, 25)
+        self.assertAlmostEqual(channel.pe_base, 22.5)
+
+    def test_minmax_falls_back_to_fixed_band_without_spread(self):
+        channel = value_channel(inputs(price=80, pe=20, eps=(4, 5, 6)))  # nuværende P/E = 20 = historikken
+        self.assertAlmostEqual(channel.pe_bear, 16)
+        self.assertAlmostEqual(channel.pe_bull, 24)
+
     def test_band_and_linear_upside(self):
-        channel = value_channel(inputs(price=100, pe=20, eps=(4, 5, 6)), horizon=0.5)
+        channel = value_channel(inputs(price=100, pe=20, eps=(4, 5, 6)), horizon=0.5, band_rule="fixed")
         self.assertAlmostEqual(channel.pe_bear, 16)
         self.assertAlmostEqual(channel.pe_bull, 24)
         eps_h = eps_path(inputs(), (date(2026, 7, 1) - date(2025, 12, 31)).days / 365.25 + 0.5)
@@ -44,12 +56,13 @@ class ChannelTests(unittest.TestCase):
         self.assertAlmostEqual(ratio, 24 / 20)
 
     def test_score_is_100_on_bear_line_and_0_on_bull_line(self):
-        base = value_channel(inputs(), horizon=1)
+        fixed = lambda price: value_channel(inputs(price=price), horizon=1, band_rule="fixed")
+        base = fixed(100.0)
         bear_price, bull_price = base.scenario_prices["bear"], base.scenario_prices["bull"]
-        self.assertAlmostEqual(value_channel(inputs(price=bear_price), horizon=1).score, 100)
-        self.assertAlmostEqual(value_channel(inputs(price=bull_price), horizon=1).score, 0)
-        self.assertGreater(value_channel(inputs(price=bear_price * 0.8), horizon=1).score, 100)  # ikke afkortet
-        self.assertLess(value_channel(inputs(price=bull_price * 1.5), horizon=1).score, 0)
+        self.assertAlmostEqual(fixed(bear_price).score, 100)
+        self.assertAlmostEqual(fixed(bull_price).score, 0)
+        self.assertGreater(fixed(bear_price * 0.8).score, 100)  # ikke afkortet
+        self.assertLess(fixed(bull_price * 1.5).score, 0)
 
     def test_override_like_user_drawn_channel(self):
         channel = value_channel(inputs(), pe_override=(10, 15, 30))

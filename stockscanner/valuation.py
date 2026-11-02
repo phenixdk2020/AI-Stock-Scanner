@@ -96,9 +96,37 @@ def base_pe(pe_history: pd.Series, as_of: date, min_pe: float = 3.0, max_pe: flo
     return float(np.median(averages)) if averages else float(yearly.mean())
 
 
+def pe_candidates(pe_history: pd.Series, as_of: date, current_pe: float | None,
+                  min_pe: float = 3.0, max_pe: float = 60.0) -> list[float]:
+    """Gennemsnitlig P/E over 3, 5, 10 og 20 år (de perioder, der er data til) plus nuværende P/E.
+
+    Samme år-filter som `base_pe`. MSS ("Nye features i valuegrafen" 0:02:45): bear = laveste,
+    bull = højeste af disse, base = midtpunktet.
+    """
+    series = pe_history.dropna()
+    series = series[(series > 0) & np.isfinite(series) & (series.index <= pd.Timestamp(as_of))]
+    candidates = []
+    if not series.empty:
+        yearly = series.groupby(series.index.year).median()
+        yearly = yearly[(yearly >= min_pe) & (yearly <= max_pe)]
+        first_year = int(series.index.year.min())
+        for years in (3, 5, 10, 20):
+            window = yearly[yearly.index > as_of.year - years]
+            if not window.empty and (years == 3 or first_year <= as_of.year - years + 1):
+                candidates.append(float(window.mean()))
+    if current_pe is not None and min_pe <= current_pe <= max_pe:
+        candidates.append(float(current_pe))
+    return candidates
+
+
 def value_channel(inputs: ValuationInputs, horizon: float = DEFAULT_HORIZON, band: float = DEFAULT_BAND,
-                  pe_override: tuple[float, float, float] | None = None) -> ValueChannel:
-    """Beregn kanalen; `pe_override` = (bear, base, bull) som når brugeren selv trækker kanalen."""
+                  pe_override: tuple[float, float, float] | None = None, band_rule: str = "minmax") -> ValueChannel:
+    """Beregn kanalen; `pe_override` = (bear, base, bull) som når brugeren selv trækker kanalen.
+
+    `band_rule`: "minmax" (MSS-reglen: laveste/højeste af historiske gennemsnit og nuværende P/E,
+    base = midtpunkt; falder tilbage til "fixed" med færre end to kandidater) eller "fixed"
+    (base = historisk gennemsnit, bear/bull = base ∓ `band`).
+    """
     notes = []
     years_now = (inputs.as_of - inputs.last_fiscal_year_end).days / 365.25
     eps_today = eps_path(inputs, years_now)
@@ -106,9 +134,15 @@ def value_channel(inputs: ValuationInputs, horizon: float = DEFAULT_HORIZON, ban
     if pe_override:
         pe_bear, pe_base, pe_bull = pe_override
     else:
-        pe_base = base_pe(inputs.pe_history, inputs.as_of)
-        pe_bear = None if pe_base is None else pe_base * (1 - band)
-        pe_bull = None if pe_base is None else pe_base * (1 + band)
+        current_pe = inputs.price / inputs.eps_last if inputs.eps_last and inputs.eps_last > 0 else None
+        candidates = pe_candidates(inputs.pe_history, inputs.as_of, current_pe) if band_rule == "minmax" else []
+        if len(candidates) >= 2 and max(candidates) > min(candidates):
+            pe_bear, pe_bull = min(candidates), max(candidates)
+            pe_base = (pe_bear + pe_bull) / 2
+        else:
+            pe_base = base_pe(inputs.pe_history, inputs.as_of)
+            pe_bear = None if pe_base is None else pe_base * (1 - band)
+            pe_bull = None if pe_base is None else pe_base * (1 + band)
         if pe_base is not None and len(inputs.pe_history.dropna()) < 750:
             notes.append("Under 3 års P/E-historik")
     empty = ValueChannel(inputs.ticker, pe_base, pe_bear, pe_bull, eps_today, eps_h, inputs.price, {}, {}, {},

@@ -421,3 +421,270 @@ Kilde: MSS' Playbook-sider læst i Allans trial (data i `data/`, ikke i git). 18
 - **Værdiansættelsesscore = kursens placering i kanalen i dag** (100 på bear-linjen, 0 på bull-linjen). Uden analytikerestimater er kanalen flad, og scoren er præcis placeringen; med estimater er dagens linjer = horisontens linjer ÷ EPS-vækst. Implicit EPS-vækst: median 1,00, typisk 1,0–1,2; Pandora 0,74 (faldende indtjening ventes).
 - **Båndbredden er ikke fast**: d/base fra 0,05 (Tivoli) til 0,98, median 0,31. Kun svag sammenhæng med P/E-udsving i de 4 års yfinance-historik (rangkorrelation 0,37); MSS bruger formentlig 10 års historik. Base-P/E ligger tæt på nuværende P/E (median 0,93×), ikke på gennemsnittet.
 - Konsekvens for `stockscanner/valuation.py`: brug scoren "i dag" (`score_today`), og bredere bånd end ±20 % (median ±31 %) indtil reglen kan kalibreres på længere P/E-historik.
+
+---
+
+## 9. Nye fund fra video-stak 2 (02-11-2026)
+
+Tilføjelse til afsnit 0-8, som er uændrede. Hvor noget i dem nu er forkert eller kan præciseres, står det i 9.2. **Ikke investeringsrådgivning.** Aktienavne er eksempler fra videoerne, ikke anbefalinger. Alle afkast, vinderrater og drawdowns fra MSS eller MarketTimer er egenrapporterede eller backtests og ikke kontrolleret af os.
+
+### 9.0 Læsevejledning og kildemærker
+
+**To afsendere, hold dem adskilt.** Hver fund er mærket:
+- **[MSS]** = beskriver et værktøj, der findes i MyStockScanner-platformen (også når en MSS-medstifter viser eget brug af det; da står "talerens praksis").
+- **[MarketTimer]** = MarketTimer.dk's egne værktøjer og regler (Q-score 0-10, RS-score, grøn/gul/rød-zone, CRS, trendfølgning, TradingView-indikatorer) eller generel undervisning (ADX, candlesticks, regressionskanal). Samme folk og samme fire algostrategier sandsynligvis (et tidligere navn), men talskalaer og regler er ikke de samme. **Blandes ikke i kalibreringen mod MSS uden mærke.** To eksempler på forskellige skalaer: MarketTimers Q-score er 0-10 (krav over 6), MSS' Quality er en percentil 0-100.
+
+**Nye videoer (forkortelser).** Dato fra titel er sikker; ellers "(usikkert)".
+
+| Kort | Video | Afsender | Dato |
+|---|---|---|---|
+| PS23 | Webinar 20-12-23, Profitable strategier | [MSS] | 20.12.2023 |
+| W24 | Webinar 24-1-24, performance for strategierne | [MSS] | 24.01.2024 |
+| SS24 | Webinar, Stock Scores | [MSS] | 20.06.2024 |
+| IW | Investeringswebinar for begyndere | [MSS] | 13.06.2024 |
+| NN, HB | Ny nem 3-point-playbook funktion; Hvordan bruger vi 3 point playbook | [MSS] | ca. juni 2024 (usikkert) |
+| NFV | Nye features i valuegrafen | [MSS] | ukendt, 2024 (usikkert) |
+| ERP | Webinar, Er aktien korrekt prissat | [MSS] | ca. aug-okt 2024 (Nvidia kurs 126; usikkert) |
+| H32 | Lær hvordan vi har lavet 32% på aktier i 2025 | [MSS] | ca. nov 2025 (usikkert) |
+| LTP | Lav god profit med TPI - Webinar | [MSS] | ca. nov-dec 2023 (S&P-sammenligning til 2023) |
+| TRP | Tredobbelt profit med TPI-indikatoren | [MSS] | ca. jan-feb 2024 (henviser til webinars "november-december") |
+| TRG, TPK, CDNS | Triple-Green-, tpi kandidater-, CDNS-videoerne | [MSS] | ukendt (usikkert) |
+| G3PP | Genmab 3 PointPlaybook | [MSS] | ukendt |
+| STM | Strategimix update juli-august 2024 | [MSS] | ca. 8-10.08.2024 (se 9.1 nr. 8) |
+| SMI | Strategi mixer - Instruktion | [MSS] | ca. aug-sep 2024 (usikkert) |
+| A24 | Algostrategier sept-okt 2024 | [MSS] | okt 2024 (teksten siger "oktober 2024") |
+| BWI | Begynder webinar (oktober 2024) | [MSS] | ca. 29.10.2024 (usikkert) |
+| WSA, SKR | Webinar Screener og analyse; Find de gode aktier med den nye screener | [MSS] | ca. okt 2023; ukendt |
+| FIND, V70 | Hvordan finder man de bedste investeringsideer; Hvordan finder vi value-aktier i en optrend | [MSS]-screener, [MarketTimer]-taler | ukendt |
+| PEGv | PEG - det oversete nøgletal | [MarketTimer] | "torsdag 28.3" (2024 er en torsdag; usikkert) |
+| SOV | styr jeres risiko - og sov godt om natten | [MSS]-mix, talerens praksis | ca. juli 2024 (CrowdStrike-faldet; usikkert) |
+| TF, MM, A, SFK | Webinar om Trendfollowing; Min model er ikke altid perfekt; Aktier jeg ikke vil røre; Sådan finder jeg kandidater | [MarketTimer] | ukendt |
+| ADX, REG, CND, TVB | ADX-, regressions-, candlestick- og TradingView-basis-videoerne | [MarketTimer] | ukendt |
+| MTCI | Webinar MTCI (momentum-fond) | [MarketTimer] | ukendt |
+
+**Kilder.** Haiku-udtrækkene H1-H13 (Whisper-udskrifter i `data/video-transcripts/`); "H6-noten" osv. betyder det pågældende udtræk. **Tidsstempler** er fra Haiku-noterne. De, jeg selv har slået op i udskrifterne, er tjekket; resten er "ikke genhørt" og skal bruges med forbehold.
+
+### 9.1 Rettelser efter opslag i udskrifterne
+
+Haiku-noterne modsagde hinanden eller virkede overraskende på disse punkter. Afgjort således:
+
+1. **Er bull-P/E altid den nuværende P/E?** Nej. Haiku skrev det (NFV). Udskriften (NFV 0:02:45-0:03:05): forudfyldningen tager den *laveste* af 3/5/10/20-års-gennemsnittene som bear og den *højeste* som bull, "i det her tilfælde" den nuværende; base er et "best fit"-midtpunkt, som i eksemplet var 1-års-estimatets P/E. Novo-eksemplet gav P/E 24 til 51,5 og target 1512 (29,36 x 51,5). Bull = højeste kandidat, ikke per definition nuværende P/E. Det er den ældre regel; se 9.4 for den nyere, symmetriske.
+2. **Novo 13,9 / 17,4 / 20,9 (H32 0:16:26-0:17:06).** Rækkefølge afgjort: bear 13,9, base 17,4, bull 20,9. Base-til-bull passer (1,75/1,46 = 1,20 = 20,9/17,4). Bear passer ikke: 13,9 giver ca. +17 %, ikke de nævnte +5,5 % (usikkert; Whisper eller taler). Bånd 17,4 x (1 +/- 0,20) = 13,9 / 20,9 rammer begge ender på ét ciffer.
+3. **CDNS "P/E skal ned til 7,48" (CDNS 0:05:11).** 331,6 / 6,93 = 47,85; "7,48" er Whisper for "47,8". Det passer med, at nuværende P/E 82,5 "næsten halveres" (82,5 / 47,85 = 1,72).
+4. **Hvilken PEG-vækst?** PEGv (0:08:57-0:09:39) bruger *5 års bagudrettet EBITDA-vækst* og siger, at et amerikansk site gør det, og at nogle bruger prognoser. Det er [MarketTimer]-talerens foretrukne version. MSS-platformens version er *forventet vækst* ("vækst, man forventer", "næste år": IW 0:30:37, 0:34:27) [MSS]. Genmab 48 / 69 = 0,7 og FLSmidth 18 / 2,7 = 6,8 (P/E afrundet fra ca. 18,4) er altså ikke en MSS-formel.
+5. **TPI 0,9 % mod 0,2 % pr. 5 dage (TRP 0:02:15-0:02:36).** Bekræftet, men sammenligningen er *bedste bucket* (lang optrend + ugentlig oversolgt/gul) mod *ringeste bucket* (nedtrend + overkøbt), 4,5 gange. Det er ikke en edge mod gennemsnittet af alle dage. Brug det sådan i kalibreringen.
+6. **TPI-only 19,6 % om året og 62 % drawdown (LTP 0:44:46-0:45:16).** Taleren siger "kun tilbage fra 2020" og samtidig, at de 62 % kom i finanskrisen. Modstrid i talen; "2020" er sandsynligvis Whisper for "2000" (usikkert).
+7. **8,5 % pr. halvår (LTP 0:20:36-0:24:26).** Er afkast *pr. holdeperiode på 130 dage pr. handel* ("over 100.000 handler"), uden omkostninger og uden stop. Taleren sammenligner det med S&P 500's 8,67 % om året og siger, at 8-9 % pr. halvår ligner Berkshire (15-20 % om året). Det er ikke et porteføljeafkast, og vi må ikke omregne det ved at fordoble.
+8. **Dato på strategimix-videoen.** Haiku-noten (H8) kaldte tallene "YTD sep 2024". STM siger, at Dividend-porteføljen startede 10. juli og er "lige under en måned gammel" (0:01:57); videoen er altså fra ca. 8-10.08.2024. Tallene (QM +3,38 %, TPI Plus ca. +8 %, Value Momentum -6,86 %, Value Quality +9,6 %) er fra august. SMI (aug-sep) har 10,3 / 11,7 / 5 / 17,1 %, A24 (okt) 15,1 / 22,1 / 14 / 20,5 %.
+9. **S&P 500 +3,6 % mod 3-point-porteføljen +31,3 % (H32 0:24:08, 0:25:53).** Taleren siger selv, at sammenligningen er omregnet til euro, og at andre ser 12-15 %. Ikke sammenlignelig med dollartal.
+10. **"Ingen aktie over 20 % af porteføljen" (SFK, Haiku).** Forkert. Udskriften (0:07:21-0:07:31) siger, at en enkelt aktie ikke flytter porteføljen 20-30 %. Der er ingen 20 %-grænse; fjernet.
+11. **Value-backtest 16 % mod 23 %.** PS23 siger "over 16 % siden 2000" (S&P 500 + Nasdaq 100, uden omkostninger, drawdown ca. 67 %); SS24 siger 23,14 % (historiske S&P 500-medlemmer, 15 aktier, uden omkostninger, drawdown 69 %, SS24 0:20:43-0:21:08). Forskellen er ikke forklaret (anden periode, univers eller ændret score; usikkert). Brug ingen af dem som facit.
+12. **Vægte i Value og Quality.** Afsnit 0-8 og Haiku (SS24-noten) sagde "ikke oplyst". PS23 0:06:27-0:07:12: hver faktor rangeres 1-100, "en sjettedel til hver", summeres og divideres med 6. Quality: samme princip, "ranket hver af dem fra 1 til 100", lagt sammen og divideret med antallet (PS23 0:22:54-0:23:05). Lige vægt er altså sagt, for dec. 2023.
+13. **Gul og grå i TPI.** TRP 0:01:44 kalder "den grå og den gule" de *to oversolgte faser* (ældre skema); efter ændringen (TRP 0:03:14-0:03:44) er gul = akkumulerings-oversolgt og grå = akkumulerings-overkøbt. Haiku-noterne blandede de to skemaer. Se 9.5.
+14. **Quality-krav "over 70 og momentum under 30" (SS24 0:29:18-0:30:02).** Er en demonstration af, hvordan man bygger en screener (50 aktier, derefter 12), ikke en regel, taleren bruger.
+15. **MTCI, MarketTimers momentum-model.** Er ikke et MSS-værktøj (fond hos Fondsmarkedet, kvartalsvis, op til 45 aktier, risk off). SS24 0:43:24 siger, at de "er ved at lukke" en momentumfond efter dårlig timing (usikkert, hvilken). Medtages kun som [MarketTimer].
+16. **"MSS world daily scan".** Findes ikke ordret i nogen udskrift (søgt på "world daily" og "daily scan"). Nærmest er de forudindstillede screenere ("Stocks with great upside" for USA, Skandinavien, Europa; FIND/BWI) og Stock of the Day. Ingen tærskler for en navngiven "world daily scan" er fundet (usikkert, om navnet er Allans eller MSS').
+17. **Automatiske stop.** QA26 (afsnit 3.14) siger "ingen automatiske stop-ordrer" [MSS, talerens praksis]. TF 1:12:31 siger "automatiske stop losses" [MarketTimer], men stoppet flyttes manuelt (TF 1:49:46) og beregnes af en indikator. Ikke afgjort, om der er tale om rigtige ordrer (usikkert).
+
+### 9.2 Hvad i afsnit 0-8 er præciseret eller nu forkert
+
+- **3.1 Quality.** "Percentil pr. delmål, vægte ukendte": nu sagt, at hvert delmål rangeres 1-100 og gennemsnittes med lige vægt (PS23, 9 delmål). I juni 2024 er det **13 områder** (SS24 0:37:01), med ROE/ROCE/ROA tilføjet "senest". Om den gennemsnitlige rang rangeres *igen* til en endelig percentil, er ikke sagt (usikkert); talen kalder det blot "en quality score" der betyder "bedre end 76 % af de andre" (PS23 0:23:12).
+- **3.1/3.2 Momentum-kandidaten "12-1 måneders afkast".** Skal erstattes af 1-, 3-, 6- og 12-måneders afkast "vægtet på forskellige måder" plus et *stabilitets*-mål ("sharpe-lignende": jævn stigning scorer over én stor dag) (SS24 0:41:52-0:42:53) [MSS].
+- **3.3 Værdikanal-kode.** `bull = max(cands)` er i orden for den ældre pre-fill, men `bear = 0.9 * min` og `base = median` er gætværk uden støtte. Nyere eksempler er symmetriske (9.4).
+- **3.4 PEG.** Kandidat A (forward EPS-vækst) er MSS' version [MSS]; kandidat B (CAGR) skal ikke bruges som MSS-gæt. Den bagudrettede EBITDA-version er [MarketTimer].
+- **3.6 TPI.** Kalibreringstallet "ca. 0,9 % pr. 5 dage mod 0,2 %" er bucket-bedst mod bucket-værst (9.1 nr. 5). Farveskemaet er ændret i begyndelsen af 2024 (9.5).
+- **3.14 Porteføljeregler.** Tre forskellige størrelsesregler findes samtidig (9.8). Afsnit 3.14's "2,2-3 %" er ikke modsagt.
+- **Afsnit 6 (dataindsamling).** To nye punkter: skærmbillede af Value-score-hjælpeteksten (de seks faktorer) og af Quality-hjælpeteksten (13 områder), så vi kan se, om listen er ændret siden juni 2024.
+
+### 9.3 Stock Scores (Value, Quality, Momentum, samlet)
+
+**Fælles for alle tre [MSS].** Skala 0-100, **percentil** mod en sammenligningsgruppe. 100 = top 1 % (SS24 0:04:04-0:04:19). To visninger: **landescore** (eget land) og **regionsscore** (Danmark mod Europa; USA mod Nordamerika inkl. Canada og Mexico) (SS24 0:04:45-0:05:12; PS23 0:01:50). For USA er de næsten ens. Skandinavisk version var ikke klar i dec. 2023 pga. datakvalitet og småaktier med ekstreme nøgletal (PS23 0:07:53-0:09:01). Peers/branche-sammenligning "kommer" (PS23 0:05:03).
+
+| Score | Faktorer (sagt) | Vægtning | Kilde |
+|---|---|---|---|
+| **Value** | 6: P/E, P/B, P/FCF, forward dividend yield, P/S, EV/EBITDA | **lige vægt** (1/6 hver), rang 1-100 pr. faktor | PS23 0:02:47-0:07:12; SS24 0:09:53-0:16:24 |
+| **Quality** (dec. 2023) | 9: profit/aktiver, gns. ROCE (5 år), gns. FCF/aktiver, stabilitet i driftsmargin (standardafvigelse), konsistens i omsætningsvækst (5 år), EPS-vækst (5 år), nettogæld/aktiver, Piotroski F, Altman | lige vægt (gennemsnit af rang) | PS23 0:19:42-0:23:05 |
+| **Quality** (jun. 2024) | "13 områder", nu også ROE, ROCE, ROA; gross profit/assets; stabile marginer vægtes højere end høj vækst | ikke oplyst; formentlig lige vægt | SS24 0:31:03-0:37:01 |
+| **Momentum** | prisændring over 1, 3, 6 og 12 måneder "vægtet på forskellige måder" + stabilitet i stigningen (egen sharpe-lignende måling) | ikke oplyst | SS24 0:41:52-0:42:53 |
+| **Samlet stock score** | gennemsnit af value, quality og momentum (ældre) | ikke oplyst for den nyere | WEB-note (afsnit 2 nr. 9) |
+
+Andre nyttige detaljer:
+- **Data:** USA primært seneste kvartalsregnskab, UK halvår, nogle små skandinaviske kun årsregnskab, så Quality ændrer sig ikke hver måned (PS23 0:12:27-0:13:17). Aktietilbagekøb kan puste EPS-væksten, og talen advarer om det (SS24 0:32:21-0:34:10). Banker og forsikring giver misvisende Altman (WEB; BWI).
+- **Kvalitetsgrænser i brug:** Piotroski ca. 6+ (PS23 0:21:51); ROCE/ROE helst fra ca. 12 (SS24 0:36:50); ROCE over ca. 7-8 % som "slår markedet" (SS24 0:51:36). Gamle UI-farver: Stock Scores under 50 grå, under ca. 25 rød, over ca. 75 grøn (taleren "tror"; WEB 0:28:54).
+- **Egne backtests [MSS], egenrapporterede:** månedlig top 15, lige vægt, historiske S&P 500-medlemmer, uden omkostninger i Value/Momentum: Value 23,1 % pr. år og drawdown 69 %, volatilitet ca. 27 %; Quality 14,8 %, Sharpe 0,64, drawdown 48 %; Momentum ca. 23,2 % med 6-7 år til ny top efter 2007 (SS24 0:20:43-0:46:57). Quality alene var "ikke nødvendigvis den bedste" (SS24 0:30:53). Dec. 2023: Quality 14,4 % inkl. estimerede omkostninger (PS23 0:23:37).
+- **[MarketTimer], ikke MSS:** Q-score 0-10 (krav over 6, stigende over 3 måneder; scanner 4,5-9), RS-score 0-100 (1- og 3-måneders afkast mod andre aktier, krav 50-60 eller mere, helst RS-linje over eget 10-ugers gennemsnit) (SFK 0:01:35-0:02:47; FIND). Må ikke bruges til at kalibrere MSS-percentilerne.
+
+**Bygge-/kalibreringsnote (følger 3.1).** Start med **lige vægtet rang-gennemsnit** for Value (6 faktorer) og Quality (9 delmål, derefter 13), rang inden for land og region. Momentum: 1/3/6/12-måneders afkast plus stabilitet (R² af log-pris eller afkast/volatilitet). Kalibrér mod de høstede 182 aktier med scorer (afsnit 8): Spearman pr. score og pr. land/region; test især, om europæisk percentil > dansk percentil for danske aktier. Resultatet er en rangorden, ikke samme niveauer (universet er 50-80.000 aktier, ikke vores).
+
+### 9.4 Værdikanalen, P/E-bånd og PEG
+
+**Det vi nu ved [MSS].**
+- **Grundformel og dele:** kurs = EPS x P/E. EPS = analytikernes *gennemsnit*; "de fleste analytikere er ret skarpe" på EPS og svagere på kursen (H32 0:15:19-0:15:27; ERP 0:34:47-0:35:22: EPS rammer ofte inden for 10-20 %). Horisont 1 eller 2 år, standard 2 (ERP 0:32:20-0:32:29). **Historiske P/E-gennemsnit: 10 år** som talerens default ("jeg plejer", ERP 0:32:39; om det også er app-standard er usikkert), valgbar. Gennemsnit vises for 3, 5, 10 og 20 år (NFV 0:02:50; IW 1:00:38).
+- **Implicit P/E** = analytikernes kursmål / forventet EPS (ERP 0:34:12-0:34:19: Nvidia 116 / 3,38 ca. 34-35; IW: 929,81 / 28,76 ca. 32 for Novo).
+- **Risikofri rente** som linje: 5 % i 2 år er 10,25 % (ERP 0:32:43-0:32:54).
+- **Advanced:** fjern analytikerne og skriv egen EPS-vækst og P/E pr. case; "from analyst" nulstiller (ERP 0:49:12, 0:57:53).
+- **Analytiker-scorecard:** pr. kvartal estimat mod faktisk, procentafvigelse (NFV 0:05:38-0:07:21).
+- **Planlagt, ikke i værktøjet i 2024:** branche- og sektorgennemsnit for P/E og EPS (ERP 1:09:42; IW 1:14:39).
+
+**Hvordan bear/base/bull vælges: to generationer.**
+1. **Ældre pre-fill (NFV, ca. 2024):** bear = laveste af 3/5/10/20-års-gennemsnittene, bull = højeste (i eksemplet nuværende P/E), base = "best fit" midtpunkt (eksempel: 1-års-estimatets P/E). Novo 24 / ? / 51,5. Brugeren hæver typisk bear (Novo 30 giver bear +8,9 %). Dette er *ikke* en symmetrisk kanal.
+2. **Nyere visning (H32 ca. nov 2025):** Novo 13,9 / 17,4 / 20,9 og Genmab (G3PP) 18 / 23 / 28, begge **symmetriske om base**. Novo = base x (1 +/- 0,20) rammer begge ender; Genmab 23 x (1 +/- 0,20) = 18,4 / 27,6, som afrundet er 18 / 28 (usikkert, om visningen afrunder til hele tal). Dette er i tråd med vores høstede data (afsnit 8: bear = base - d, bull = base + d). *Men* afsnit 8 viser d/base fra 0,05 til 0,98 med median 0,31, så +/-20 % kan ikke være en fast regel for alle aktier; to eksempler passer, regel ukendt.
+3. **Afgørelse for bull:** bull er hverken altid nuværende P/E (ældre regel: "højeste kandidat") eller altid højeste gennemsnit (nyere: base + d). Den høstede symmetri er det stærkeste bevis, så implementér `bull = base + d`, `bear = base - d`, og kalibrér `base` og `d` hver for sig (se byggeplan).
+
+**Lineær i P/E bekræftet igen.** Genmab 18 / 23 / 28 giver 11 / 42 / 73 %: 1,42/1,11 = 1,28 = 23/18 og 1,73/1,42 = 1,22 = 28/23 (G3PP 0:03:03-0:03:22). Nvidia ERP: P/E 51 giver +36,7 % og P/E 105 +181,5 %: 2,815/1,367 = 2,06 = 105/51 (ERP 0:37:51, 0:38:40). Chevron bear -8,3 % / bull +33,7 %; Broadcom bear P/E 25 giver -5,3 % (ERP; ikke genhørt).
+
+**Tommelfingerregler for kanalen [MSS], talerens praksis.** Bull-upside mindst 3-5 gange bear-nedsiden (ERP 1:05:45; ældre: 2-4); worst case omkring -35 % er et nej (BW, afsnit 3.3); køb i nederste halvdel, helst med stigende kanal (H32 0:17:47-0:18:29, 0:42:21); salg ved højt P/E (Novo ca. 45, Nvidia over 50: H32 0:17:27, 0:30:00). Test: halvér væksten, sænk P/E til 3/5/10-års-gennemsnit, tilladt worst case -5 til -10 % efter 1,5-2 år (V70/Getinge, [MarketTimer]-taler, ikke genhørt).
+
+**PEG [MSS vs MarketTimer].**
+
+| Version | Definition | Grænse | Kilde |
+|---|---|---|---|
+| [MSS] | P/E / forventet EPS-vækst (analytikere, næste år) | under 2; 2-2,5 accepteres, "nogle gange 3"; Stock of the Day under 3; Europa-preset under 2,5 | IW 0:30:37, 0:34:04-0:34:36; SS24 0:48:42; BWI |
+| [MarketTimer] | P/E / gns. årlig **bagudrettet EBITDA-vækst, 5 år** | "ca. 1 eller derunder" | PEGv 0:05:01, 0:08:57-0:09:39 |
+
+Eksempler [MSS]: Genmab 0,8 (G3PP), Visa 1,6, CDNS 1,2 (CDNS 0:03:15). Eksempel [MarketTimer]: Genmab 0,7, FLSmidth 6,8. Begge versioner mangler i praksis ved negativ P/E eller manglende vækstestimat. Regnskabsfaldgrube: PEG virker ikke for alle brancher (ejendomme, projekttunge) (PEGv 0:16:56).
+
+**Kalibreringsråd.** (1) Implicit P/E og upside-regnestykker kan checkes eksakt (9.1 nr. 3). (2) Test PEG forward mod PEG bagud på de samme aktier; den ene er [MSS], den anden [MarketTimer]. (3) Baseline for `d`: Novo 0,20, Genmab 0,22, Pandora fra høstede data (afsnit 8: median 0,31).
+
+### 9.5 TPI (Turning Point Indicator)
+
+**Statistik, ikke formel [MSS].** Pr. aktie, ca. 20-30 års historik: "hver gang aktien har opført sig på en bestemt måde ... hvad bør den så gøre nu?" (TRP 0:04:49; også W24 0:03:17). Ingen tal for features, vinduer eller tærskler. Lang-trend-rækken er kun grøn eller rød; en gul farve i den lange række blev fjernet fra alle aktier i jan. 2024 (W24 0:26:23-0:26:41).
+
+**Tilstande og farver (to skemaer).**
+- *Ældre (LTP, nov-dec 2023; også WEB):* dag/uge har fire nuancer: mørkegrøn (op), mørkerød (ned), lysrød = oversolgt-akkumulering ("snart op"), lysegrøn = overkøbt-akkumulering ("snart ned") (LTP 0:10:14-0:12:05). I screeneren var "gul og grå" de to oversolgte faser, "down oversold" og "up oversold" (W24 0:20:13-0:20:19; TRP 0:01:44).
+- *Nyere (TRP jan-feb 2024 og frem):* **gul = akkumulerings-oversolgt**, **grå = akkumulerings-overkøbt**, mørkegrøn = på vej op, mørkerød = på vej ned; grøn eller rød betyder ikke, at kursen går i farvens retning, kun at sandsynligheden er højere (TRP 0:03:14-0:05:04). Et "UTPI" med "seks faser" (TRP 0:01:12) er den midterste, ugentlige række.
+- *Ugeblokke:* farven på ugerækken låses fredag til torsdag (fem handelsdage), så den ikke skifter hver dag (W24 0:04:12-0:04:50).
+- Tre tidsrammer: lang trend (nederst), uge (midten), dag (øverst); "tre gange grøn" = alle tre grønne (TRG 0:00:47; ERP; IW).
+
+**Købsregel [MSS], talerens praksis.** Lang trend grøn + uge (eller dag) oversolgt/gul, gerne efter skift til grøn (IW 1:21:58-1:22:49; W24 0:20:03). Køb ikke, mens lang er rød (W24 0:40:40). Ugerød eller brud på 50-dages = overvej ud (TRG 0:03:44; W24 0:28:22: lavere toppe og bunde, eller overkøbt uge med god profit). Ingen stop i selve statistikken.
+
+**Backtest-tal [MSS], egenrapporterede.**
+- Hold **5, 10, 15 ... op til 130 handelsdage**; effekten er "tydelig" for alle, uklar efter 130 (TRP 0:01:52-0:02:56; W24 0:20:31).
+- **Kalibreringstal:** i lang optrend + gul på ugen ca. **0,9 % pr. 5 dage** mod ca. **0,2 %** for nedtrend + overkøbt, forholdet 4,5 (TRP 0:02:15-0:02:36). Bedste mod værste bucket (9.1 nr. 5).
+- **LTP:** køb oversolgt i lang optrend og hold **130 dage uden stop**: ca. **8,5-8,7 % pr. halvår**; hold 1 kvartal lidt over 4 %; hold 20 dage 1,7-1,8 %; "over 100.000 handler" i ca. 40 år på amerikanske aktier fra 1986 (LTP 0:20:36-0:21:44). Uden omkostninger. Aktier kan være røde samtidigt (2008, 2020), og så købes intet (LTP 0:24:49).
+- Daglig variant: hold 20 dage under 1,5 %, 30 dage et par procent; forskellen er lille (LTP 0:33:41, ikke genhørt).
+- TPI-only-portefølje: 19,6 % om året, drawdown 62 %, stopklodser "næsten halverer" drawdown (LTP 0:44:46-0:45:39; se 9.1 nr. 6).
+- Sælg-regel testes stadig (LTP 0:41:29, ikke genhørt).
+
+**Detaljer fra screenerne.** TPI Swing/TPI-trend: lang grøn + uge oversolgt, markedsværdi over en grænse (20 mia. i LTP, over 25 mia. i TPK for DK/NO/SE, 2 mia. for Triple Green i TRG). Se 9.6.
+
+**Hvad vi bygger/tester (billigst først).** (a) Etiketter fra priser alene: lang trend = SMA50 over SMA200 (eller ugentlig SMA10 over SMA40); oversolgt/overkøbt = aktiens egen 5-års percentil af afstand til SMA50 (under 10 % / over 90 %); gul/grå = op-/nedtrend + oversolgt/overkøbt. (b) Bucket-test: gennemsnitligt 5-dages-afkast for de 6 buckets, S&P 500-medlemmer, urørt slutperiode, med og uden omkostninger; mål: monotoni og forholdet mellem bedste og værste bucket (MSS: 4,5). (c) Holdeperioder 5/20/65/130 dage; vi *må ikke* matche 8,5 % pr. halvår, kun vise at en åben variant har samme monotoni. (d) Nearest-neighbour på aktiens egen historie først efter (a)-(c).
+
+### 9.6 Screenere og udvælgelsestragten
+
+**Generelt [MSS].** Screeneren bygges af regler (felt, operator, værdi eller "system value"), markedsværdi i millioner af lokal valuta, resultatet sorteres efter markedsværdi; 300-400 parametre findes; layout-kolonner value/quality/momentum/estimater (WSA 0:27:00-0:40:00; SS24 0:30:40; SKR). Universet er 60-70.000 aktier (BWI), eller 80-100.000 papirer (H32 0:05:26). Screeneren er "første filter", derefter graf for graf (BWI 1:00:45).
+
+**Tragt 0 (generisk) [MSS], WSA/BWI.** Stor screener på størrelse og kvalitet/trend, derefter Altman og interest coverage (balancen), derefter PEG, til sidst manuel gennemgang af graf og value-graf; ingen antal oplyst (WSA 0:50:31-0:51:45; BWI 1:00:45). Det svarer til forløbet scan, rentedækning/PEG, manuelt.
+
+**Tragt 1: "Triple Green" [MSS] (TRG).** TPI lang, uge og dag grønne; markedsværdi mindst 2 mia.; ca. 2 aktier ved optagelsen. Til swing 3-10 %. Taleren kigger først på indeks (OMXS30, OBX) og går kun videre, hvis indekset er langsigtet grønt (TRG 0:01:50).
+
+**Tragt 2: "TPI-trend/TPI Swing" [MSS] (TPK, LTP, WSA).** Lang TPI grøn + uge i akkumulerings-oversolgt; markedsværdi over 25 mia. (TPK) eller 20 mia. (LTP) i DK/NO/SE; fire (TPK) eller fem (LTP) kandidater; dag-TPI kan bruges til selve indgangstidspunktet (TPK 0:04:48).
+
+**Tragt 3: "Stock of the Day" [MSS], talerens screener (SS24 0:48:09-0:48:54; W24 0:19:40-0:22:47).** USA; lang TPI-trend op; uge-TPI "down/up oversold"; **Quality over 60, Value over 60, PEG under 3**, **mindst 10 % op til analytikernes kursmål**; markedsværdi over 5 mia. USD (W24: mindst 10 mia., typisk 20 i USA); sortér efter stock score, 5-10 øverste; 30-40 % skøn bagefter (chart, trendlinje, regression). Udgang: stop ved trendbrud eller overkøbt uge-TPI (W24 0:18:21).
+
+**Tragt 4: Danske kandidater på kvalitet [MSS-screener, MarketTimer-taler] (FIND, BWI 0:56:55-1:00:37).**
+- FIND: 1769 aktier, **regional Quality over 70** (ca. 300), **markedsværdi 5 mia. DKK** (134), **ROCE mindst 15** (55), **analytiker-upside over 10 %** (19).
+- BWI (H6-noten, ikke genhørt): 476 danske aktier, regional Quality mindst 75 (39), markedsværdi mindst 5 mia. DKK (20), TPI-trend grøn (12).
+- V70 "Value Kvalitet Norden": markedsværdi 2-5 mia., TPI opad, regional Quality over 70 (tidligere 85, sænket for flere kandidater), **P/FCF under 25**, upside over 10 %.
+- Preset "Stocks with great upside", Europa (BWI 1:00:04, H6-noten, ikke genhørt): Quality over 60, markedsværdi over 2 mia. EUR, ROCE stigende, analytikerne ser upside, lang trend op, **PEG under 2,5**, afkast over 10 %; 17 aktier.
+
+**Konkrete tærskler samlet.**
+
+| Filter | Værdi | Kilde / mærke |
+|---|---|---|
+| Quality (MSS-percentil) | over 60 eller 65 til at læse videre; 70-75 regional; over 90 "high quality" preset | IW, SS24, FIND, BWI, WSA [MSS] |
+| PEG | under 2 (2,5-3 accepteres; Stock of the Day under 3) | [MSS] |
+| P/FCF | under 25 | V70 [MarketTimer-taler i MSS-screener] |
+| ROCE | mindst 12-15 % (15 i FIND; over 7-8 % "slår markedet") | [MSS] |
+| Analytiker-upside | mindst 10 % til gennemsnitligt kursmål | [MSS] |
+| Markedsværdi | 1-5 mia. (DKK), 2 mia. (TRG), 5-10 mia. USD, 20-25 mia. (TPI Swing) | [MSS] |
+| Altman Z (i WSA kaldet "C-score") | mindst 3 halverer universet (WSA 0:51:21) | [MSS] |
+| Interest coverage | ingen tærskel sagt (WSA 0:51:45) | [MSS] |
+| RS-score (0-100) | over 50, ekstra over 60; scanner 60-100 | [MarketTimer] (SFK, FIND) |
+| Q-score (0-10) | over 6; scanner 4,5-9 og stigende over 3 måneder | [MarketTimer] |
+
+**Hvad vi bygger.** `screen(universe, rules)` med regelobjekter, så de fire tragte kan genskabes med vores egne tal (`quality_pct`, `value_pct`, TPI-lite, PEG forward, ROCE, upside). Test tragtstørrelsen: i FIND går 1769 til 19 (1 %); vores reproduktion bør give samme orden (0,5-3 %) for et tilsvarende univers. "MSS world daily scan" findes ikke i udskrifterne (9.1 nr. 16).
+
+### 9.7 Algostrategierne og strategy mixer
+
+**Regler [MSS].**
+- **Fire strategier** (kun USA; EU eksperimentel): Quality Momentum (kvalitet + momentum), TPI Plus (kvalitet, timet med TPI), Value Momentum (lav value-score + høj momentum, "hype"), Value Quality (høj value + høj quality). Brøk: 25 % hver som standard (SMI, W24, A24).
+- **Univers:** S&P 500 og Nasdaq 100 (indeksmedlemmer) i PS23-testene; SS24: historiske S&P 500-medlemmer år for år (ingen survivorship bias).
+- **Top 15** pr. strategi (5 for små konti); en femtendedel hver; **rebalancering første handelsdag hver måned**; aktier, der stadig er i top 15, bliver liggende; ingen stop (PS23; SS24 0:18:42-0:19:37; A24 0:05:36).
+- **Mixer:** medlemmet taster kontobeløb og procent pr. strategi; arket giver hele aktier at købe/sælge; "streg" = må ikke købes; limit lidt under åbning, market efter en time, eller market direkte; dag/tid betyder lidt ("vores test", ingen tal) (SMI).
+- **Omkostninger:** 1-1,5 % om året (A24, ALGO2 i afsnit 3.13); Dec. 2023: Value uden, Quality med; SS24: "to-tre procent" kan trækkes fra.
+- **Benchmark:** RSP.
+
+**Egenrapporterede/backtest-tal (ikke verificeret).**
+
+| Periode | QM | TPI Plus | VM | VQ | Kilde |
+|---|---|---|---|---|---|
+| jan. 2024 (1 md.) | ca. 1 % | 3,23 % | ca. 2,9 % | ca. 0,16 % | Profitable strategier, update jan. 2024 |
+| 1.-24.1.2024 | ca. 1,9 % | 4,75 % | ca. 4 % | ca. -2,85 % | W24 |
+| ca. aug 2024 YTD | 3,38 % | ca. 8 % | -6,86 % | 9,6 % | STM (9.1 nr. 8) |
+| aug-sep 2024 YTD | 10,3 % | 11,7 % | 5 % | 17,1 % | SMI |
+| okt 2024 YTD | 15,1 % | 22,1 % | 14 % | 20,5 % | A24 |
+| Backtest, gns. pr. år | 18,3 % (2000-23) | ca. 23 % (ca. 18 % uden 2000-03) | ca. 34 % | ca. 22 % (ca. 19,8 % uden) | STM |
+| Max drawdown YTD (aug 2024) | 13 % | 9,2 % | 18,6 % | 7,2 % | STM |
+
+- Backtests udelader 2000-2003 (outliers); testen går tilbage til 2003 med næsten samme tal, men rapporteres fra 2019 (afsnit 2 nr. 11).
+- 2022 backtest: QM -25 %, TPI Plus +12 % (afsnit 3.13); Dec. 2023: Quality alene 2022 -25 %, 2023 ca. 31 %; Value 2022 ca. -6 %, 2023 ca. 13 %.
+- **Afsender MarketTimer, MSS' fire strategier:** 30 positioner à 3,33 % og maj-2024-tal (QM +9,79 %, TPI Plus +0,4 %, VM ca. +15 %, VQ +7 %) står i andre videoer (H12-noten); strategierne er de samme navne, men tallene er ikke gennemgået i dette afsnit.
+- Dividend-aristokrater-portefølje (27 aktier, start 10.07.2024): +2,5 % mod RSP -1,36 % til optagelsen; regler ikke sagt (STM).
+- Hedges med indeksoptioner (50-70 % af nedturen) ligger uden for algostrategierne (A24; afsnit 3.14).
+
+**Bygge-/kalibreringsnote.** Rang-sammensætningerne (QM = rang quality + rang momentum m.fl.) kan kodes fra 9.3, men uden point-in-time-fundamentaler bliver en backtest forudindtaget (afsnit 3.13 uændret). Sanity: strategiernes *relative* rækkefølge i 2024-snapshots og vendingsmønster (VM størst udsving, VQ mindst: STM 0:09:34, 0:11:00) kan sammenlignes grovt. Lav prioritet.
+
+### 9.8 Salg og risiko
+
+**Mange regler, tre afsendere. Hold dem adskilt.**
+
+| Regel | Detalje | Afsender |
+|---|---|---|
+| Brud på SMA20 med afvisning (dag) | brud alene er ikke nok; kurs forsøger at komme op til SMA20 og afvises | [MarketTimer] (A, TF, SFK) |
+| SMA50-brud | første alarm/stopklods; 200-dages-brud er ud; ændret mod StockMap-salg i efteråret 2026 (afsnit 3.10) | [MSS] (QA26, QTS) |
+| Parabolsk løb | hop til 4-timers (eller 1-time) graf for SMA20-exit, hvis kursen er langt fra SMA20 | [MarketTimer] (A, TF) |
+| Regressionskanal som exit | sælg først ved massivt brud under bunden; bunden = "spillerum"; ±2 standardafvigelser, R over ca. 0,85-0,9 | [MarketTimer] (A, REG, TF, MM); [MSS]-videoer nævner ±2 std. og R over 0,9 (afsnit 3.12) |
+| Kanaltop/ugekanal | køb i bunden, sælg i toppen, risk/reward ca. 2:1 | [MarketTimer] (MM) |
+| **ATR(14) x 3 trailing stop** | stop = kurs minus 3 x ATR(14); flyttes op med kursen; ligger nogle gange under en nylig bund | [MarketTimer] (TF 1:22:43-1:24:31, verificeret) |
+| Supertrend ATR 10 x 3/5 | andet stop; positionsstørrelse falder, når stopafstanden vokser | [MSS] (afsnit 3.11) |
+| **1 % risiko pr. handel** | antal = (1 % x kapital) / (kurs - stop); KemoMatic: stop 10,87 % væk giver 12 aktier (ca. 9.200 kr. af 100.000); volatil aktie med stop 35 % væk giver ca. 2.796 kr. | [MarketTimer] (TF 1:24:02-1:26:32, verificeret) |
+| Risiko 0,5 % pr. handel | 378 aktier tæt stop mod 174 bredt stop (afsnit 3.11) | [MSS] (RISK) |
+| Maks. pr. position | 3,33 % (45 aktier i mixet; SOV 0:04:54-0:05:47, verificeret: CrowdStrike -13 % koster ca. 0,4 % af porteføljen); 2,5 % ved 40 positioner (H32 0:24:51); 2,2-3 % (afsnit 3.14); 10 % pr. land i én aktie (H11-noten, [MarketTimer], ikke genhørt) | blandet, se kolonnen |
+| Før regnskab | sælg/trim før regnskab, når aktien står højt i kanalen; køb ikke tæt på regnskab | [MarketTimer] (MM, SFK), [MSS] (BW) |
+| Startposition | 25 % af planlagt, læg til ved bekræftelse | [MSS] talerens praksis (HB, afsnit 3.14) |
+| P/E-sag: "mindre snor" | i dyr zone i valuegrafen slækker taleren på stop | [MSS] (BWI 1:05:06; afsnit 3.3) |
+
+**Markedsindeks (bredde) [MarketTimer].** Andelen af aktier (i talerens univers, Norden og USA) over 20-, 50- og 200-dages SMA. Over 50 % = bullmarked/tilladt at investere; i nedtur i 3-5 uger leder købere efter undskyldninger (SFK 0:00:45-0:01:21, H10- og H11-noterne, ikke genhørt). Norden 62 % over 50-dages i eksemplet (SFK). Ikke en MSS-funktion; kan bygges af os fra S&P 500-medlemmer.
+
+**Hvor modellen fejler (talerens egne ord) [MarketTimer, MM, A, TF].**
+- **Parabolske løb:** trendkanalen kan ikke fange en eksponentiel kurve; Kronos steg ca. 82 %, og taleren solgte for tidligt (MM 0:02:33-0:03:59, ikke genhørt).
+- **Gap ved regnskab:** et kanalstop beskytter ikke mod et gap (Ørsted-eksemplet: stop i kanalbunden, gap ned til ca. 4,32; MM 0:05:43-0:07:03, ikke genhørt).
+- **Man kommer aldrig ind i bunden eller ud i toppen:** accepterer 4-6 % af upside (H6-noten) og genindgang til højere kurs (A).
+- **Trendskift:** "de sidste halvandet år har været svære for trendfølgning" (WEB 0:45:53, ikke genhørt).
+- **Value-modellen:** antager at estimaterne holder; ingen plads til pludselige ændringer (WEB 1:12:03; ERP).
+- **Momentum:** underpræsterer i 2-3 år ad gangen (SS24 0:43:29; MTCI 2019-året, [MarketTimer]).
+
+**Risikobegreber fra Stock Scores-webinaret [MSS].** Drawdown, volatilitet, Sharpe og Sortino vises i porteføljesiden; Sharpe/Sortino siger lidt de første måneder (PS23 0:16:52, W24). Talerens "søvntest" (for stor position = kan ikke sove) og diversificering på tværs af strategier (SOV 0:02:33, 0:06:52). Alt er egenrapporteret.
+
+### 9.9 Opdateret prioriteret byggeplan (top 5)
+
+Erstatter ikke afsnit 5, men reviderer rækkefølgen i lyset af 9.1-9.8. Ny prioritering: værdikanalen er stadig først; en rang-baseret Stock-Scores-motor rykker op, fordi lige vægt og faktorlisterne nu er kendt og kan kalibreres mod 182 høstede aktier; TPI rykker fra "udskudt" til en simpel bucket-test.
+
+| # | Hvad | Begrundelse | Indsats | Færdig når |
+|---|---|---|---|---|
+| 1 | **Værdikanal v2 + PEG (forward EPS-vækst)**: `bear = base - d`, `bull = base + d`, base = 10 års P/E-anker; score "i dag" | Symmetri, 10 år som standard og implicit P/E er nu dokumenteret; mange regnestykker at checke | 2-3 dage | Upside-% genskabt inden for 2 point på Genmab, Nvidia, Novo (Novo +/-20 %); `d` kalibreret mod afsnit 8 |
+| 2 | **Stock Scores-motor**: Value (6 faktorer, lige vægt), Quality (9 derefter 13 delmål, lige vægt), Momentum (1/3/6/12 + stabilitet); rang inden for land og region | Formler delvist kendt; kalibrerbar mod 182 scorer | 3-4 dage | Spearman over 0,7 pr. score; europæisk percentil > dansk for danske aktier |
+| 3 | **StockMap (ugentlig) + simpelt køb/salg + zone-tilstande** (uændret fra afsnit 5) | Kernen i timing; ingen nye tal i stak 2 | 3-5 dage | Som afsnit 5 nr. 2 |
+| 4 | **TPI-lite og bucket-test**: etiketter fra priser, 5/20/65/130-dages afkast pr. bucket, tragte (Triple Green, TPI Swing, Stock of the Day) | Konkrete holdeperioder og kalibreringstal (0,9/0,2 %), tragtregler | 2-3 dage | Monoton rækkefølge på buckets i urørt periode; tragtstørrelse i samme størrelsesorden som MSS |
+| 5 | **Exit/risikopakke**: SMA20/50-brud med afvisning, regressionskanal (±2σ, R), ATR(14) x 3 trailing, 1 % risikobaseret størrelse, bredde-indeks (andel over SMA20/50/200) | Deterministisk, alle tal kendt, mærket [MarketTimer]/[MSS]; erstatter afsnit 5 nr. 4 og forener det med bredde | 2-3 dage | Exit-regler testet mod fast hold (drawdown, hit rate); størrelsesregneeksempler (12 aktier, 2.796 kr.) reproduceret |
+
+Udskudt til efter punkt 5: MTI-lite og MTX (ingen nye tal), strategy mixer (point-in-time-problemet), temaer, short interest.
+
+### 9.10 Åbne spørgsmål, som skærmbilleder kan lukke
+
+- Value-score-hjælpeteksten (er de seks faktorer stadig de samme i 2026?) og Quality-hjælpeteksten (13 områder, vægte).
+- Værdikanalen for ca. 15 aktier med synlige bear/base/bull-P/E og historiske gennemsnit: er `d` konstant pr. aktie, afhænger det af historiens spredning, eller er det en fast procent (Novo 20 %, Genmab 22 %)?
+- TPI-farveskemaet (gul/grå mod lysrød/lysegrøn) pr. aktie og dato, så de seks buckets kan mappes til data.
+- Hvilket PEG-tal viser appen (forward EPS) for 10 aktier, så versionen kan afgøres.
+- En tickerliste fra en screener ("Triple Green", "TPI Swing", "Stocks with great upside") for en kendt dato, så tragtstørrelsen kan sammenlignes.
