@@ -336,9 +336,9 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
         size = None if fx is None else position_size(float(pd.to_numeric(prices["Close"]).dropna().iloc[-1]),
                                                      atr(prices), settings, fx)
         if size is not None:
-            rows[i] = dataclasses.replace(r, shares=size.shares, stop=size.stop,
-                                          reasons=f"{r.reasons}; køb {size.shares} stk., stop {size.stop:.2f}, "
-                                                  f"risiko {size.risk:,.0f} {settings['valuta']}")
+            text = (f"køb {size.shares} stk., stop {size.stop:.2f}, risiko {size.risk:,.0f} {settings['valuta']}"
+                    if size.shares else f"1 aktie er over loftet på {settings['max_pct']:g} % af kapitalen")
+            rows[i] = dataclasses.replace(r, shares=size.shares, stop=size.stop, reasons=f"{r.reasons}; {text}")
     news_items = {}
     if with_news:
         news_items = news.scan(list(histories))

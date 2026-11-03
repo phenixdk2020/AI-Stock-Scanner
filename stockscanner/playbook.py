@@ -27,14 +27,18 @@ def exit_facts(prices: pd.DataFrame, stockmap_sell: bool, days: int = 365) -> di
     """Købsdato-uafhængige fakta til salgsreglen; hjemmesiden afgør selv ud fra brugerens købsdato."""
     up = supertrend(prices, 10, 3.0)
     signals = exit_signals(prices)
-    breaks = []
-    if not signals.empty and "SMA50" in signals.columns:
+    def dates(column: str) -> list[str]:
+        if signals.empty or column not in signals.columns:
+            return []
         index = pd.DatetimeIndex(signals.index)
-        since = (index.max() - timedelta(days=days)) if len(index) else None
-        hits = signals[signals["SMA50"].astype(bool)]
-        breaks = [str(pd.Timestamp(d).date()) for d in hits.index if since is None or pd.Timestamp(d) >= since]
+        since = index.max() - timedelta(days=days)
+        hits = signals[signals[column].astype(bool)]
+        return [str(pd.Timestamp(d).date()) for d in hits.index if pd.Timestamp(d) >= since]
+
+    # Supertrend tæller kun som salg, hvis den er vendt ned EFTER brugerens købsdato (som portfolio.exit_check)
     return {"supertrend_down": bool(not up.empty and not bool(up.iloc[-1])),
-            "sma50_breaks": breaks, "stockmap_sell": bool(stockmap_sell)}
+            "supertrend_flips": dates("Supertrend x3"),
+            "sma50_breaks": dates("SMA50"), "stockmap_sell": bool(stockmap_sell)}
 
 
 def stock_entry(row, prices: pd.DataFrame, currency: str | None, region: str, atr_value) -> dict:

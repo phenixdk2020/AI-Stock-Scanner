@@ -54,6 +54,24 @@ class SiteSyncTests(unittest.TestCase):
                                             "ASC_WP_APP_PASSWORD": ""}):
             self.assertIsNone(site_sync.credentials())
 
+    def test_retries_dropped_connections_then_gives_up(self):
+        import requests
+        calls = []
+
+        def flaky(*args, **kwargs):
+            calls.append(1)
+            if len(calls) < 3:
+                raise requests.ConnectionError("afbrudt")
+            return "svar"
+
+        with mock.patch.object(site_sync, "RETRY_WAITS", (0, 0, 0)):
+            self.assertEqual(site_sync._retrying(flaky)(), "svar")
+            self.assertEqual(len(calls), 3)
+            dead = mock.Mock(side_effect=requests.Timeout("for langsom"))
+            with self.assertRaises(requests.Timeout):
+                site_sync._retrying(dead)()
+            self.assertEqual(dead.call_count, 4)
+
     def test_routes(self):
         self.assertEqual(site_sync._api("https://aktier.hangar18.dk", "/playbook"),
                          "https://aktier.hangar18.dk/wp-json/ai-stock-scanner/v1/playbook")
