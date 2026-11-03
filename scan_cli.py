@@ -242,13 +242,14 @@ def print_screener(name: str, by_region: bool) -> int:
     return 0
 
 
-def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, by_region: bool = False) -> int:
+def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, by_region: bool = False,
+                      upload: bool = True) -> int:
     """Mandagsliste: StockMap-signal + Quality/Value/Momentum-percentiler + værdikanal og PEG."""
     import dataclasses
 
     import yfinance as yf
 
-    from stockscanner import paper
+    from stockscanner import paper, playbook, site_sync
     from stockscanner.sizing import atr, fx_rate, load_settings, position_size
 
     from stockscanner import universe
@@ -258,6 +259,13 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
 
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="yfinance")
     positions = load_portfolio()
+    research = list(tickers)
+    site = site_sync.credentials() if upload else None
+    if site:
+        try:
+            tickers = list(tickers) + site_sync.fetch_tickers(*site)  # også det, brugerne på hjemmesiden følger
+        except Exception as error:
+            print(f"Hjemmesiden: kunne ikke hente tickere – {error}", file=sys.stderr)
     paper_trades = paper.load()
     held = list(positions) + list(paper.open_positions(paper_trades)["ticker"])
     tickers = list(dict.fromkeys(list(tickers) + held))  # ejede aktier og åbne papirhandler kommer altid med
@@ -358,6 +366,21 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
                   f"{result['afkast_pct']:+.1f} % pr. handel, vundne {result['vundne_pct']:.0f} %")
         # B-13: scripts/notify.ps1 viser linjerne som Windows-besked
         (out_dir / "aendringer.txt").write_text("\n".join(changes_seen), encoding="utf-8")
+        if site:
+            try:
+                everyone = reference if reference is not None else targets
+                payload = playbook.build_payload(
+                    rows=rows, histories=histories, currencies=currencies,
+                    regions={t: universe.region(t) for t in histories}, atrs={t: atr(h) for t, h in histories.items()},
+                    research=research, breadth=market, benchmark=benchmark, factors=everyone,
+                    scores=universe.percentiles(everyone, None), regional=universe.percentiles(everyone, None, by_region=True),
+                    trades=paper_trades, last_prices=last, changes=changes_seen)
+                receipt = site_sync.send_playbook(payload, *site)
+                print(f"Hjemmesiden opdateret: {receipt.get('stocks', len(payload['stocks']))} aktier sendt.")
+            except Exception as error:
+                print(f"Hjemmesiden blev IKKE opdateret: {error}", file=sys.stderr)
+        else:
+            print("Hjemmesiden: ikke sat op (ASC_WP_SITE_URL, ASC_WP_USER, ASC_WP_APP_PASSWORD mangler) – springer over.")
     print("Screening efter egne regler inspireret af MSS – ikke en købsanbefaling.")
     return 0
 
@@ -386,6 +409,8 @@ def main() -> int:
                         help="Ugentlig liste: køb-kandidater/salg ud fra StockMap, Quality, Value og PEG")
     parser.add_argument("--screener", choices=["triple-green", "tpi-trend", "stock-of-the-day", "alle"],
                         help="B-04–B-06: screener over det cachede univers")
+    parser.add_argument("--ingen-upload", action="store_true",
+                        help="--mandagsliste: send ikke resultatet til hjemmesiden")
     parser.add_argument("--region", action="store_true",
                         help="Percentiler kun mod samme region (USA/Norden/Europa), som MSS")
     parser.add_argument("--vaerdi", action="store_true", help="Værdikanal og værdiansættelsesscore")
@@ -417,7 +442,7 @@ def main() -> int:
             selected = [line.strip() for line in research.read_text(encoding="utf-8").splitlines()
                         if line.strip() and not line.startswith("#")]
         return print_weekly_list(selected, arguments.benchmark, Path(__file__).resolve().parent / "data",
-                                 arguments.region)
+                                 arguments.region, not arguments.ingen_upload)
     if arguments.salg:
         return print_exit_study(selected, arguments.periode, arguments.benchmark, arguments.urort, arguments.kurtage)
     if arguments.regimer:

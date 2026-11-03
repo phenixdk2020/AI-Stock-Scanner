@@ -99,7 +99,7 @@ def _post_or_get_with_auth(
         raise ValueError("WordPress kræver HTTPS.")
 
     common = {
-        "timeout": (8, 25),
+        "timeout": (8, 60),
         "allow_redirects": False,
         "headers": {"User-Agent": "AI-Stock-Scanner/1.3"},
     }
@@ -142,6 +142,39 @@ def send_snapshot(payload: dict, site_url: str, username: str, app_password: str
     )
     if response.status_code != 200:
         raise RuntimeError("WordPress afviste overførslen: " + _wordpress_error(response))
+    data = response.json()
+    if not isinstance(data, dict) or not data.get("ok"):
+        raise RuntimeError("WordPress returnerede ikke en gyldig kvittering.")
+    return data
+
+
+def _api(site_url: str, route: str) -> str:
+    return make_endpoint(site_url).removesuffix("/snapshot") + route
+
+
+def credentials() -> tuple[str, str, str] | None:
+    """(adresse, bruger, Application Password) fra miljøvariablerne, eller None hvis noget mangler."""
+    values = tuple(os.environ.get(name, "").strip() for name in ("ASC_WP_SITE_URL", "ASC_WP_USER", "ASC_WP_APP_PASSWORD"))
+    return values if all(values) else None
+
+
+def fetch_tickers(site_url: str, username: str, app_password: str) -> list[str]:
+    """Tickere som brugerne på hjemmesiden følger eller ejer (plugin ≥ 0.6.0)."""
+    response = _post_or_get_with_auth(_api(site_url, "/tickers"), username, app_password)
+    if response.status_code != 200:
+        raise RuntimeError("Kunne ikke hente hjemmesidens tickere: " + _wordpress_error(response))
+    data = response.json()
+    tickers = data.get("tickers") if isinstance(data, dict) else None
+    if not isinstance(tickers, list):
+        raise RuntimeError("WordPress returnerede en uventet tickerliste.")
+    return [str(t) for t in tickers if isinstance(t, str) and t.strip()]
+
+
+def send_playbook(payload: dict, site_url: str, username: str, app_password: str) -> dict:
+    """Send playbook-snapshot (schema 2, docs/PLAYBOOK-SNAPSHOT.md) til hjemmesiden."""
+    response = _post_or_get_with_auth(_api(site_url, "/playbook"), username, app_password, payload=payload)
+    if response.status_code != 200:
+        raise RuntimeError("WordPress afviste playbook-snapshottet: " + _wordpress_error(response))
     data = response.json()
     if not isinstance(data, dict) or not data.get("ok"):
         raise RuntimeError("WordPress returnerede ikke en gyldig kvittering.")

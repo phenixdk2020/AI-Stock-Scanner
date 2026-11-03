@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.5.2
+ * Version: 0.6.0
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,7 +14,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.5.2');
+define('ASC_PLUGIN_VERSION', '0.6.0');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
 
 // Must initialize before user-profile / REST authentication determines HTTPS.
@@ -28,6 +28,8 @@ ASC_Market_Quotes::register();
 require_once __DIR__ . '/includes/class-asc-fx-rates.php';
 require_once __DIR__ . '/includes/class-asc-portfolio.php';
 ASC_Portfolio::register();
+require_once __DIR__ . '/includes/class-asc-playbook.php';
+ASC_Playbook::register();
 require_once __DIR__ . '/includes/class-asc-watchlist.php';
 ASC_Watchlist::register();
 require_once __DIR__ . '/includes/class-asc-analysis.php';
@@ -69,7 +71,8 @@ function asc_register_routes(): void {
 
 /**
  * Scoped fallback for hosting providers that strip the standard Authorization header.
- * X-ASC-Authorization is accepted ONLY for our two scanner routes. It contains the
+ * X-ASC-Authorization is accepted ONLY for our scanner routes (snapshot, auth-check,
+ * tickers and playbook; all use this permission callback). It contains the
  * original WordPress Application Password as HTTP Basic's base64 representation,
  * validated by WordPress itself. It never appears in query strings or persisted data.
  *
@@ -354,9 +357,11 @@ function asc_admin_page(): void {
     echo '<div class="wrap"><h1>AI Stock Scanner</h1>';
     echo '<p>Pluginversion: <strong>' . esc_html(ASC_PLUGIN_VERSION) . '</strong></p>';
     echo '<p>Seneste data modtaget (UTC): <strong>' . esc_html($when) . '</strong></p>';
+    echo ASC_Playbook::admin_status_line();
     echo '<p>Startside: <strong>Personligt login, portefølje og watchlist</strong>. '
         . 'Du kan tilføje køb og manuel aktuel kurs, redigere beholdninger og eksportere egne køb som CSV – helt uden PC-scanneren.</p>';
     echo '<p>Med en aktiveret kurskilde kan du også se candlesticks, gennemsnitlig handelsvolumen og estimeret handelsværdi over 5/21 børsdage.</p>';
+    echo '<p><strong>v0.6.0:</strong> Playbook: mandagsliste, screenere, aktie-scores og papirportefølje fra PC-appen, positionsstørrelse pr. bruger og salgsregel i porteføljen.</p>';
     echo '<p><strong>v0.5.2:</strong> Fast venstremenu ved scroll og sikker sammenligning med dateret børsaktieliste (CSV). Manglende aktier markeres til kontrol, aldrig slettes.</p>';
     echo '<p><strong>v0.5.1:</strong> Søg i danske aktier med katalog, navn, ticker, sektor og ISIN via CSV-import. Følg aktier eller registrér køb fra resultatlisten.</p>';
     echo '<p><strong>v0.5.0:</strong> Ny venstremenu, ni markeder, ETF-understøttelse, scannerfiltre og scenarioanalyse.</p>';
@@ -374,7 +379,7 @@ function asc_admin_page(): void {
     if (isset($_GET['asc_home']) && $_GET['asc_home'] === 'created') {
         echo '<div class="notice notice-success"><p>Startsiden er oprettet/aktiveret.</p></div>';
     }
-    echo '<p>Alternativt: Opret en WordPress-side med <code>[ai_stock_home]</code>, <code>[ai_stock_portfolio]</code> eller <code>[ai_stock_watchlist]</code>.</p>';
+    echo '<p>Alternativt: Opret en WordPress-side med <code>[ai_stock_home]</code>, <code>[ai_stock_portfolio]</code> eller <code>[ai_stock_watchlist]</code> eller <code>[ai_stock_playbook]</code> (mandagsliste og screenere).</p>';
     echo '<p>Scanner-dashboardet findes fortsat via <code>[ai_stock_scanner]</code>. Kun indloggede brugere ser aktiedata.</p>';
     echo '<p>Python-scanneren og Ollama kører lokalt på din computer; hjemmesiden viser kun de senest modtagne data.</p>';
     echo '<p><a class="button button-primary" href="' . esc_url(admin_url('admin.php?page=asc-updates')) . '">GitHub-opdateringer</a> ';

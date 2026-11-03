@@ -26,6 +26,7 @@ jobs:
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-market-quotes.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-portfolio.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-watchlist.php
+          php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-playbook.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-https-proxy.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-https-proxy.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-portfolio.php

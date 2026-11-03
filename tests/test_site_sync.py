@@ -58,7 +58,7 @@ class SnapshotTests(unittest.TestCase):
                                  "https://aktier.hangar18.dk", "agent", "a-secret")
             self.assertTrue(data["ok"])
             self.assertFalse(post.call_args.kwargs["allow_redirects"])
-            self.assertEqual(post.call_args.kwargs["timeout"], (8, 25))
+            self.assertEqual(post.call_args.kwargs["timeout"], (8, 60))  # playbook-snapshot er større
 
     def test_authorization_fallback_after_401(self):
         class NotLoggedIn:
