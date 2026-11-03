@@ -35,6 +35,7 @@ def fx_to_usd(currency):
 
 
 # 5 års historik: TPI-lite skal bruge ca. 2,5 år til sin uge-tilstand
+benchmark = fetch_history("RSP", period="5y")[0]  # StockMap-signal til tragten (universe.buy_funnel)
 frame = universe.build(tickers, load_or_fetch_fundamentals, lambda t: yf.Ticker(t).info or {},
-                       lambda t: fetch_history(t, period="5y")[0], fx_to_usd=fx_to_usd)
+                       lambda t: fetch_history(t, period="5y")[0], fx_to_usd=fx_to_usd, benchmark=benchmark)
 print(f"Univers: {len(frame)} aktier → {universe.FACTORS_FILE}")

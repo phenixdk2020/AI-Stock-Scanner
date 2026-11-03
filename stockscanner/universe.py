@@ -78,9 +78,11 @@ def info_extras(info: dict, fx_to_usd=None) -> dict:
     return row
 
 
-def factor_row(ticker: str, fundamentals_loader, info_loader, history_loader, fx_to_usd=None) -> dict:
+def factor_row(ticker: str, fundamentals_loader, info_loader, history_loader, fx_to_usd=None,
+               benchmark: pd.DataFrame | None = None) -> dict:
     """Alle faktorer for én aktie: q_/qs_ (kvalitet værdi/point), v_ (værdi), m_ (momentum),
-    b_ (markedsindeks), t_ (trend til screenerne), x_ (markedsværdi, upside, PEG)."""
+    b_ (markedsindeks), t_ (trend til screenerne), x_ (markedsværdi, upside, PEG).
+    Med `benchmark` (RSP) også seneste StockMap-signal (t_stockmap), som tragten til køb-kandidater bruger."""
     row: dict = {"ticker": ticker, "region": region(ticker)}
     try:
         quality = score_quality(fundamentals_loader(ticker))
@@ -104,9 +106,24 @@ def factor_row(ticker: str, fundamentals_loader, info_loader, history_loader, fx
             if len(close) >= days:
                 row[f"b_above_{days}"] = bool(close.iloc[-1] > close.tail(days).mean())
         row.update(trend_flags(history))
+        if benchmark is not None:
+            from stockscanner.weekly_list import latest_signal
+
+            row["t_stockmap"] = latest_signal(history, benchmark, 2)[0]
     except Exception:
         pass
     return row
+
+
+def buy_funnel(factors: pd.DataFrame | None, scores: pd.DataFrame | None, min_quality: float = 60.0) -> list[str]:
+    """Trin 1 i tragten: universets aktier med StockMap-køb de seneste 2 uger og Quality ≥ 60.
+    Kun de får den fulde (dyre) mandagsliste-analyse – værdikanal, regnskab, value trap og nyheder."""
+    if factors is None or scores is None or "t_stockmap" not in factors.columns:
+        return []
+    signal = factors["t_stockmap"].fillna("").astype(str)
+    quality = pd.to_numeric(scores["quality"].reindex(factors.index), errors="coerce")
+    hits = factors.index[signal.str.startswith("køb") & (quality >= min_quality)]
+    return sorted(hits, key=lambda t: -quality[t])
 
 
 def breadth(universe: pd.DataFrame | None) -> dict[int, float]:
@@ -124,10 +141,10 @@ def breadth(universe: pd.DataFrame | None) -> dict[int, float]:
 
 
 def build(tickers, fundamentals_loader, info_loader, history_loader, path: Path = FACTORS_FILE,
-          fx_to_usd=None) -> pd.DataFrame:
+          fx_to_usd=None, benchmark: pd.DataFrame | None = None) -> pd.DataFrame:
     rows = []
     for i, ticker in enumerate(tickers, 1):
-        rows.append(factor_row(ticker, fundamentals_loader, info_loader, history_loader, fx_to_usd))
+        rows.append(factor_row(ticker, fundamentals_loader, info_loader, history_loader, fx_to_usd, benchmark))
         print(f"{i}/{len(tickers)} {ticker}", file=sys.stderr, flush=True)
     frame = pd.DataFrame(rows).set_index("ticker")
     path.parent.mkdir(parents=True, exist_ok=True)

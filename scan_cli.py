@@ -286,9 +286,15 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
             tickers = list(tickers) + site_sync.fetch_tickers(*site)  # også det, brugerne på hjemmesiden følger
         except Exception as error:
             print(f"Hjemmesiden: kunne ikke hente tickere – {error}", file=sys.stderr)
+    reference = universe.load()
+    candidates = universe.buy_funnel(reference, None if reference is None else universe.percentiles(reference, None))
+    if candidates:
+        print(f"Tragt: {len(candidates)} aktier i universet med StockMap-køb og Quality ≥ 60 – analyseres fuldt: "
+              + ", ".join(candidates))
     paper_trades = paper.load()
     held = list(positions) + list(paper.open_positions(paper_trades)["ticker"])
-    tickers = list(dict.fromkeys(list(tickers) + held))  # ejede aktier og åbne papirhandler kommer altid med
+    # ejede aktier, åbne papirhandler og tragtens kandidater kommer altid med
+    tickers = list(dict.fromkeys(list(tickers) + held + candidates))
     bench = fetch_history(benchmark, period="3y")[0]
     histories, channels, factor_rows, mti, index_cache, analyst = {}, {}, [], {}, {}, {}
     for ticker in tickers:
@@ -314,7 +320,6 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
             mti[ticker] = mti_state(histories[ticker], index_cache[index_symbol])
         except Exception:
             pass
-    reference = universe.load()
     targets = pd.DataFrame(factor_rows).set_index("ticker")
     scores = universe.percentiles(targets, reference, by_region=by_region)
     rows = build_rows(list(histories), histories, bench, scores["quality"].dropna().to_dict(),
@@ -401,7 +406,8 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
                     regions={t: universe.region(t) for t in histories}, atrs={t: atr(h) for t, h in histories.items()},
                     research=research, breadth=market, benchmark=benchmark, factors=everyone,
                     scores=universe.percentiles(everyone, None), regional=universe.percentiles(everyone, None, by_region=True),
-                    trades=paper_trades, last_prices=last, changes=changes_seen, news=news_items)
+                    trades=paper_trades, last_prices=last, changes=changes_seen, news=news_items,
+                    candidates=candidates)
                 receipt = site_sync.send_playbook(payload, *site)
                 print(f"Hjemmesiden opdateret: {receipt.get('stocks', len(payload['stocks']))} aktier sendt.")
             except Exception as error:

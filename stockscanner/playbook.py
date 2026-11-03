@@ -101,7 +101,7 @@ def paper_section(trades: pd.DataFrame, last_prices: dict[str, float]) -> dict:
 
 
 def build_payload(*, rows, histories, currencies, regions, atrs, research, breadth, benchmark,
-                  factors, scores, regional, trades, last_prices, changes, news=None,
+                  factors, scores, regional, trades, last_prices, changes, news=None, candidates=(),
                   now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     market_date = max((pd.Timestamp(h.index[-1]).date() for h in histories.values() if len(h)), default=None)
@@ -120,6 +120,7 @@ def build_payload(*, rows, histories, currencies, regions, atrs, research, bread
         "benchmark": benchmark,
         "breadth": {str(k): _num(v, 1) for k, v in breadth.items()},
         "research": list(research),
+        "candidates": [t for t in candidates if t in stocks],  # tragtens fund i hele universet
         "stocks": stocks,
         "universe": universe_section(factors, scores, regional),
         "screeners": screener_section(factors, scores, regional),

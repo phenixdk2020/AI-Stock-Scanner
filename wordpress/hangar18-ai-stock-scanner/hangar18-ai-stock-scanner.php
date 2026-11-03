@@ -39,6 +39,9 @@ ASC_Danish_Catalog::register();
 
 
 register_activation_hook(__FILE__, 'asc_activate');
+register_deactivation_hook(__FILE__, static function (): void {
+    wp_clear_scheduled_hook('asc_quotes_refresh');  // kursopdateringen hvert 15. minut
+});
 function asc_activate(): void {
     add_role('asc_sync_agent', 'AI Stock Scanner Sync Agent', [
         'read' => true, 'asc_sync' => true,

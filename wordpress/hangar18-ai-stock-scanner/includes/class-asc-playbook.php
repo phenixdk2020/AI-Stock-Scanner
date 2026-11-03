@@ -58,6 +58,11 @@ final class ASC_Playbook {
 
     /** Sorted unique symbols from all users' watchlists and portfolios. No user data. */
     public static function rest_tickers(WP_REST_Request $request) {
+        return rest_ensure_response(['tickers' => self::followed_tickers()]);
+    }
+
+    /** @return string[] Unikke symboler fra alle brugeres watchlists og porteføljer (ingen brugerdata). */
+    public static function followed_tickers(): array {
         global $wpdb;
         $found = $wpdb->get_results(
             $wpdb->prepare(
@@ -82,7 +87,7 @@ final class ASC_Playbook {
         }
         $list = array_map('strval', array_keys($symbols));
         sort($list, SORT_STRING);
-        return rest_ensure_response(['tickers' => $list]);
+        return $list;
     }
 
     private static function cut(string $value, int $max): string {
@@ -170,6 +175,7 @@ final class ASC_Playbook {
             'benchmark' => self::clean_string($input['benchmark'] ?? null, 20),
             'breadth' => self::clean_breadth($input['breadth'] ?? null),
             'research' => self::clean_ticker_list($input['research'] ?? null, self::MAX_STOCKS),
+            'candidates' => self::clean_ticker_list($input['candidates'] ?? null, self::MAX_STOCKS),
             'stocks' => $stocks,
             'universe' => self::clean_universe($input['universe'] ?? null),
             'screeners' => self::clean_screeners($input['screeners'] ?? null),
@@ -614,8 +620,17 @@ final class ASC_Playbook {
         foreach (is_array($watch) ? $watch : [] as $symbol) {
             if (is_string($symbol)) { $wanted[$symbol] = true; }
         }
+        $owned = get_user_meta($user_id, self::PORTFOLIO_META, true);
+        foreach (is_array($owned) ? $owned : [] as $lot) {
+            if (is_array($lot) && is_string($lot['ticker'] ?? null)) { $wanted[$lot['ticker']] = true; }
+        }
         foreach (is_array($data['research'] ?? null) ? $data['research'] : [] as $symbol) {
             if (is_string($symbol)) { $wanted[$symbol] = true; }
+        }
+        // Tragtens fund i hele universet (StockMap-køb + Quality ≥ 60) vises for alle.
+        $from_universe = [];
+        foreach (is_array($data['candidates'] ?? null) ? $data['candidates'] : [] as $symbol) {
+            if (is_string($symbol)) { $wanted[$symbol] = true; $from_universe[$symbol] = true; }
         }
         $rows = [];
         foreach ($data['stocks'] as $ticker => $stock) {
@@ -641,6 +656,8 @@ final class ASC_Playbook {
         }
 
         echo '<h3>Mandagsliste</h3>';
+        echo '<p class="asc-subtle">Din overvågningsliste, din portefølje og research-listen. ★ = fundet ved scanning af '
+            . 'hele universet (StockMap-køb og kvalitet ≥ 60), analyseret fuldt på samme måde.</p>';
         $changes = is_array($data['changes'] ?? null) ? $data['changes'] : [];
         if ($changes) {
             echo '<div class="asc-pb-changes"><strong>Ændringer siden sidst</strong><ul>';
@@ -672,7 +689,9 @@ final class ASC_Playbook {
                     $size = $calc === null ? '–'
                         : esc_html(self::n($calc['shares']) . ' stk. · stop ' . self::n($calc['stop'], 2));
                 }
-                echo '<tr><th scope="row">' . esc_html((string)$ticker) . '</th>';
+                echo '<tr><th scope="row">' . esc_html((string)$ticker)
+                    . (isset($from_universe[$ticker]) ? ' <span class="asc-subtle" title="Fundet i hele universet">★</span>' : '')
+                    . '</th>';
                 echo '<td class="' . esc_attr($class) . '">' . self::s($action) . '</td>';
                 echo '<td>' . self::s($stock['stockmap'] ?? null) . '</td>';
                 echo '<td>' . self::s($stock['tpi'] ?? null) . '</td>';
