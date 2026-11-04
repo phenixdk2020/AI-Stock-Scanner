@@ -865,6 +865,28 @@ final class ASC_Playbook {
         return implode(' · ', $parts);
     }
 
+    /**
+     * Nøgletal til aktiesidens graf fra playbook-data: P/E (kurs / EPS i dag fra Bear/Base/Bull, kun når begge
+     * er positive) og markedsværdi i mia. USD (universet). null hvor data mangler; intet gættes.
+     * @return array{pe: ?float, mcap_usd_bn: ?float}
+     */
+    public static function key_figures(string $ticker): array {
+        $out = ['pe' => null, 'mcap_usd_bn' => null];
+        $data = self::snapshot();
+        if ($data === null) { return $out; }
+        $row = self::universe_index($data)[$ticker] ?? [];
+        $cap = self::clean_number($row['mcap_usd_bn'] ?? null);
+        if ($cap !== null && $cap > 0) { $out['mcap_usd_bn'] = (float)$cap; }
+        $sc = self::scenarios_for($ticker);
+        $price = is_array($sc) ? ($sc['price'] ?? null) : null;
+        $eps = is_array($sc) ? ($sc['eps_today'] ?? null) : null;
+        if ((is_int($price) || is_float($price)) && (is_int($eps) || is_float($eps)) && $price > 0 && $eps > 0) {
+            $pe = (float)$price / (float)$eps;
+            if (is_finite($pe) && $pe < 10000.0) { $out['pe'] = $pe; }
+        }
+        return $out;
+    }
+
     /** Alle symboler playbook kender (aktier og univers), til aktiesidens navnesøgning. @return string[] */
     public static function known_tickers(): array {
         $data = self::snapshot();

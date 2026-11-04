@@ -236,7 +236,8 @@ final class ASC_Stock_Page {
 
     private static function render_stock(int $user_id, string $ticker): void {
         $period = sanitize_key(self::query_text('asc_period'));
-        if (!array_key_exists($period, ASC_Market_Quotes::PERIOD_DAYS)) { $period = self::DEFAULT_PERIOD; }
+        $period_explicit = array_key_exists($period, ASC_Market_Quotes::PERIOD_DAYS);
+        if (!$period_explicit) { $period = self::DEFAULT_PERIOD; }
         $self = self::self_url();
         $enabled = ASC_Market_Quotes::enabled();
         $quote = ASC_Market_Quotes::get($ticker);
@@ -304,18 +305,21 @@ final class ASC_Stock_Page {
         }
 
         // ---- Graf med perioder og markører
-        echo '<div id="asc-stock-chart"><nav class="asc-pb-tabs" aria-label="Periode">';
+        // Periodevalget med links og SVG-grafen er den serverrenderede udgave: den vises uden JavaScript og når
+        // biblioteket til den interaktive graf ikke kan indlæses (ASC_Stock_Chart lægger den i <noscript>).
+        $tabs = '<nav class="asc-pb-tabs" aria-label="Periode">';
         foreach (ASC_Market_Quotes::PERIOD_LABELS as $key => $label) {
-            echo '<a class="asc-pb-tab' . ($period === $key ? ' is-active' : '') . '" href="'
+            $tabs .= '<a class="asc-pb-tab' . ($period === $key ? ' is-active' : '') . '" href="'
                 . esc_url(add_query_arg(['asc_ticker' => $ticker, 'asc_period' => $key], $self) . '#asc-stock-chart') . '"'
                 . ($period === $key ? ' aria-current="page"' : '') . '>' . esc_html($label) . '</a>';
         }
-        echo '</nav>';
+        $tabs .= '</nav>';
+        $limited_text = '<p class="asc-warning">Den lange historik (5 år) kunne ikke hentes lige nu. Grafen bruger de seneste '
+            . 'ca. 6 måneder fra kursopslaget; SMA200 kræver mindst 200 handelsdage og kan mangle.</p>';
+        echo '<div id="asc-stock-chart">';
+        if (!$bars) { echo $tabs; }
         if ($bars) {
-            if ($fallback) {
-                echo '<p class="asc-warning">Den lange historik (5 år) kunne ikke hentes lige nu. Grafen bruger de seneste '
-                    . 'ca. 6 måneder fra kursopslaget; SMA200 kræver mindst 200 handelsdage og kan mangle.</p>';
-            }
+            if ($fallback) { echo $limited_text; }
             $markers = [];
             foreach ($lots as $lot) {
                 $markers[] = ['date' => (string)($lot['buy_date'] ?? ''), 'kind' => 'buy'];
@@ -327,7 +331,9 @@ final class ASC_Stock_Page {
                 $markers[] = ['date' => (string)($trade['buy_date'] ?? ''), 'kind' => 'sim_buy'];
                 $markers[] = ['date' => (string)($trade['sell_date'] ?? ''), 'kind' => 'sim_sell'];
             }
-            echo ASC_Market_Quotes::stock_chart($ticker, $bars, $currency, $period, $markers);
+            $svg_html = $tabs . ASC_Market_Quotes::stock_chart($ticker, $bars, $currency, $period, $markers);
+            echo ASC_Stock_Chart::render($ticker, $bars, $currency, $period, $period_explicit, $markers, $fallback,
+                $svg_html, ASC_Playbook::key_figures($ticker));
         } elseif ($enabled) {
             echo '<p class="asc-warning">Ingen kurshistorik tilgængelig for ' . esc_html($ticker) . ' lige nu.</p>';
         } else {

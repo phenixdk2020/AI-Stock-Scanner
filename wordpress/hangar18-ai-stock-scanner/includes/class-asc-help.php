@@ -147,6 +147,20 @@ final class ASC_Help {
             ['Størrelse', 'Her: selskabets størrelsesklasse, Mega til Micro.'],
         ]);
 
+        echo '<h3>Aktiesidens graf og nøgletal</h3>';
+        echo self::terms([
+            ['Perioder', '1 D og 1 U er intradag (5 og 15 minutter), 1 M til 5 Å er daglige kurser. ÅTD er siden nytår. Standard er 6 M, og valget huskes i fanen.'],
+            ['Linje / Candles', 'Linje viser lukkekursen (grøn ved stigning i perioden, rød ved fald). Candles viser åbning, høj, lav og luk for hver dag.'],
+            ['Trådkors', 'Før musen hen over grafen (på en telefon: hold fingeren nede på grafen og træk) for at se dato, kurs, ændring i kroner og procent siden periodens start og volumen. Uden mus vises seneste kurs.'],
+            ['Zoom', 'Brug musehjulet, knib på en telefon, eller træk grafen sidelæns. Vælg en periode for at nulstille.'],
+            ['SMA50 / SMA200', 'Glidende gennemsnit af lukkekursen over 50 og 200 handelsdage. Kun på daglige perioder; slås til og fra med knapperne.'],
+            ['K, V og S', 'Dine handler på grafen: K = køb i porteføljen, V = køb i simulatoren, S = salg i simulatoren.'],
+            ['Åbning, Høj, Lav, Volumen', 'Tal fra seneste handelsdag i kurshistorikken.'],
+            ['52 ugers høj / lav', 'Højeste og laveste kurs det seneste år, beregnet ud fra kurshistorikken. Vises kun med mindst et års historik.'],
+            ['P/E', 'Kurs delt med forventet EPS i dag fra Playbook-analysen. "–" hvis aktien ikke er analyseret eller EPS ikke er positiv.'],
+            ['Markedsværdi', 'Selskabets samlede værdi på børsen i mia. USD fra Playbook-universet. "–" hvis den ikke findes.'],
+        ]);
+
         echo '<h3>Aktiescanner</h3>';
         echo self::terms([
             ['Type', 'Aktie eller ETF (indeksfond).'],
