@@ -19,6 +19,19 @@ final class ASC_Market_Quotes {
     private const LAST_RUN = 'asc_quotes_last_run';
     private const MAX_RESPONSE = 262144;
     private const MAX_FETCH_PER_PAGE = 1;
+    private const HISTORY_AGE = 21600;  // Lang historik (aktiesiden) caches i 6 timer.
+    private const HISTORY_RETRY_AFTER = 300;  // Mislykket hentning af lang historik prøves først igen efter 5 minutter.
+    private const HISTORY_MAX_RESPONSE = 1572864;  // Fem års daglige bars; større svar end ca. 1,5 MB afvises.
+    private const HISTORY_MAX_BARS = 1400;  // Fem år er ca. 1.260 handelsdage.
+    /** Perioder på aktiesiden: kalenderdage bagud fra seneste bar; null = al hentet historik, samlet til uger. */
+    public const PERIOD_DAYS = ['1m' => 31, '6m' => 183, '1y' => 366, '5y' => null];
+    public const PERIOD_LABELS = ['1m' => '1 måned', '6m' => '6 måneder', '1y' => '1 år', '5y' => '5 år'];
+    /** Markører på aktiegrafen: bogstav, forklaring og retning. */
+    private const MARKER_KINDS = [
+        'buy' => ['K', 'Køb (portefølje)', 'up'],
+        'sim_buy' => ['V', 'Køb (simulator)', 'up'],
+        'sim_sell' => ['S', 'Salg (simulator)', 'down'],
+    ];
     private const CRON_HOOK = 'asc_quotes_refresh';
     private const CRON_SCHEDULE = 'asc_15min';
     private const CRON_MAX_TICKERS = 100;
@@ -244,10 +257,74 @@ final class ASC_Market_Quotes {
     }
 
     /**
+     * Fem års daglige bars til aktiesiden (range=5y). Egen cache i 6 timer og egen cooldown ved fejl;
+     * tæller ikke med i MAX_FETCH_PER_PAGE, men følger Yahoo-kilden: slået fra giver null.
+     * Samme validering som get(). Returnerer aldrig gættede eller opfundne priser: null ved enhver fejl.
+     * @return array{ticker: string, currency: string, bars: array, market_time: int, received_at: int, provider: string}|null
+     */
+    public static function history(string $ticker): ?array {
+        if (!self::enabled()) { return null; }
+        if (!preg_match('/^[A-Z0-9^][A-Z0-9.^=-]{0,19}$/D', $ticker)) { return null; }
+
+        $key = 'asc_hist5y_' . md5($ticker);
+        $cached = get_transient($key);
+        if (is_array($cached) && !empty($cached['bars'])) {
+            return $cached;
+        }
+        $cooldown = 'asc_hist5y_attempt_' . md5($ticker);
+        if (get_transient($cooldown) !== false) { return null; }
+        set_transient($cooldown, 1, self::HISTORY_RETRY_AFTER);
+        $url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
+            . rawurlencode($ticker) . '?range=5y&interval=1d';
+        $response = wp_safe_remote_get($url, [
+            'timeout' => 6,
+            'redirection' => 0,
+            'limit_response_size' => self::HISTORY_MAX_RESPONSE,
+            'headers' => [
+                'Accept' => 'application/json',
+                'User-Agent' => 'Mozilla/5.0 (compatible; Hangar18-Stock-Scanner/0.3)',
+            ],
+        ]);
+        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+            return null;
+        }
+        // Et svar, der er klippet af grænsen, er ugyldig JSON og afvises her.
+        $payload = json_decode((string)wp_remote_retrieve_body($response), true);
+        if (!is_array($payload)) { return null; }
+        $result = $payload['chart']['result'][0] ?? null;
+        if (!is_array($result)) { return null; }
+        $meta = $result['meta'] ?? null;
+        if (!is_array($meta)) { return null; }
+
+        $price = $meta['regularMarketPrice'] ?? null;
+        $currency = strtoupper((string)($meta['currency'] ?? ''));
+        $market_time = $meta['regularMarketTime'] ?? null;
+        if (!is_numeric($price) || !is_finite((float)$price) || (float)$price <= 0
+            || !preg_match('/^[A-Z]{3}$/D', $currency)
+            || !is_numeric($market_time) || (int)$market_time < 1577836800
+            || (int)$market_time > time() + 300) {
+            return null;
+        }
+        $bars = self::parse_history($result, self::HISTORY_MAX_BARS, self::HISTORY_MAX_BARS);
+        if (count($bars) < 20) { return null; }
+        $history = [
+            'ticker' => $ticker,
+            'currency' => $currency,
+            'bars' => $bars,
+            'market_time' => (int)$market_time,
+            'received_at' => time(),
+            'provider' => 'Yahoo Finance (uofficiel)',
+        ];
+        set_transient($key, $history, self::HISTORY_AGE);
+        return $history;
+    }
+
+    /**
      * Sanitized OHLCV bars in ascending order; excludes nonexistent sessions.
      * The number of bars is bounded to minimize WP database and UI size.
+     * Standarden (160 læst, 130 gemt) er kursopslagets; history() bruger større grænser.
      */
-    private static function parse_history(array $result): array {
+    private static function parse_history(array $result, int $limit = 160, int $keep = 130): array {
         $times = $result['timestamp'] ?? [];
         $ohlcv = $result['indicators']['quote'][0] ?? null;
         if (!is_array($times) || !is_array($ohlcv)) { return []; }
@@ -261,16 +338,16 @@ final class ASC_Market_Quotes {
             return [];
         }
         $bars = [];
-        $count = min(count($times), 160);
+        $count = min(count($times), $limit);
         for ($i = 0; $i < $count; $i++) {
             $t = $times[$i] ?? null;
             $o = $opens[$i] ?? null;
             $h = $highs[$i] ?? null;
             $l = $lows[$i] ?? null;
             $c = $closes[$i] ?? null;
-            $v = $volumes[$i] ?? null;
+            $v = is_numeric($volumes[$i] ?? null) ? $volumes[$i] : 0;  // Indeks og valuta har ingen volumen.
             if (!is_numeric($t) || !is_numeric($o) || !is_numeric($h)
-                || !is_numeric($l) || !is_numeric($c) || !is_numeric($v)) {
+                || !is_numeric($l) || !is_numeric($c)) {
                 continue;
             }
             $t = (int)$t;
@@ -289,7 +366,7 @@ final class ASC_Market_Quotes {
             ];
         }
         usort($bars, static fn(array $a, array $b): int => $a['time'] <=> $b['time']);
-        return array_slice($bars, -130);
+        return array_slice($bars, -$keep);
     }
 
     private static function number(float $n, int $decimals = 0): string {
@@ -415,6 +492,244 @@ final class ASC_Market_Quotes {
             . 'Seneste tilgængelige dagskurser kan være forsinkede. Uofficiel Yahoo-integration '
             . 'med brugs- og licensforbehold.</p>';
         return $result;
+    }
+
+    // ------------------------------------------------------------ Aktiesidens graf
+
+    /**
+     * Glidende gennemsnit (SMA50, SMA200) af lukkekurser, beregnet på al hentet historik, så de også findes
+     * i starten af en periode. null hvor der er for få bars forud.
+     */
+    private static function with_sma(array $bars): array {
+        $bars = array_values($bars);
+        $sums = [50 => 0.0, 200 => 0.0];
+        $out = [];
+        foreach ($bars as $i => $bar) {
+            foreach ([50, 200] as $n) {
+                $sums[$n] += (float)$bar['close'];
+                if ($i >= $n) { $sums[$n] -= (float)$bars[$i - $n]['close']; }
+                $bar['sma' . $n] = $i >= $n - 1 ? $sums[$n] / $n : null;
+            }
+            $out[] = $bar;
+        }
+        return $out;
+    }
+
+    /** Daglige bars samlet til uger (ISO-uge): første åbning, højeste høj, laveste lav, sidste lukning, sum af volumen. */
+    private static function weekly(array $bars): array {
+        $weeks = [];
+        foreach ($bars as $bar) {
+            $key = gmdate('o-W', (int)$bar['time']);
+            if (!isset($weeks[$key])) {
+                $weeks[$key] = $bar;
+                continue;
+            }
+            $week = $weeks[$key];
+            $week['high'] = max((float)$week['high'], (float)$bar['high']);
+            $week['low'] = min((float)$week['low'], (float)$bar['low']);
+            $week['close'] = (float)$bar['close'];
+            $week['volume'] = (float)$week['volume'] + (float)$bar['volume'];
+            $week['sma50'] = $bar['sma50'];
+            $week['sma200'] = $bar['sma200'];
+            $week['end'] = (int)$bar['end'];
+            $weeks[$key] = $week;
+        }
+        return array_values($weeks);
+    }
+
+    /**
+     * Placerer markører (købs- og salgsdatoer) på barer i den viste periode. Datoer uden for perioden springes over;
+     * en dato uden handel (weekend) hører til barren før.
+     * @return array<int, array{index: int, kind: string, date: string}>
+     */
+    private static function place_markers(array $view, array $markers): array {
+        $starts = [];
+        foreach ($view as $i => $bar) {
+            $starts[$i] = gmdate('Y-m-d', (int)$bar['time']);
+        }
+        $first = $starts[0];
+        $last_end = gmdate('Y-m-d', (int)$view[count($view) - 1]['end']);
+        $placed = [];
+        foreach ($markers as $marker) {
+            $date = is_array($marker) && is_string($marker['date'] ?? null) ? $marker['date'] : '';
+            $kind = is_array($marker) && is_string($marker['kind'] ?? null) ? $marker['kind'] : '';
+            if (!isset(self::MARKER_KINDS[$kind]) || preg_match('/^\d{4}-\d\d-\d\d$/D', $date) !== 1) { continue; }
+            if ($date < $first || $date > $last_end) { continue; }
+            $index = 0;
+            foreach ($starts as $i => $start) {
+                if ($start <= $date) { $index = $i; } else { break; }
+            }
+            $placed[] = ['index' => $index, 'kind' => $kind, 'date' => $date];
+        }
+        return $placed;
+    }
+
+    /**
+     * Aktiesidens graf som serverrenderet, escaped SVG uden eksterne biblioteker: candles og volumen for perioden
+     * (1m, 6m og 1y daglige, 5y samlet til uger), SMA50 og SMA200 med forklaring og markører for køb og salg.
+     * $markers: [['date' => 'Y-m-d', 'kind' => 'buy'|'sim_buy'|'sim_sell'], ...].
+     */
+    public static function stock_chart(string $ticker, array $bars, string $currency, string $period, array $markers = []): string {
+        $none = '<p>Ingen valide historiske OHLCV-data til dette diagram.</p>';
+        $days = array_key_exists($period, self::PERIOD_DAYS) ? self::PERIOD_DAYS[$period] : self::PERIOD_DAYS['6m'];
+        $all = self::with_sma($bars);
+        if (count($all) < 2) { return $none; }
+        $last_time = (int)$all[count($all) - 1]['time'];
+        $view = [];
+        foreach ($all as $bar) {
+            if ($days === null || (int)$bar['time'] >= $last_time - $days * 86400) {
+                $bar['end'] = (int)$bar['time'];
+                $view[] = $bar;
+            }
+        }
+        $weekly = $days === null;
+        if ($weekly) { $view = self::weekly($view); }
+        $count = count($view);
+        if ($count < 2) { return $none; }
+
+        $min = (float)min(array_column($view, 'low'));
+        $max = (float)max(array_column($view, 'high'));
+        $has = ['sma50' => false, 'sma200' => false];
+        foreach ($view as $bar) {
+            foreach (['sma50', 'sma200'] as $key) {
+                if ($bar[$key] !== null) {
+                    $has[$key] = true;
+                    $min = min($min, (float)$bar[$key]);
+                    $max = max($max, (float)$bar[$key]);
+                }
+            }
+        }
+        $pad = max(($max - $min) * 0.03, $max * 0.002);
+        $min = max(0.0, $min - $pad);
+        $max = $max + $pad;
+        $range = $max - $min;
+
+        $width = 720; $height = 398;
+        $left = 58; $right = 10; $top = 14; $price_bottom = 292;
+        $inner = $price_bottom - $top;
+        $vol_bottom = 368; $vol_height = 58;
+        $step = ($width - $left - $right) / $count;
+        $body = max(1.0, min(10.0, $step * .64));
+        $wick = $count > 150 ? 1 : 1.4;
+        $volume_max = (float)max(array_column($view, 'volume'));
+        $y_of = static fn(float $value): float => $top + ($max - $value) / $range * $inner;
+
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' . $width . ' ' . $height . '" role="img" '
+            . 'aria-label="Candlestick-graf med volumen og glidende gennemsnit for ' . esc_attr($ticker) . '">'
+            . '<title>Kursgraf med volumen: ' . esc_html($ticker) . '</title>'
+            . '<rect width="' . $width . '" height="' . $height . '" fill="#fff"/>';
+        foreach ([0, .25, .5, .75, 1] as $fraction) {
+            $y = $top + $inner * $fraction;
+            $level = $max - $range * $fraction;
+            $svg .= '<line x1="' . $left . '" x2="' . ($width - $right) . '" y1="' . round($y, 1) . '" y2="' . round($y, 1)
+                . '" stroke="#e5eaf0" stroke-width="1"/>'
+                . '<text x="4" y="' . round($y + 4, 1) . '" fill="#334155" font-size="13">'
+                . self::number($level, $level < 10 ? 2 : ($level < 1000 ? 1 : 0)) . '</text>';
+        }
+        foreach ($view as $i => $bar) {
+            $x = $left + $step * ($i + .5);
+            $up = (float)$bar['close'] >= (float)$bar['open'];
+            $color = $up ? '#167b59' : '#c8394c';
+            $y_open = $y_of((float)$bar['open']);
+            $y_close = $y_of((float)$bar['close']);
+            $vol = $volume_max > 0 ? (float)$bar['volume'] / $volume_max * $vol_height : 0.0;
+            $svg .= '<line x1="' . round($x, 1) . '" x2="' . round($x, 1) . '" y1="' . round($y_of((float)$bar['high']), 1)
+                . '" y2="' . round($y_of((float)$bar['low']), 1) . '" stroke="' . $color . '" stroke-width="' . $wick . '"/>'
+                . '<rect x="' . round($x - $body / 2, 1) . '" y="' . round(min($y_open, $y_close), 1)
+                . '" width="' . round($body, 1) . '" height="' . round(max(1.2, abs($y_close - $y_open)), 1)
+                . '" fill="' . $color . '"/>'
+                . '<rect x="' . round($x - $body / 2, 1) . '" y="' . round($vol_bottom - $vol, 1)
+                . '" width="' . round($body, 1) . '" height="' . round($vol, 1) . '" fill="' . $color . '" opacity=".5"/>';
+        }
+        $svg .= '<text x="4" y="' . ($vol_bottom - 20) . '" font-size="13" fill="#334155">Vol.</text>';
+
+        // Datoer på aksen: begyndelsen, tre punkter undervejs og slutningen.
+        $date_format = ($days === null || $days >= 366) ? 'M y' : 'd/m';
+        $label_at = array_unique([0, (int)floor(($count - 1) * .25), (int)floor(($count - 1) * .5),
+            (int)floor(($count - 1) * .75), $count - 1]);
+        foreach ($label_at as $i) {
+            $anchor = $i === 0 ? 'start' : ($i === $count - 1 ? 'end' : 'middle');
+            $x = $i === 0 ? $left : ($i === $count - 1 ? $width - $right : $left + $step * ($i + .5));
+            $svg .= '<text x="' . round($x, 1) . '" y="' . ($height - 8) . '" text-anchor="' . $anchor
+                . '" font-size="13" fill="#334155">' . esc_html((string)wp_date($date_format, (int)$view[$i]['time'])) . '</text>';
+        }
+
+        foreach (['sma50' => '#d97706', 'sma200' => '#7c3aed'] as $key => $color) {
+            $points = [];
+            foreach ($view as $i => $bar) {
+                if ($bar[$key] !== null) {
+                    $points[] = round($left + $step * ($i + .5), 1) . ',' . round($y_of((float)$bar[$key]), 1);
+                }
+            }
+            if (count($points) >= 2) {
+                $svg .= '<polyline class="asc-sma-line" data-line="' . $key . '" fill="none" stroke="' . $color
+                    . '" stroke-width="1.8" stroke-linejoin="round" points="' . implode(' ', $points) . '"/>';
+            }
+        }
+
+        $used = [];
+        $slots = [];
+        $drawn = [];
+        foreach (self::place_markers($view, $markers) as $mark) {
+            $once = $mark['index'] . '|' . $mark['kind'];
+            if (isset($drawn[$once])) { continue; }
+            $drawn[$once] = true;
+            $used[$mark['kind']] = true;
+            [$letter, $label, $direction] = self::MARKER_KINDS[$mark['kind']];
+            $slot = $slots[$mark['index']] ?? 0;
+            $slots[$mark['index']] = $slot + 1;
+            $x = $left + $step * ($mark['index'] + .5);
+            $y = $top + 2 + $slot * 16;
+            $triangle = $direction === 'up'
+                ? round($x - 6, 1) . ',' . round($y + 12, 1) . ' ' . round($x + 6, 1) . ',' . round($y + 12, 1) . ' ' . round($x, 1) . ',' . round($y, 1)
+                : round($x - 6, 1) . ',' . round($y, 1) . ' ' . round($x + 6, 1) . ',' . round($y, 1) . ' ' . round($x, 1) . ',' . round($y + 12, 1);
+            $near_right = $x > $width - 40;
+            $date = substr($mark['date'], 8, 2) . '-' . substr($mark['date'], 5, 2) . '-' . substr($mark['date'], 0, 4);
+            $svg .= '<g class="asc-marker" data-kind="' . esc_attr($mark['kind']) . '"><title>' . esc_html($label . ' ' . $date) . '</title>'
+                . '<line x1="' . round($x, 1) . '" x2="' . round($x, 1) . '" y1="' . $top . '" y2="' . $price_bottom
+                . '" stroke="#0369a1" stroke-width="1" stroke-dasharray="3 3" opacity=".7"/>'
+                . '<polygon points="' . $triangle . '" fill="#0369a1"/>'
+                . '<text x="' . round($near_right ? $x - 9 : $x + 9, 1) . '" y="' . round($y + 11, 1)
+                . '" text-anchor="' . ($near_right ? 'end' : 'start') . '" font-size="13" font-weight="700" fill="#0369a1">'
+                . esc_html($letter) . '</text></g>';
+        }
+        $svg .= '</svg>';
+
+        $first = $view[0];
+        $latest = $view[$count - 1];
+        $change = (float)$first['close'] > 0 ? ((float)$latest['close'] / (float)$first['close'] - 1) * 100 : null;
+        $unit = $weekly ? 'uge' : 'handelsdag';
+        $html = '<div class="asc-stock-chart"><div class="asc-stock-chart-scroll">' . $svg . '</div>'
+            . '<ul class="asc-chart-legend">'
+            . '<li><i class="asc-leg asc-leg-up"></i>Stigende ' . esc_html($unit) . '</li>'
+            . '<li><i class="asc-leg asc-leg-down"></i>Faldende ' . esc_html($unit) . '</li>'
+            . '<li><i class="asc-leg asc-leg-sma50"></i>SMA50 (50 dages gennemsnit)'
+            . ($has['sma50'] ? '' : ' – for lidt historik') . '</li>'
+            . '<li><i class="asc-leg asc-leg-sma200"></i>SMA200 (200 dages gennemsnit)'
+            . ($has['sma200'] ? '' : ' – for lidt historik') . '</li>';
+        foreach (self::MARKER_KINDS as $kind => $info) {
+            if (isset($used[$kind])) {
+                $html .= '<li><i class="asc-leg asc-leg-mark">' . esc_html($info[0]) . '</i>' . esc_html($info[1]) . '</li>';
+            }
+        }
+        $html .= '</ul><p class="asc-subtle">'
+            . esc_html((string)wp_date('d-m-Y', (int)$first['time'])) . ' – ' . esc_html((string)wp_date('d-m-Y', (int)$latest['end']))
+            . '. Hver kerte er en ' . esc_html($unit) . '. Højeste ' . self::number((float)max(array_column($view, 'high')), 2)
+            . ' og laveste ' . self::number((float)min(array_column($view, 'low')), 2) . ' ' . esc_html($currency)
+            . ($change === null ? '' : '. Ændring i perioden ' . esc_html(($change > 0 ? '+' : '') . number_format($change, 1, ',', '.')) . ' %')
+            . '.</p></div>';
+
+        $stats = '';
+        foreach ([['Uge (5 børsdage)', self::daily_stats($all, 5)], ['Måned (21 børsdage)', self::daily_stats($all, 21)]] as $item) {
+            [$label, $values] = $item;
+            if ($values === null) { continue; }
+            $stats .= '<div><strong>' . esc_html($label) . '</strong>'
+                . '<span>Gns. antal handlede aktier/dag: ' . self::number((float)$values['shares_per_day']) . '</span>'
+                . '<span>Estimeret handlet beløb/dag: ' . self::number((float)$values['value_per_day']) . ' ' . esc_html($currency) . '</span>'
+                . '<small>Beregnet ud fra ' . esc_html((string)$values['days']) . ' handelsdage.</small></div>';
+        }
+        if ($stats !== '') { $html .= '<div class="asc-trading-stats">' . $stats . '</div>'; }
+        return $html;
     }
 
     private static function last_known(string $ticker): ?array {

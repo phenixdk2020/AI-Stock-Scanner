@@ -492,10 +492,17 @@ final class ASC_Playbook {
      * complete, escaped table row (empty when the stock is not in the snapshot).
      */
     public static function exit_rule_row(string $ticker, string $buy_date, int $columns): string {
+        $text = self::exit_rule_text($ticker, $buy_date);
+        if ($text === null) { return ''; }
+        return '<tr class="asc-rule-row"><td colspan="' . $columns . '"><div>Salgsregel: ' . $text . '</div></td></tr>';
+    }
+
+    /** Salgsreglens tekst (escaped HTML) for ét køb; null når aktien ikke er i snapshottet. */
+    private static function exit_rule_text(string $ticker, string $buy_date): ?string {
         $data = self::snapshot();
         $stock = $data !== null && is_array($data['stocks'][$ticker] ?? null)
             ? $data['stocks'][$ticker] : null;
-        if ($stock === null) { return ''; }
+        if ($stock === null) { return null; }
         $exit = is_array($stock['exit'] ?? null) ? $stock['exit'] : [];
         $reasons = [];
         $valid_date = preg_match(self::DATE_RE, $buy_date) === 1;
@@ -512,10 +519,63 @@ final class ASC_Playbook {
         if (!empty($exit['stockmap_sell'])) { $reasons[] = 'StockMap-salg denne uge'; }
         $break = $after($exit['sma50_breaks'] ?? null);
         if ($break !== '') { $reasons[] = 'brud under SMA50 (' . $break . ')'; }
-        $text = $reasons
+        return $reasons
             ? '<span class="asc-pb-sell">SÆLG: ' . esc_html(implode(', ', $reasons)) . '</span>'
             : 'behold';
-        return '<tr class="asc-rule-row"><td colspan="' . $columns . '"><div>Salgsregel: ' . $text . '</div></td></tr>';
+    }
+
+    /**
+     * Aktiesidens analyseafsnit (escaped HTML): playbook-analysen (med regnskabsnedtælling og regnskabsrisiko),
+     * salgsregel for hvert ejet køb og nyheder med vurdering. Uden playbook-data en klar besked.
+     * @param array<int, array{source: string, buy_date: string}> $owned Ejede køb (portefølje og simulator).
+     */
+    public static function stock_page_analysis(string $ticker, array $owned = []): string {
+        $data = self::snapshot();
+        $stock = $data !== null && is_array($data['stocks'][$ticker] ?? null) ? $data['stocks'][$ticker] : null;
+        $row = $data !== null ? (self::universe_index($data)[$ticker] ?? null) : null;
+        if ($stock === null && !is_array($row)) {
+            return '<div class="asc-sim-analysis"><h4>Playbook-analyse</h4>'
+                . '<p>Ikke analyseret endnu. Følg aktien, så kommer den med ved næste kørsel.</p></div>';
+        }
+        $html = self::analysis_panel($ticker);
+        if ($stock === null) { return $html; }
+        $rules = '';
+        foreach (array_slice($owned, 0, 6) as $item) {
+            $buy_date = is_array($item) ? (string)($item['buy_date'] ?? '') : '';
+            $text = self::exit_rule_text($ticker, $buy_date);
+            if ($text === null) { continue; }
+            $rules .= '<li>' . esc_html(is_array($item) ? (string)($item['source'] ?? '') : '')
+                . ($buy_date !== '' ? esc_html(', købt ' . $buy_date) : '') . ': ' . $text . '</li>';
+        }
+        if ($rules !== '') {
+            $html .= '<div class="asc-sim-analysis"><h4>Salgsregel (du ejer aktien)</h4><ul>' . $rules . '</ul></div>';
+        }
+        ob_start();
+        self::render_news([$ticker => $stock]);
+        return $html . (string)ob_get_clean();
+    }
+
+    /** Størrelses- og likviditetsklasse (escaped HTML) fra playbook eller universet; tom streng uden data. */
+    public static function size_liquidity_html(string $ticker): string {
+        $data = self::snapshot();
+        if ($data === null) { return ''; }
+        $stock = is_array($data['stocks'][$ticker] ?? null) ? $data['stocks'][$ticker] : [];
+        $row = self::universe_index($data)[$ticker] ?? [];
+        $size = $stock['size'] ?? ($row['size'] ?? null);
+        $liquidity = $stock['liquidity'] ?? ($row['liquidity'] ?? null);
+        $parts = [];
+        if (is_string($size) && $size !== '') { $parts[] = 'Størrelse: ' . esc_html($size); }
+        if (is_string($liquidity) && $liquidity !== '') { $parts[] = 'Likviditet: ' . self::liquidity_badge($liquidity); }
+        return implode(' · ', $parts);
+    }
+
+    /** Alle symboler playbook kender (aktier og univers), til aktiesidens navnesøgning. @return string[] */
+    public static function known_tickers(): array {
+        $data = self::snapshot();
+        if ($data === null) { return []; }
+        $list = array_map('strval', array_keys($data['stocks']));
+        $list = array_merge($list, array_map('strval', array_keys(self::universe_index($data))));
+        return array_values(array_unique($list));
     }
 
     // ----------------------------------------------------------------- Sizing
@@ -916,7 +976,7 @@ final class ASC_Playbook {
                     $size = $calc === null ? '–'
                         : esc_html(self::n($calc['shares']) . ' stk. · stop ' . self::n($calc['stop'], 2));
                 }
-                echo '<tr><th scope="row">' . esc_html((string)$ticker)
+                echo '<tr><th scope="row">' . ASC_Stock_Page::link((string)$ticker)
                     . (isset($from_universe[$ticker]) ? ' <span class="asc-subtle" title="Fundet i hele universet">★</span>' : '')
                     . ($action === 'KØB-KANDIDAT' ? '<div class="asc-subtle">' . self::simulator_link((string)$ticker) . '</div>' : '')
                     . '</th>';
@@ -1022,7 +1082,7 @@ final class ASC_Playbook {
         echo '</tr></thead><tbody>';
         foreach (array_slice($hits, 0, self::MAX_UNIVERSE) as $ticker) {
             $row = $index[$ticker] ?? [];
-            echo '<tr><th scope="row">' . esc_html((string)$ticker)
+            echo '<tr><th scope="row">' . ASC_Stock_Page::link((string)$ticker)
                 . '<div class="asc-subtle">' . self::simulator_link((string)$ticker) . '</div></th>';
             echo '<td>' . self::s($row['region'] ?? null) . '</td>';
             foreach (['quality', 'value', 'momentum', 'moat'] as $metric) {
@@ -1075,7 +1135,7 @@ final class ASC_Playbook {
         }
         echo '</tr></thead><tbody>';
         foreach (array_slice($matches, 0, $limit, true) as $ticker => $row) {
-            echo '<tr><th scope="row">' . esc_html((string)$ticker) . '</th>';
+            echo '<tr><th scope="row">' . ASC_Stock_Page::link((string)$ticker) . '</th>';
             echo '<td>' . self::s($row['region'] ?? null) . '</td>';
             foreach (['quality', 'value', 'momentum', 'moat'] as $metric) {
                 echo '<td>' . esc_html(self::n($row[$metric] ?? null) . ' / '
@@ -1119,7 +1179,7 @@ final class ASC_Playbook {
             $return = (is_int($buy) || is_float($buy)) && $buy > 0 && (is_int($last) || is_float($last))
                 ? ((float)$last / (float)$buy - 1) * 100 : null;
             $class = $return === null ? '' : ($return >= 0 ? 'asc-positive' : 'asc-negative');
-            echo '<tr><th scope="row">' . esc_html((string)($trade['ticker'] ?? '')) . '</th>';
+            echo '<tr><th scope="row">' . ASC_Stock_Page::link((string)($trade['ticker'] ?? '')) . '</th>';
             echo '<td>' . self::s($trade['koebsdato'] ?? null) . '</td>';
             echo '<td>' . esc_html(self::n($buy, 2)) . '</td>';
             echo '<td>' . self::s($trade['salgsdato'] ?? null) . '</td>';

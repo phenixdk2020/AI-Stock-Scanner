@@ -66,6 +66,20 @@ final class ASC_Simulator {
         return add_query_arg(['asc_view' => 'simulator', 'asc_sim_ticker' => $ticker], $base) . '#asc-simulator';
     }
 
+    /**
+     * Brugerens åbne og lukkede virtuelle handler i én aktie (til aktiesiden: markører og salgsregel). Kun læsning.
+     * @return array{open: array<int, array>, closed: array<int, array>}
+     */
+    public static function trades_for(int $user_id, string $ticker): array {
+        $round = self::load($user_id)['round'];
+        $pick = static fn(array $list): array => array_values(array_filter($list,
+            static fn($item): bool => is_array($item) && (string)($item['ticker'] ?? '') === $ticker));
+        return [
+            'open' => $round === null ? [] : $pick($round['positions']),
+            'closed' => $round === null ? [] : $pick($round['closed']),
+        ];
+    }
+
     // ------------------------------------------------------------- Small helpers
 
     private static function field(string $key): string {
@@ -666,7 +680,7 @@ final class ASC_Simulator {
         echo '</tr></thead><tbody>';
         foreach ($valuation['rows'] as $row) {
             $class = $row['gain'] >= 0 ? 'asc-positive' : 'asc-negative';
-            echo '<tr><th scope="row">' . esc_html($row['ticker'])
+            echo '<tr><th scope="row">' . ASC_Stock_Page::link((string)$row['ticker'])
                 . '<div class="asc-subtle">' . esc_html($row['buy_date']) . '</div></th>';
             echo '<td>' . esc_html(self::fmt_quantity($row['quantity'])) . '</td>';
             echo '<td>' . esc_html(self::fmt($row['buy_price']) . ' ' . $row['currency']) . '</td>';
@@ -705,7 +719,7 @@ final class ASC_Simulator {
         foreach (array_reverse($closed) as $trade) {
             $pnl = (float)($trade['pnl_dkk'] ?? 0);
             $currency = (string)($trade['currency'] ?? '');
-            echo '<tr><th scope="row">' . esc_html((string)($trade['ticker'] ?? '')) . '</th>';
+            echo '<tr><th scope="row">' . ASC_Stock_Page::link((string)($trade['ticker'] ?? '')) . '</th>';
             echo '<td>' . esc_html(self::fmt_quantity((float)($trade['quantity'] ?? 0))) . '</td>';
             echo '<td>' . esc_html(self::fmt((float)($trade['buy_price'] ?? 0)) . ' ' . $currency)
                 . '<div class="asc-subtle">' . esc_html((string)($trade['buy_date'] ?? '')) . '</div></td>';
