@@ -513,8 +513,10 @@ final class ASC_Simulator {
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="asc_sim_start">';
         wp_nonce_field('asc_sim_start');
-        echo '<label>Startbeløb (kr.)<input type="text" name="asc_sim_cash" inputmode="decimal" value="'
+        echo '<label>Startbeløb (kr.)<input type="text" name="asc_sim_cash" inputmode="decimal" placeholder="fx '
             . esc_attr(self::fmt(self::START_CASH, 0)) . '" required></label>';
+        echo '<p class="asc-subtle">Du vælger selv beløbet: mellem ' . esc_html(self::fmt(self::MIN_CASH, 0))
+            . ' og ' . esc_html(self::fmt(self::MAX_CASH, 0)) . ' kr.</p>';
         echo '<button type="submit">Start runde</button></form></div>';
     }
 
@@ -617,7 +619,7 @@ final class ASC_Simulator {
         echo '<input type="hidden" name="action" value="asc_sim_buy">';
         wp_nonce_field('asc_sim_buy');
         echo '<input type="hidden" name="asc_sim_ticker" value="' . esc_attr($ticker) . '">';
-        echo '<label>Beløb i kr.<input type="text" name="asc_sim_amount" inputmode="decimal" value="'
+        echo '<label>Beløb i kr.<input type="text" name="asc_sim_amount" inputmode="decimal" placeholder="fx '
             . esc_attr(self::fmt(floor($default), 0)) . '" required></label>';
         echo '<button type="submit">Køb virtuelt</button></form>';
         echo '<p class="asc-subtle">Kurserne er forsinkede; købet sker til serverens seneste kurs (1 aktie ≈ '
