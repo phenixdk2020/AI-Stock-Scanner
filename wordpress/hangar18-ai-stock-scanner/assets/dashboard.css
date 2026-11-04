@@ -175,7 +175,7 @@
 .asc-pb-breadth{margin:.5rem 0}
 .asc-pb-changes{margin:1rem 0;padding:.8rem 1rem;border-left:4px solid #477eaa;background:#eef5fb;color:#183f66}
 .asc-pb-changes ul{margin:.4rem 0 0 1.1rem;padding:0}
-.asc-playbook td.asc-pb-sell{color:#a72f2f;font-weight:700;white-space:normal}
+.asc-playbook td.asc-pb-sell,.asc-portfolio td.asc-pb-sell{color:#a72f2f;font-weight:700;white-space:normal;min-width:11rem;max-width:18rem;overflow-wrap:anywhere}
 .asc-playbook td.asc-pb-buy{color:#176044;font-weight:700}
 .asc-playbook td.asc-subtle{white-space:normal;min-width:12rem}
 .asc-pb-sizing form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
