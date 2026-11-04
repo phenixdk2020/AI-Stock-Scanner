@@ -12,6 +12,8 @@ final class ASC_Playbook {
     private const SIZING_META = 'asc_sizing_v1';
     private const WATCH_META = 'asc_watchlist_v1';
     private const PORTFOLIO_META = 'asc_portfolio_positions_v1';
+    private const SIM_META = 'asc_simulator_v1';
+    private const BENCHMARK_TICKER = 'RSP';
     private const TICKER_RE = '/^[A-Z0-9^][A-Z0-9.^=-]{0,19}$/D';
     private const DATE_RE = '/^\d{4}-\d\d-\d\d$/D';
     private const MAX_BODY = 3145728;
@@ -61,21 +63,34 @@ final class ASC_Playbook {
         return rest_ensure_response(['tickers' => self::followed_tickers()]);
     }
 
-    /** @return string[] Unikke symboler fra alle brugeres watchlists og porteføljer (ingen brugerdata). */
+    /** @return string[] Unikke symboler fra alle brugeres watchlists, porteføljer og simulator-positioner samt RSP (ingen brugerdata). */
     public static function followed_tickers(): array {
         global $wpdb;
         $found = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT meta_key, meta_value FROM {$wpdb->usermeta} WHERE meta_key IN (%s, %s)",
+                "SELECT meta_key, meta_value FROM {$wpdb->usermeta} WHERE meta_key IN (%s, %s, %s)",
                 self::WATCH_META,
-                self::PORTFOLIO_META
+                self::PORTFOLIO_META,
+                self::SIM_META
             ),
             ARRAY_A
         );
-        $symbols = [];
+        // Simulator-benchmark: RSP følges altid, så startkursen og afkastet kan beregnes.
+        $symbols = [self::BENCHMARK_TICKER => true];
         foreach (is_array($found) ? $found : [] as $row) {
             $value = maybe_unserialize($row['meta_value'] ?? '');
             if (!is_array($value)) { continue; }
+            if (($row['meta_key'] ?? '') === self::SIM_META) {
+                // Kun symbolerne i den aktuelle rundes åbne positioner – ingen øvrige brugerdata.
+                $sim_positions = is_array($value['round']['positions'] ?? null) ? $value['round']['positions'] : [];
+                foreach ($sim_positions as $sim_position) {
+                    $sim_ticker = is_array($sim_position) ? ($sim_position['ticker'] ?? null) : null;
+                    if (is_string($sim_ticker) && preg_match(self::TICKER_RE, $sim_ticker) === 1) {
+                        $symbols[$sim_ticker] = true;
+                    }
+                }
+                continue;
+            }
             foreach ($value as $item) {
                 if (($row['meta_key'] ?? '') === self::PORTFOLIO_META) {
                     $item = is_array($item) ? ($item['ticker'] ?? null) : null;
@@ -373,6 +388,66 @@ final class ASC_Playbook {
         if ($stamp === false) { return $iso; }
         $text = wp_date('d-m-Y H:i', $stamp, new DateTimeZone('Europe/Copenhagen'));
         return is_string($text) ? $text : $iso;
+    }
+
+    /**
+     * Playbook analysis of one ticker for the simulator's lookup panel. Returns
+     * complete, already escaped HTML: the full stock analysis when the ticker is in
+     * the snapshot's stocks, the universe scores otherwise, or a clear notice.
+     */
+    public static function analysis_panel(string $ticker): string {
+        $data = self::snapshot();
+        $stock = $data !== null && is_array($data['stocks'][$ticker] ?? null)
+            ? $data['stocks'][$ticker] : null;
+        $html = '<div class="asc-sim-analysis"><h4>Playbook-analyse</h4>';
+        if ($stock !== null) {
+            $html .= '<p><strong>' . self::s($stock['action'] ?? null) . '</strong> – '
+                . self::s($stock['reasons'] ?? null) . '</p><dl class="asc-sim-facts">';
+            $facts = [
+                'StockMap' => self::s($stock['stockmap'] ?? null),
+                'TPI' => self::s($stock['tpi'] ?? null),
+                'MTI' => self::s($stock['mti'] ?? null),
+                'Kvalitet' => esc_html(self::n($stock['quality'] ?? null)),
+                'Moat' => esc_html(self::n($stock['moat'] ?? null)),
+                'MSS-score' => esc_html(self::n($stock['mss_score'] ?? null)),
+                'Værdi' => esc_html(self::n($stock['value_pct'] ?? null)),
+                'Momentum' => esc_html(self::n($stock['momentum'] ?? null)),
+                'Kanal' => esc_html(self::n($stock['channel_score'] ?? null)),
+                'PEG' => esc_html(self::n($stock['peg'] ?? null, 1)),
+                'Asymmetri' => !empty($stock['asymmetry_inf']) ? '∞'
+                    : esc_html(self::n($stock['asymmetry'] ?? null, 1)),
+                'Regnskab' => self::s($stock['earnings'] ?? null),
+                'EPS-trend' => self::s($stock['eps_trend'] ?? null),
+            ];
+            foreach ($facts as $label => $value) {
+                $html .= '<div><dt>' . esc_html($label) . '</dt><dd>' . $value . '</dd></div>';
+            }
+            $html .= '</dl><p class="asc-subtle">Nyheder: ' . self::s($stock['news_summary'] ?? null) . '</p>';
+            $html .= '<p class="asc-subtle">Analyse fra ' . esc_html(self::when((string)$data['generated_at'])) . '.</p>';
+            return $html . '</div>';
+        }
+        $row = $data !== null ? (self::universe_index($data)[$ticker] ?? null) : null;
+        if (is_array($row)) {
+            $html .= '<p>Kun grundscores (percentiler, global / region) – ikke fuld analyse endnu. '
+                . 'Fuld analyse kommer med ved næste kørsel, hvis aktien følges.</p><dl class="asc-sim-facts">';
+            foreach (['quality' => 'Kvalitet', 'value' => 'Værdi', 'momentum' => 'Momentum', 'moat' => 'Moat'] as $key => $label) {
+                $html .= '<div><dt>' . esc_html($label) . '</dt><dd>'
+                    . esc_html(self::n($row[$key] ?? null) . ' / ' . self::n($row[$key . '_r'] ?? null)) . '</dd></div>';
+            }
+            $html .= '<div><dt>Region</dt><dd>' . self::s($row['region'] ?? null) . '</dd></div>';
+            $html .= '<div><dt>Upside %</dt><dd>' . esc_html(self::n($row['upside'] ?? null, 1)) . '</dd></div>';
+            $html .= '<div><dt>PEG</dt><dd>' . esc_html(self::n($row['peg'] ?? null, 1)) . '</dd></div>';
+            return $html . '</dl></div>';
+        }
+        return $html . '<p>Ikke analyseret endnu – kommer med ved næste kørsel, hvis du køber aktien i simulatoren '
+            . 'eller sætter den på overvågningslisten.</p></div>';
+    }
+
+    /** "Køb i simulator" link (escaped HTML) to the simulator lookup for this ticker. */
+    private static function simulator_link(string $ticker): string {
+        if (!class_exists('ASC_Simulator')) { return ''; }
+        return '<a class="asc-sim-link" href="' . esc_url(ASC_Simulator::lookup_url($ticker))
+            . '">Køb i simulator</a>';
     }
 
     /**
@@ -697,6 +772,7 @@ final class ASC_Playbook {
                 }
                 echo '<tr><th scope="row">' . esc_html((string)$ticker)
                     . (isset($from_universe[$ticker]) ? ' <span class="asc-subtle" title="Fundet i hele universet">★</span>' : '')
+                    . ($action === 'KØB-KANDIDAT' ? '<div class="asc-subtle">' . self::simulator_link((string)$ticker) . '</div>' : '')
                     . '</th>';
                 echo '<td class="' . esc_attr($class) . '">' . self::s($action) . '</td>';
                 echo '<td>' . self::s($stock['stockmap'] ?? null) . '</td>';
@@ -792,7 +868,8 @@ final class ASC_Playbook {
         echo '</tr></thead><tbody>';
         foreach (array_slice($hits, 0, self::MAX_UNIVERSE) as $ticker) {
             $row = $index[$ticker] ?? [];
-            echo '<tr><th scope="row">' . esc_html((string)$ticker) . '</th>';
+            echo '<tr><th scope="row">' . esc_html((string)$ticker)
+                . '<div class="asc-subtle">' . self::simulator_link((string)$ticker) . '</div></th>';
             echo '<td>' . self::s($row['region'] ?? null) . '</td>';
             foreach (['quality', 'value', 'momentum', 'moat'] as $metric) {
                 echo '<td>' . esc_html(self::n($row[$metric . $suffix] ?? null)) . '</td>';
