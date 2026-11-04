@@ -269,7 +269,7 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
 
     import yfinance as yf
 
-    from stockscanner import earnings_risk, news, paper, playbook, site_sync
+    from stockscanner import earnings_risk, news, paper, playbook, site_sync, universe_scenarios
     from stockscanner.sizing import atr, fx_rate, load_settings, position_size
 
     from stockscanner import universe
@@ -423,7 +423,7 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
                     research=research, breadth=market, benchmark=benchmark, factors=everyone,
                     scores=universe.percentiles(everyone, None), regional=universe.percentiles(everyone, None, by_region=True),
                     trades=paper_trades, last_prices=last, changes=changes_seen, news=news_items,
-                    candidates=candidates, earnings_risk=risks)
+                    candidates=candidates, earnings_risk=risks, universe_scenarios=universe_scenarios.load(), channels=channels)
                 receipt = site_sync.send_playbook(payload, *site)
                 print(f"Hjemmesiden opdateret: {receipt.get('stocks', len(payload['stocks']))} aktier sendt.")
             except Exception as error:

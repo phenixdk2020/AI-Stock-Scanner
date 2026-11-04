@@ -29,6 +29,8 @@ final class ASC_Playbook {
     private const RISK_LEVELS = ['Lav', 'Middel', 'Høj'];
     private const RISK_DISCLAIMER = 'Risikomål, ikke et salgssignal.';
     private const SCREENERS = ['triple-green', 'tpi-trend', 'stock-of-the-day'];
+    private const OWNED_ACTIONS = ['BEHOLD (ejet)', 'SÆLG (ejet)'];
+    private const SCENARIO_KEYS = ['bear' => 'Bear', 'base' => 'Base', 'bull' => 'Bull'];
     private const CURRENCIES = ['DKK', 'SEK', 'NOK', 'EUR', 'USD'];
     private const ACTION_ORDER = [
         'SÆLG (ejet)' => 0,
@@ -197,6 +199,7 @@ final class ASC_Playbook {
             'candidates' => self::clean_ticker_list($input['candidates'] ?? null, self::MAX_STOCKS),
             'stocks' => $stocks,
             'universe' => self::clean_universe($input['universe'] ?? null),
+            'scenarios' => self::clean_scenario_map($input['scenarios'] ?? null),
             'screeners' => self::clean_screeners($input['screeners'] ?? null),
             'paper' => self::clean_paper($input['paper'] ?? null),
             'changes' => self::clean_changes($input['changes'] ?? null),
@@ -243,7 +246,63 @@ final class ASC_Playbook {
         ];
         $out['news'] = self::clean_news($raw['news'] ?? null);
         $out['earnings_risk'] = self::clean_earnings_risk($raw['earnings_risk'] ?? null);
+        $out['scenarios'] = self::clean_scenarios($raw['scenarios'] ?? null);
         return $out;
+    }
+
+    /**
+     * Automatisk Bear/Base/Bull (additivt felt, regnestykket EPS × P/E): tal inden for fornuftige grænser,
+     * højst 6 noter på 160 tegn. Null uden mindst ét kursmål, så siden siger "ikke beregnet".
+     */
+    /** Universets Bear/Base/Bull pr. ticker. @return array<string, array> */
+    private static function clean_scenario_map($raw): array {
+        $out = [];
+        foreach (is_array($raw) ? array_slice($raw, 0, self::MAX_UNIVERSE, true) : [] as $ticker => $item) {
+            $symbol = self::clean_ticker((string)$ticker);
+            $clean = self::clean_scenarios($item);
+            if ($symbol !== null && $clean !== null) { $out[$symbol] = $clean; }
+        }
+        return $out;
+    }
+
+    private static function clean_scenarios($raw): ?array {
+        if (!is_array($raw)) { return null; }
+        $single = static function ($value, float $min, float $max) {
+            $number = self::clean_number($value);
+            return $number !== null && $number >= $min && $number <= $max ? $number : null;
+        };
+        $triple = static function ($source, float $min, float $max) use ($single): array {
+            $source = is_array($source) ? $source : [];
+            $out = [];
+            foreach (array_keys(self::SCENARIO_KEYS) as $key) {
+                $out[$key] = $single($source[$key] ?? null, $min, $max);
+            }
+            return $out;
+        };
+        $prices = $triple($raw['prices'] ?? null, 0.0, 1.0e12);
+        if ($prices['bear'] === null && $prices['base'] === null && $prices['bull'] === null) { return null; }
+        $currency = is_string($raw['currency'] ?? null) ? strtoupper(trim($raw['currency'])) : '';
+        $notes = [];
+        foreach (array_slice(is_array($raw['notes'] ?? null) ? array_values($raw['notes']) : [], 0, 6) as $note) {
+            $note = self::clean_string($note, 160);
+            if ($note !== null) { $notes[] = $note; }
+        }
+        return [
+            'currency' => preg_match('/^[A-Z]{3}$/D', $currency) === 1 ? $currency : null,
+            'horizon_years' => $single($raw['horizon_years'] ?? null, 0.5, 10.0),
+            'price' => $single($raw['price'] ?? null, 0.0, 1.0e12),
+            'eps_today' => $single($raw['eps_today'] ?? null, -1.0e6, 1.0e6),
+            'eps_horizon' => $single($raw['eps_horizon'] ?? null, -1.0e6, 1.0e6),
+            'pe' => $triple($raw['pe'] ?? null, 0.0, 10000.0),
+            'prices' => $prices,
+            'upside_pct' => $triple($raw['upside_pct'] ?? null, -100.0, 1.0e6),
+            'cagr_pct' => $triple($raw['cagr_pct'] ?? null, -100.0, 1.0e5),
+            'asymmetry' => $single($raw['asymmetry'] ?? null, -1.0e4, 1.0e4),
+            'asymmetry_inf' => ($raw['asymmetry_inf'] ?? false) === true,
+            'peg' => $single($raw['peg'] ?? null, -1.0e4, 1.0e4),
+            'channel_score' => $single($raw['channel_score'] ?? null, -1.0e5, 1.0e5),
+            'notes' => $notes,
+        ];
     }
 
     /** Regnskabsrisiko (additivt felt): kendt niveau, højst 6 begrundelser, andele 0-100; ellers null. */
@@ -402,6 +461,135 @@ final class ASC_Playbook {
         return self::$cached;
     }
 
+    // ------------------------------------------------- Brugerens egne data og synlighed
+
+    /** @return string[] Symbolerne på den indloggede brugers egen overvågningsliste. */
+    private static function user_watch(int $user_id): array {
+        $watch = get_user_meta($user_id, self::WATCH_META, true);
+        return is_array($watch) ? array_values(array_filter($watch, 'is_string')) : [];
+    }
+
+    /** @return array<string, array<int, array<string, mixed>>> Brugerens egne køb i WordPress-porteføljen pr. symbol. */
+    private static function user_lots(int $user_id): array {
+        $raw = get_user_meta($user_id, self::PORTFOLIO_META, true);
+        $out = [];
+        foreach (is_array($raw) ? $raw : [] as $lot) {
+            $ticker = is_array($lot) ? self::clean_ticker($lot['ticker'] ?? null) : null;
+            if ($ticker !== null) { $out[$ticker][] = $lot; }
+        }
+        return $out;
+    }
+
+    /** @return string[] Symbolerne i brugerens egen simulatorrunde. */
+    private static function user_sim_tickers(int $user_id): array {
+        $sim = get_user_meta($user_id, self::SIM_META, true);
+        $positions = is_array($sim) && is_array($sim['round']['positions'] ?? null) ? $sim['round']['positions'] : [];
+        $out = [];
+        foreach ($positions as $position) {
+            $ticker = is_array($position) ? self::clean_ticker($position['ticker'] ?? null) : null;
+            if ($ticker !== null) { $out[] = $ticker; }
+        }
+        return $out;
+    }
+
+    /**
+     * Rene regler for, hvilke aktier en bruger ser på mandagslisten: den fælles research-liste og tragtens
+     * kandidater samt det, brugeren selv følger, ejer (WordPress-porteføljen) eller har i sin simulator.
+     * Andre brugeres lister kommer aldrig med, selv om scanneren analyserer dem.
+     * @param string[] $watch @param string[] $owned @param string[] $simulated
+     * @return array<string, true>
+     */
+    public static function visible_tickers(array $data, array $watch, array $owned, array $simulated): array {
+        $visible = [];
+        foreach ([$data['research'] ?? null, $data['candidates'] ?? null, $watch, $owned, $simulated] as $list) {
+            foreach (is_array($list) ? $list : [] as $symbol) {
+                $ticker = self::clean_ticker($symbol);
+                if ($ticker !== null) { $visible[$ticker] = true; }
+            }
+        }
+        return $visible;
+    }
+
+    /** Er teksten en begrundelse, der stammer fra scannerens egen (lokale) portefølje og købsdato? */
+    private static function is_owner_reason(string $part): bool {
+        return preg_match('/% siden køb$/u', $part) === 1
+            || $part === 'ingen salgsregel ramt'
+            || $part === 'StockMap-salg denne uge'
+            || str_starts_with($part, 'Supertrend ×3 vendt ned')
+            || str_starts_with($part, 'brud under SMA50');
+    }
+
+    /** Gennemsnitlig gevinst i % siden køb for brugerens egne køb; null ved blandede valutaer eller manglende tal. */
+    private static function lots_gain(array $stock, array $lots): ?float {
+        $price = $stock['price'] ?? null;
+        $currency = $stock['currency'] ?? null;
+        if (!is_numeric($price) || (float)$price <= 0) { return null; }
+        $cost = 0.0;
+        $quantity = 0.0;
+        foreach ($lots as $lot) {
+            $count = is_array($lot) ? ($lot['quantity'] ?? null) : null;
+            $buy = is_array($lot) ? ($lot['buy_price'] ?? null) : null;
+            $lot_currency = is_array($lot) ? ($lot['currency'] ?? null) : null;
+            if (!is_numeric($count) || !is_numeric($buy) || (float)$count <= 0 || (float)$buy <= 0) { return null; }
+            if (!is_string($lot_currency) || !is_string($currency) || $lot_currency !== $currency) { return null; }
+            $cost += (float)$count * (float)$buy;
+            $quantity += (float)$count;
+        }
+        return $quantity > 0 ? ((float)$price / ($cost / $quantity) - 1) * 100 : null;
+    }
+
+    /**
+     * Aktien set med den enkelte brugers øjne. Scannerens "(ejet)"-handlinger og "% siden køb" stammer fra
+     * scannerens egen lokale portefølje og vises derfor kun, når brugeren selv har aktien i sin WordPress-portefølje;
+     * handling og salgsregler regnes da af brugerens egne købsdatoer. Ellers "hold øje" og en neutral begrundelse.
+     * @param array<int, array<string, mixed>> $lots Brugerens egne køb i aktien (tom = ejer den ikke).
+     */
+    public static function personal_stock(array $stock, array $lots): array {
+        $kept = [];
+        foreach (explode('; ', (string)($stock['reasons'] ?? '')) as $part) {
+            $part = trim($part);
+            if ($part !== '' && !self::is_owner_reason($part)) { $kept[] = $part; }
+        }
+        if (!$lots) {
+            if (!in_array($stock['action'] ?? null, self::OWNED_ACTIONS, true)) { return $stock; }
+            $stock['action'] = 'hold øje';
+            $stock['reasons'] = implode('; ', array_merge(['ikke i din portefølje'], $kept));
+            return $stock;
+        }
+        $sell = [];
+        foreach ($lots as $lot) {
+            $buy_date = is_array($lot) ? (string)($lot['buy_date'] ?? '') : '';
+            foreach (self::exit_reasons($stock, $buy_date) as $reason) { $sell[$reason] = true; }
+        }
+        $gain = self::lots_gain($stock, $lots);
+        $parts = [];
+        if ($gain !== null) { $parts[] = ($gain > 0 ? '+' : '') . self::n($gain, 1) . ' % siden køb'; }
+        $parts = array_merge($parts, $sell ? array_map('strval', array_keys($sell)) : ['ingen salgsregel ramt'], $kept);
+        $stock['action'] = $sell ? 'SÆLG (ejet)' : 'BEHOLD (ejet)';
+        $stock['reasons'] = implode('; ', $parts);
+        return $stock;
+    }
+
+    /**
+     * "Ændringer siden sidst" for én bruger: kun aktier brugeren ser (og papirporteføljens fælles linjer).
+     * Handlings-ændringer med "(ejet)" stammer fra scannerens egen portefølje og udelades.
+     * @param array<int, mixed> $changes @param array<string, true> $visible
+     * @return string[]
+     */
+    public static function visible_changes(array $changes, array $visible): array {
+        $out = [];
+        foreach ($changes as $change) {
+            if (!is_string($change)) { continue; }
+            if (str_starts_with($change, 'PAPIR ')) { $out[] = $change; continue; }
+            if (preg_match('/^([A-Z0-9^][A-Z0-9.^=-]{0,19}): (.+)$/Du', $change, $match) !== 1
+                || !isset($visible[$match[1]])) { continue; }
+            $parts = array_values(array_filter(explode('; ', $match[2]),
+                static fn(string $part): bool => !str_contains($part, '(ejet)')));
+            if ($parts) { $out[] = $match[1] . ': ' . implode('; ', $parts); }
+        }
+        return $out;
+    }
+
     /** One line for the admin overview page (already escaped). */
     public static function admin_status_line(): string {
         $data = self::snapshot();
@@ -431,6 +619,8 @@ final class ASC_Playbook {
             ? $data['stocks'][$ticker] : null;
         $html = '<div class="asc-sim-analysis"><h4>Playbook-analyse</h4>';
         if ($stock !== null) {
+            // Ejet-status og "% siden køb" vises kun, hvis brugeren selv har aktien (se personal_stock).
+            $stock = self::personal_stock($stock, self::user_lots(get_current_user_id())[$ticker] ?? []);
             $html .= '<p><strong>' . self::s($stock['action'] ?? null) . '</strong> – '
                 . self::s($stock['reasons'] ?? null) . ' ' . self::earnings_block_badge($stock) . '</p>';
             $risk = self::risk_html($stock);
@@ -457,7 +647,8 @@ final class ASC_Playbook {
             foreach ($facts as $label => $value) {
                 $html .= '<div><dt>' . esc_html($label) . '</dt><dd>' . $value . '</dd></div>';
             }
-            $html .= '</dl><p class="asc-subtle">Nyheder: ' . self::s($stock['news_summary'] ?? null) . '</p>';
+            $html .= '</dl>' . self::scenarios_section($ticker);
+            $html .= '<p class="asc-subtle">Nyheder: ' . self::s($stock['news_summary'] ?? null) . '</p>';
             $html .= '<p class="asc-subtle">Analyse fra ' . esc_html(self::when((string)$data['generated_at'])) . '.</p>';
             return $html . '</div>';
         }
@@ -474,7 +665,7 @@ final class ASC_Playbook {
             $html .= '<div><dt>PEG</dt><dd>' . esc_html(self::n($row['peg'] ?? null, 1)) . '</dd></div>';
             $html .= '<div><dt>Størrelse</dt><dd>' . self::s($row['size'] ?? null) . '</dd></div>';
             $html .= '<div><dt>Likviditet</dt><dd>' . self::liquidity_badge($row['liquidity'] ?? null) . '</dd></div>';
-            return $html . '</dl></div>';
+            return $html . '</dl>' . self::scenarios_section($ticker) . '</div>';
         }
         return $html . '<p>Ikke analyseret endnu – kommer med ved næste kørsel, hvis du køber aktien i simulatoren '
             . 'eller sætter den på overvågningslisten.</p></div>';
@@ -487,6 +678,102 @@ final class ASC_Playbook {
             . '">Køb i simulator</a>';
     }
 
+    /** Tickere med automatiske scenarier, som den indloggede bruger selv ser (til vælgeren på Analyse-siden). @return string[] */
+    public static function scenario_tickers(): array {
+        $data = self::snapshot();
+        if ($data === null) { return []; }
+        $user_id = get_current_user_id();
+        $visible = self::visible_tickers($data, self::user_watch($user_id), array_map('strval', array_keys(self::user_lots($user_id))),
+            self::user_sim_tickers($user_id));
+        $out = [];
+        foreach ($data['stocks'] as $ticker => $stock) {
+            if (isset($visible[(string)$ticker]) && is_array($stock) && is_array($stock['scenarios'] ?? null)) {
+                $out[] = (string)$ticker;
+            }
+        }
+        // Universets tal er fælles markedsdata og må ses af alle.
+        foreach (is_array($data['scenarios'] ?? null) ? array_keys($data['scenarios']) : [] as $ticker) {
+            $out[] = (string)$ticker;
+        }
+        $out = array_values(array_unique($out));
+        sort($out, SORT_STRING);
+        return $out;
+    }
+
+    /** De automatiske scenarier for én aktie fra snapshottet; null når de ikke er beregnet. */
+    public static function scenarios_for(string $ticker): ?array {
+        $data = self::snapshot();
+        $stock = $data !== null && is_array($data['stocks'][$ticker] ?? null) ? $data['stocks'][$ticker] : null;
+        if (is_array($stock['scenarios'] ?? null)) { return $stock['scenarios']; }
+        return $data !== null && is_array($data['scenarios'][$ticker] ?? null) ? $data['scenarios'][$ticker] : null;
+    }
+
+    private static function signed($value, int $decimals = 1): string {
+        if (!is_int($value) && !is_float($value)) { return '–'; }
+        return (((float)$value) > 0 ? '+' : '') . self::n($value, $decimals);
+    }
+
+    /**
+     * Tre kort Bear/Base/Bull med kursmål, upside, årligt afkast og P/E × EPS, kursen nu markeret og en tekst,
+     * der siger, at det er et regnestykke og ikke en prognose. Escaped HTML.
+     * @param array<string, mixed> $sc Et renset `scenarios`-felt (clean_scenarios).
+     */
+    public static function scenario_cards_html(array $sc): string {
+        $unit = is_string($sc['currency'] ?? null) && $sc['currency'] !== '' ? ' ' . esc_html($sc['currency']) : '';
+        $field = static fn(string $key): array => is_array($sc[$key] ?? null) ? $sc[$key] : [];
+        $prices = $field('prices');
+        $pe = $field('pe');
+        $upside = $field('upside_pct');
+        $cagr = $field('cagr_pct');
+        $eps_horizon = $sc['eps_horizon'] ?? null;
+        $price = $sc['price'] ?? null;
+        $years = is_int($sc['horizon_years'] ?? null) || is_float($sc['horizon_years'] ?? null) ? (float)$sc['horizon_years'] : null;
+        $html = '<div class="asc-scenarios"><p class="asc-scenario-now">Kurs nu (ved seneste kørsel): <strong>'
+            . esc_html(self::n($price, 2)) . '</strong>' . $unit . '</p><div class="asc-analysis-grid">';
+        foreach (self::SCENARIO_KEYS as $key => $label) {
+            $target = $prices[$key] ?? null;
+            $change = $upside[$key] ?? null;
+            $class = !is_numeric($change) ? '' : ((float)$change >= 0 ? 'asc-positive' : 'asc-negative');
+            $html .= '<div class="asc-analysis-card asc-scenario asc-scenario-' . esc_attr($key) . '"><h4>' . esc_html($label)
+                . '</h4><strong>' . esc_html(self::n($target, 2)) . '</strong>' . $unit
+                . '<p class="' . esc_attr($class) . '">Upside ' . esc_html(self::signed($change)) . ' %'
+                . ' · årligt ' . esc_html(self::signed($cagr[$key] ?? null)) . ' %</p>'
+                . '<small>EPS ' . esc_html(self::n($eps_horizon, 2)) . ' × P/E ' . esc_html(self::n($pe[$key] ?? null, 1))
+                . '</small></div>';
+        }
+        $html .= '</div>';
+        if (is_numeric($price) && is_numeric($prices['bear'] ?? null) && is_numeric($prices['base'] ?? null)
+            && is_numeric($prices['bull'] ?? null)) {
+            $now = (float)$price;
+            $where = $now < (float)$prices['bear'] ? 'under Bear-kursmålet'
+                : ($now < (float)$prices['base'] ? 'mellem Bear og Base'
+                : ($now < (float)$prices['bull'] ? 'mellem Base og Bull' : 'over Bull-kursmålet'));
+            $html .= '<p class="asc-scenario-position">Kursen nu ligger <strong>' . esc_html($where) . '</strong>.</p>';
+        }
+        $asymmetry = !empty($sc['asymmetry_inf']) ? '∞' : (is_numeric($sc['asymmetry'] ?? null) ? self::n($sc['asymmetry'], 1) : '–');
+        $html .= '<p class="asc-subtle">Kursmål = EPS om ' . esc_html($years === null ? '–' : self::n($years, 1)) . ' år × P/E. '
+            . 'Dagens EPS: ' . esc_html(self::n($sc['eps_today'] ?? null, 2)) . '. Asymmetri (mulig gevinst ved Base mod mulig nedside ved Bear): '
+            . esc_html($asymmetry) . '. PEG: ' . esc_html(self::n($sc['peg'] ?? null, 1)) . '.</p>';
+        $notes = [];
+        foreach (is_array($sc['notes'] ?? null) ? $sc['notes'] : [] as $note) {
+            if (is_string($note) && $note !== '') { $notes[] = $note; }
+        }
+        if ($notes) { $html .= '<p class="asc-subtle">Bemærk: ' . esc_html(implode('; ', $notes)) . '.</p>'; }
+        $html .= '<p class="asc-disclaimer">Det er regnestykket EPS × P/E ud fra historiske P/E og analytikernes estimater, '
+            . 'ikke en prognose og ikke en købs- eller salgsanbefaling.</p></div>';
+        return $html;
+    }
+
+    /** Scenarieafsnit til analysepanelet: kortene, eller en besked om at de ikke er beregnet. Escaped HTML. */
+    private static function scenarios_section(string $ticker): string {
+        $html = '<h5>Bear / Base / Bull</h5>';
+        $scenarios = self::scenarios_for($ticker);
+        if ($scenarios === null) {
+            return $html . '<p class="asc-subtle">Ikke beregnet endnu. Følg aktien, så kommer den med ved næste kørsel.</p>';
+        }
+        return $html . self::scenario_cards_html($scenarios);
+    }
+
     /**
      * Sell rule for an owned lot, used by the portfolio table. Returns the
      * complete, escaped table row (empty when the stock is not in the snapshot).
@@ -497,12 +784,11 @@ final class ASC_Playbook {
         return '<tr class="asc-rule-row"><td colspan="' . $columns . '"><div>Salgsregel: ' . $text . '</div></td></tr>';
     }
 
-    /** Salgsreglens tekst (escaped HTML) for ét køb; null når aktien ikke er i snapshottet. */
-    private static function exit_rule_text(string $ticker, string $buy_date): ?string {
-        $data = self::snapshot();
-        $stock = $data !== null && is_array($data['stocks'][$ticker] ?? null)
-            ? $data['stocks'][$ticker] : null;
-        if ($stock === null) { return null; }
+    /**
+     * Aktive salgsgrunde for et køb ud fra snapshottets købsdato-uafhængige fakta og brugerens egen købsdato.
+     * @return string[]
+     */
+    private static function exit_reasons(array $stock, string $buy_date): array {
         $exit = is_array($stock['exit'] ?? null) ? $stock['exit'] : [];
         $reasons = [];
         $valid_date = preg_match(self::DATE_RE, $buy_date) === 1;
@@ -519,6 +805,16 @@ final class ASC_Playbook {
         if (!empty($exit['stockmap_sell'])) { $reasons[] = 'StockMap-salg denne uge'; }
         $break = $after($exit['sma50_breaks'] ?? null);
         if ($break !== '') { $reasons[] = 'brud under SMA50 (' . $break . ')'; }
+        return $reasons;
+    }
+
+    /** Salgsreglens tekst (escaped HTML) for ét køb; null når aktien ikke er i snapshottet. */
+    private static function exit_rule_text(string $ticker, string $buy_date): ?string {
+        $data = self::snapshot();
+        $stock = $data !== null && is_array($data['stocks'][$ticker] ?? null)
+            ? $data['stocks'][$ticker] : null;
+        if ($stock === null) { return null; }
+        $reasons = self::exit_reasons($stock, $buy_date);
         return $reasons
             ? '<span class="asc-pb-sell">SÆLG: ' . esc_html(implode(', ', $reasons)) . '</span>'
             : 'behold';
@@ -845,6 +1141,7 @@ final class ASC_Playbook {
         $tabs = [
             'mandag' => 'Mandagsliste',
             'screener' => 'Screenere',
+            'value' => 'Værdi & entry',
             'scores' => 'Aktie-scores',
             'papir' => 'Papirportefølje',
         ];
@@ -876,6 +1173,7 @@ final class ASC_Playbook {
         echo '</nav>';
 
         if ($tab === 'screener') { self::tab_screener($data); }
+        elseif ($tab === 'value') { self::tab_value($data); }
         elseif ($tab === 'scores') { self::tab_scores($data); }
         elseif ($tab === 'papir') { self::tab_paper($data); }
         else { self::tab_monday($data); }
@@ -902,27 +1200,22 @@ final class ASC_Playbook {
     private static function tab_monday(array $data): void {
         $user_id = get_current_user_id();
         $sizing = self::sizing($user_id);
-        $watch = get_user_meta($user_id, self::WATCH_META, true);
-        $wanted = [];
-        foreach (is_array($watch) ? $watch : [] as $symbol) {
-            if (is_string($symbol)) { $wanted[$symbol] = true; }
-        }
-        $owned = get_user_meta($user_id, self::PORTFOLIO_META, true);
-        foreach (is_array($owned) ? $owned : [] as $lot) {
-            if (is_array($lot) && is_string($lot['ticker'] ?? null)) { $wanted[$lot['ticker']] = true; }
-        }
-        foreach (is_array($data['research'] ?? null) ? $data['research'] : [] as $symbol) {
-            if (is_string($symbol)) { $wanted[$symbol] = true; }
-        }
+        // Scanneren analyserer alle aktier, men hver bruger ser kun research-listen, tragtens kandidater og sine egne.
+        $lots_by_ticker = self::user_lots($user_id);
+        $wanted = self::visible_tickers($data, self::user_watch($user_id), array_map('strval', array_keys($lots_by_ticker)),
+            self::user_sim_tickers($user_id));
         // Tragtens fund i hele universet (StockMap-køb + Quality ≥ 60) vises for alle.
         $from_universe = [];
         foreach (is_array($data['candidates'] ?? null) ? $data['candidates'] : [] as $symbol) {
-            if (is_string($symbol)) { $wanted[$symbol] = true; $from_universe[$symbol] = true; }
+            if (is_string($symbol)) { $from_universe[$symbol] = true; }
         }
         $rows = [];
         foreach ($data['stocks'] as $ticker => $stock) {
             $ticker = (string)$ticker;
-            if (isset($wanted[$ticker]) && is_array($stock)) { $rows[$ticker] = $stock; }
+            if (isset($wanted[$ticker]) && is_array($stock)) {
+                // "(ejet)" og "% siden køb" kun for aktier i brugerens egen portefølje.
+                $rows[$ticker] = self::personal_stock($stock, $lots_by_ticker[$ticker] ?? []);
+            }
         }
         uksort($rows, static function ($a, $b) use ($rows): int {
             $pa = self::ACTION_ORDER[(string)($rows[$a]['action'] ?? '')] ?? 9;
@@ -943,13 +1236,15 @@ final class ASC_Playbook {
         }
 
         echo '<h3>Mandagsliste</h3>';
-        echo '<p class="asc-subtle">Din overvågningsliste, din portefølje og research-listen. ★ = fundet ved scanning af '
-            . 'hele universet (StockMap-køb og kvalitet ≥ 60), analyseret fuldt på samme måde.</p>';
-        $changes = is_array($data['changes'] ?? null) ? $data['changes'] : [];
+        echo '<p class="asc-subtle">Din overvågningsliste, din portefølje, din simulator og den fælles research-liste. '
+            . '★ = fundet ved scanning af hele universet (StockMap-køb og kvalitet ≥ 60), analyseret fuldt på samme måde. '
+            . 'BEHOLD/SÆLG (ejet) og gevinst siden køb vises kun for aktier i din egen portefølje på hjemmesiden; '
+            . 'andre brugeres lister er aldrig med.</p>';
+        $changes = self::visible_changes(is_array($data['changes'] ?? null) ? $data['changes'] : [], $wanted);
         if ($changes) {
             echo '<div class="asc-pb-changes"><strong>Ændringer siden sidst</strong><ul>';
             foreach ($changes as $change) {
-                if (is_string($change)) { echo '<li>' . esc_html($change) . '</li>'; }
+                echo '<li>' . esc_html($change) . '</li>';
             }
             echo '</ul></div>';
         }
@@ -1097,6 +1392,77 @@ final class ASC_Playbook {
         echo '</tbody></table></div>';
     }
 
+    /**
+     * Entry-vurdering for én aktie i universet. Alle universets aktier med StockMap-køb og Kvalitet mindst 60
+     * analyseres fuldt på mandagslisten, så en aktie uden for listen har ikke et aktuelt købssignal.
+     * @return array{0: int, 1: string} Rang (0 = Entry, 1 = Vent, 2 = Nej, 3 = ukendt) og tekst.
+     */
+    public static function entry_verdict(?array $stock, array $row, ?array $scenarios): array {
+        $action = (string)($stock['action'] ?? '');
+        if ($action === 'KØB-KANDIDAT') { return [0, 'Entry']; }
+        if ($action === 'pil ned') { return [2, 'Nej: salgssignal']; }
+        if (($stock['liquidity'] ?? $row['liquidity'] ?? null) === 'Lav') { return [2, 'Nej: for lidt handel']; }
+        $quality = $stock['quality'] ?? $row['quality'] ?? null;
+        if (is_numeric($quality) && (float)$quality < 60) { return [2, 'Nej: svag kvalitet']; }
+        $channel = $stock['channel_score'] ?? $scenarios['channel_score'] ?? null;
+        if (!is_numeric($channel)) { return [3, 'Ingen vurdering: mangler tal']; }
+        if ((float)$channel < 50) { return [2, 'Nej: ikke billig']; }
+        return [1, 'Vent: billig, men intet købssignal'];
+    }
+
+    /** Værdi & entry: er aktien billig, og er der en entry nu? Fælles markedsdata for hele universet. */
+    private static function tab_value(array $data): void {
+        $rows = [];
+        foreach (self::universe_index($data) as $ticker => $row) {
+            $ticker = (string)$ticker;
+            $stock = is_array($data['stocks'][$ticker] ?? null) ? $data['stocks'][$ticker] : null;
+            $scenarios = self::scenarios_for($ticker);
+            [$rank, $text] = self::entry_verdict($stock, $row, $scenarios);
+            $upside = $scenarios['upside_pct']['base'] ?? null;
+            $rows[] = [
+                'ticker' => $ticker, 'row' => $row, 'stock' => $stock, 'sc' => $scenarios, 'rank' => $rank, 'text' => $text,
+                'sort' => is_numeric($upside) ? (float)$upside : -1.0e9,
+            ];
+        }
+        usort($rows, static fn(array $a, array $b): int => [$a['rank'], -$a['sort']] <=> [$b['rank'], -$b['sort']]);
+        $entries = count(array_filter($rows, static fn(array $r): bool => $r['rank'] === 0));
+        $waiting = count(array_filter($rows, static fn(array $r): bool => $r['rank'] === 1));
+        echo '<h2>Værdi &amp; entry</h2>';
+        echo '<p class="asc-subtle">Er aktien billig i forhold til sin egen værdi, og er der en entry nu? '
+            . 'Entry: alle købskrav er opfyldt. Vent: billig, men StockMap har ikke givet købssignal. '
+            . 'En regelbaseret screening, ikke en købsanbefaling.</p>';
+        echo '<p class="asc-updated">' . esc_html((string)$entries) . ' med entry, '
+            . esc_html((string)$waiting) . ' billige der venter på signal, ud af '
+            . esc_html((string)count($rows)) . ' aktier.</p>';
+        if (!$rows) {
+            echo '<p class="asc-empty">Ingen aktier i denne kørsel.</p>';
+            return;
+        }
+        echo '<div class="asc-table-wrap"><table><thead><tr>';
+        foreach (['Aktie', 'Entry', 'Kanal', 'Bear %', 'Base %', 'Asymmetri', 'Kvalitet', 'Værdi', 'PEG', 'Størrelse', 'Likviditet'] as $head) {
+            echo '<th scope="col">' . esc_html($head) . '</th>';
+        }
+        echo '</tr></thead><tbody>';
+        foreach ($rows as $item) {
+            $row = $item['row'];
+            $sc = is_array($item['sc']) ? $item['sc'] : [];
+            $stock = is_array($item['stock']) ? $item['stock'] : [];
+            echo '<tr><th scope="row">' . ASC_Stock_Page::link($item['ticker']) . '</th>';
+            echo '<td>' . ($item['rank'] === 0 ? '<strong>' . esc_html($item['text']) . '</strong>' : esc_html($item['text']))
+                . ($item['rank'] === 0 ? ' ' . self::earnings_block_badge($stock) : '') . '</td>';
+            echo '<td>' . esc_html(self::n($stock['channel_score'] ?? $sc['channel_score'] ?? null)) . '</td>';
+            echo '<td>' . esc_html(self::n($sc['upside_pct']['bear'] ?? null, 1)) . '</td>';
+            echo '<td>' . esc_html(self::n($sc['upside_pct']['base'] ?? null, 1)) . '</td>';
+            echo '<td>' . (!empty($sc['asymmetry_inf']) ? '∞' : esc_html(self::n($sc['asymmetry'] ?? null, 1))) . '</td>';
+            echo '<td>' . esc_html(self::n($row['quality'] ?? null)) . '</td>';
+            echo '<td>' . esc_html(self::n($row['value'] ?? null)) . '</td>';
+            echo '<td>' . esc_html(self::n($row['peg'] ?? null, 1)) . '</td>';
+            echo '<td>' . self::s($row['size'] ?? null) . '</td>';
+            echo '<td>' . self::liquidity_badge($row['liquidity'] ?? null) . '</td></tr>';
+        }
+        echo '</tbody></table></div>';
+    }
+
     private static function tab_scores(array $data): void {
         $query = strtoupper(self::query_text('asc_q'));
         $query = preg_replace('/[^A-Z0-9.^=-]/', '', $query);
@@ -1155,6 +1521,8 @@ final class ASC_Playbook {
         $summary = is_array($paper['summary'] ?? null) ? $paper['summary'] : [];
         $trades = is_array($paper['trades'] ?? null) ? $paper['trades'] : [];
         echo '<h3>Papirportefølje</h3>';
+        echo '<p class="asc-subtle">Scannerens egen papirportefølje, fælles for alle brugere. '
+            . 'Den er ikke din portefølje og ændres kun af scanneren.</p>';
         echo '<div class="asc-metrics asc-portfolio-summary">';
         echo '<div><strong>' . esc_html(self::n($summary['handler'] ?? null)) . '</strong><span>Handler</span></div>';
         echo '<div><strong>' . esc_html(self::n($summary['aabne'] ?? null)) . '</strong><span>Åbne positioner</span></div>';

@@ -36,6 +36,7 @@ jobs:
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-danish-catalog.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-simulator.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-stock-page.php
+          php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-help.php
       - name: Copenhagen stock directory and CSV import regression
         run: php tests/wp_danish_catalog.php
       - name: Stock page chart smoke test
@@ -46,3 +47,5 @@ jobs:
         run: php tests/wp_updater_reactivation.php
       - name: Three consecutive WordPress portfolio purchases
         run: php tests/wp_portfolio_three_purchases.php
+      - name: Multi-user playbook visibility and Bear/Base/Bull regression
+        run: php tests/wp_playbook_visibility.php

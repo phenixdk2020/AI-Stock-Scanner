@@ -10,7 +10,7 @@ sys.stdout.reconfigure(encoding="utf-8")  # slutbeskedens pil fejlede i den omdi
 
 import yfinance as yf
 
-from stockscanner import universe
+from stockscanner import universe, universe_scenarios
 from stockscanner.market_data import fetch_history
 from stockscanner.storage import load_or_fetch_fundamentals
 
@@ -39,3 +39,6 @@ benchmark = fetch_history("RSP", period="5y")[0]  # StockMap-signal til tragten 
 frame = universe.build(tickers, load_or_fetch_fundamentals, lambda t: yf.Ticker(t).info or {},
                        lambda t: fetch_history(t, period="5y")[0], fx_to_usd=fx_to_usd, benchmark=benchmark)
 print(f"Univers: {len(frame)} aktier → {universe.FACTORS_FILE}")
+money = frame["x_currency"].dropna().to_dict() if "x_currency" in frame.columns else {}
+done = universe_scenarios.build(tickers, money)
+print(f"Bear/Base/Bull: {len(done)} af {len(tickers)} aktier → {universe_scenarios.FILE}")

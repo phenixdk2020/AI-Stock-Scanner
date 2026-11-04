@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from stockscanner import playbook, site_sync
+from stockscanner.valuation import ValueChannel
 from stockscanner.weekly_list import WeeklyRow
 
 
@@ -62,6 +63,88 @@ class PlaybookTests(unittest.TestCase):
         facts = playbook.exit_facts(falling, False)
         self.assertTrue(facts["sma50_breaks"])
         self.assertTrue(facts["supertrend_down"])
+
+
+def channel(**changes):
+    base = dict(ticker="A", pe_base=15.0, pe_bear=10.0, pe_bull=20.0, eps_today=4.0, eps_horizon=5.0, price=60.0,
+                scenario_prices={"bear": 50.0, "base": 75.0, "bull": 100.0},
+                upside_pct={"bear": -16.7, "base": 25.0, "bull": 66.7}, cagr_pct={"bear": -8.7, "base": 11.8, "bull": 29.1},
+                score=50.0, score_today=40.0, asymmetry=1.5, peg=1.2, implied_pe=None, notes=("Under 3 års P/E-historik",))
+    base.update(changes)
+    return ValueChannel(**base)
+
+
+def payload_with(channels, rows=None, **extra):
+    history = prices(np.linspace(50, 100, 300))
+    rows = rows or [row("A"), row("B")]
+    return playbook.build_payload(
+        rows=rows, histories={r.ticker: history for r in rows}, currencies={"A": "USD", "B": "EUR"}, regions={},
+        atrs={}, research=[], breadth={}, benchmark="RSP", factors=None, scores=None, regional=None,
+        trades=pd.DataFrame(columns=["ticker", "koebsdato", "koebskurs", "salgsdato", "salgskurs", "salgsgrund"]),
+        last_prices={}, changes=[], channels=channels, now=datetime(2026, 11, 2, 7, 0, tzinfo=timezone.utc), **extra)
+
+
+class ScenarioTests(unittest.TestCase):
+    def test_scenarios_in_payload_and_none_without_channel(self):
+        payload = payload_with({"A": channel(), "B": None})
+        scenarios = payload["stocks"]["A"]["scenarios"]
+        self.assertEqual(scenarios["currency"], "USD")
+        self.assertEqual(scenarios["horizon_years"], 2.0)
+        self.assertEqual(scenarios["pe"], {"bear": 10.0, "base": 15.0, "bull": 20.0})
+        self.assertEqual(scenarios["prices"]["base"], 75.0)
+        self.assertEqual(scenarios["upside_pct"]["bull"], 66.7)
+        self.assertEqual(scenarios["cagr_pct"]["bear"], -8.7)
+        self.assertEqual((scenarios["eps_today"], scenarios["eps_horizon"]), (4.0, 5.0))
+        self.assertEqual(scenarios["asymmetry"], 1.5)
+        self.assertFalse(scenarios["asymmetry_inf"])
+        self.assertEqual(scenarios["notes"], ["Under 3 års P/E-historik"])
+        self.assertNotIn("scenarios", payload["stocks"]["B"])             # kanal er None
+        self.assertNotIn("scenarios", payload_with(None)["stocks"]["A"])  # ingen kanaler overhovedet
+        json.dumps(payload, allow_nan=False)
+
+    def test_channel_without_scenario_prices_gets_no_field(self):
+        empty = channel(scenario_prices={}, upside_pct={}, cagr_pct={}, asymmetry=None, score=None, score_today=None)
+        self.assertNotIn("scenarios", payload_with({"A": empty})["stocks"]["A"])
+
+    def test_channel_for_unknown_ticker_is_ignored(self):
+        self.assertNotIn("Z", payload_with({"Z": channel()})["stocks"])
+
+    def test_none_nan_and_inf_values_are_json_safe(self):
+        nan, inf = float("nan"), float("inf")
+        messy = channel(pe_bear=None, eps_today=nan, eps_horizon=inf, peg=nan, price=nan,
+                        scenario_prices={"bear": nan, "base": 75.0, "bull": inf},
+                        upside_pct={"bear": -inf, "base": None, "bull": nan}, cagr_pct={"base": nan}, notes=())
+        payload = payload_with({"A": messy})
+        json.dumps(payload, allow_nan=False)                              # ingen NaN/inf i JSON
+        scenarios = payload["stocks"]["A"]["scenarios"]
+        self.assertIsNone(scenarios["pe"]["bear"])
+        self.assertIsNone(scenarios["eps_today"])
+        self.assertIsNone(scenarios["eps_horizon"])
+        self.assertIsNone(scenarios["prices"]["bear"])
+        self.assertEqual(scenarios["prices"]["base"], 75.0)
+        self.assertIsNone(scenarios["prices"]["bull"])
+        self.assertIsNone(scenarios["upside_pct"]["bear"])
+        self.assertIsNone(scenarios["cagr_pct"]["bull"])
+        self.assertEqual(scenarios["notes"], [])
+
+    def test_infinite_asymmetry_when_price_is_below_bear(self):
+        below = channel(asymmetry=None, upside_pct={"bear": 5.0, "base": 40.0, "bull": 90.0})
+        scenarios = payload_with({"A": below})["stocks"]["A"]["scenarios"]
+        self.assertIsNone(scenarios["asymmetry"])
+        self.assertTrue(scenarios["asymmetry_inf"])
+        nan_asymmetry = channel(asymmetry=float("nan"))
+        entry = playbook.scenarios_entry(nan_asymmetry, "USD", 2.0)
+        self.assertIsNone(entry["asymmetry"])
+        json.dumps(entry, allow_nan=False)
+
+    def test_notes_are_limited(self):
+        noisy = channel(notes=tuple("n" * 300 for _ in range(10)))
+        notes = playbook.scenarios_entry(noisy, None, 2.0)["notes"]
+        self.assertEqual(len(notes), playbook.MAX_SCENARIO_NOTES)
+        self.assertTrue(all(len(n) == 160 for n in notes))
+
+    def test_horizon_is_passed_on(self):
+        self.assertEqual(playbook.scenarios_entry(channel(), "USD", 3.0)["horizon_years"], 3.0)
 
 
 class SiteSyncTests(unittest.TestCase):

@@ -75,28 +75,30 @@ def build_snapshot(db_path: Path = DB_PATH, demo: bool = False) -> dict:
     return {"schema_version": 1, "generated_at": timestamp, "mode": "research", "rows": latest}
 
 
-SIGNALS = {"KØB-KANDIDAT": "Interessant", "hold øje": "Hold øje"}    # alt andet = Afvent
+SIGNALS = {"KØB-KANDIDAT": "Købskandidat", "hold øje": "Hold øje", "pil ned": "Salgssignal",
+           "SÆLG (ejet)": "Salgssignal"}    # alt andet = Afvent
+ETFS = {"RSP"}                              # mandagslistens eneste ETF; universet er ellers aktier
 
 
 def snapshot_from_rows(rows, market_dates: dict) -> dict:
     """Aktiescanner-siden fra mandagslisten: købskandidater først, så højeste MSS-score, højst 50.
-    Aktier uden score eller uden for de ni markeder udelades (der gættes ikke på en score)."""
+    Aktier uden score vises uden score (der gættes ikke), og andre børser står som "Andet"."""
     timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     latest = []
     for row in sorted(rows, key=lambda r: (r.action != "KØB-KANDIDAT", -(r.mss_score or 0))):
-        market = market_of(row.ticker)
-        if market not in SUPPORTED_MARKETS or row.mss_score is None or row.ticker not in market_dates:
+        if row.ticker not in market_dates:
             continue
+        market = market_of(row.ticker)
         latest.append({
             "ticker": row.ticker,
-            "market": market,
-            "instrument_type": instrument_type_of(row.ticker),
+            "market": market if market in SUPPORTED_MARKETS else "Andet",
+            "instrument_type": "ETF" if row.ticker in ETFS else "Aktie",
             "market_date": str(market_dates[row.ticker]),
-            "score": max(0, min(100, round(row.mss_score))),
+            "score": None if row.mss_score is None else max(0, min(100, round(row.mss_score))),
             "signal": SIGNALS.get(row.action, "Afvent"),
         })
     if not latest:
-        raise ValueError("Mandagslisten har ingen aktier med score på de ni markeder.")
+        raise ValueError("Mandagslisten har ingen aktier med kurser.")
     return {"schema_version": 1, "generated_at": timestamp, "mode": "research", "rows": latest[:MAX_ROWS]}
 
 

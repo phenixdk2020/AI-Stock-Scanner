@@ -11,6 +11,7 @@ import pandas as pd
 
 from stockscanner.exits import exit_signals, supertrend
 from stockscanner.universe import liquidity_class, size_class
+from stockscanner.valuation import DEFAULT_HORIZON
 
 
 def _num(value, digits: int = 2):
@@ -55,6 +56,37 @@ def stock_entry(row, prices: pd.DataFrame, currency: str | None, region: str, at
         "asymmetry": None if infinite else _num(row.asymmetry, 2), "asymmetry_inf": infinite,
         "earnings": row.earnings, "eps_trend": row.eps_trend, "size": row.size, "liquidity": row.liquidity,
         "exit": exit_facts(prices, "StockMap-salg denne uge" in row.reasons),
+    }
+
+
+SCENARIO_NAMES = ("bear", "base", "bull")
+MAX_SCENARIO_NOTES = 6
+
+
+def scenarios_entry(channel, currency: str | None, horizon: float) -> dict | None:
+    """Automatisk Bear/Base/Bull (valuation.ValueChannel) til payloaden; None uden beregnede scenariepriser.
+    Regnestykket er EPS ved horisonten × P/E (historiske P/E og analytikernes estimater), ikke en prognose.
+    Manglende, NaN og uendelige tal bliver til None; uendelig asymmetri markeres med `asymmetry_inf`."""
+    if channel is None:
+        return None
+    prices = {k: _num((channel.scenario_prices or {}).get(k), 4) for k in SCENARIO_NAMES}
+    if all(v is None for v in prices.values()):
+        return None
+    from stockscanner.weekly_list import asymmetry_of
+
+    asymmetry = asymmetry_of(channel)
+    infinite = asymmetry is not None and math.isinf(asymmetry)
+    pe = {"bear": channel.pe_bear, "base": channel.pe_base, "bull": channel.pe_bull}
+    return {
+        "currency": currency, "horizon_years": _num(horizon, 1), "price": _num(channel.price, 4),
+        "eps_today": _num(channel.eps_today, 4), "eps_horizon": _num(channel.eps_horizon, 4),
+        "pe": {k: _num(v, 2) for k, v in pe.items()},
+        "prices": prices,
+        "upside_pct": {k: _num((channel.upside_pct or {}).get(k), 1) for k in SCENARIO_NAMES},
+        "cagr_pct": {k: _num((channel.cagr_pct or {}).get(k), 1) for k in SCENARIO_NAMES},
+        "asymmetry": None if infinite else _num(asymmetry, 2), "asymmetry_inf": infinite,
+        "peg": _num(channel.peg, 2), "channel_score": _num(channel.score_today, 1),
+        "notes": [str(n)[:160] for n in list(channel.notes or ())[:MAX_SCENARIO_NOTES]],
     }
 
 
@@ -117,7 +149,8 @@ def paper_section(trades: pd.DataFrame, last_prices: dict[str, float]) -> dict:
 
 def build_payload(*, rows, histories, currencies, regions, atrs, research, breadth, benchmark,
                   factors, scores, regional, trades, last_prices, changes, news=None, candidates=(),
-                  earnings_risk=None, now: datetime | None = None) -> dict:
+                  earnings_risk=None, channels=None, horizon: float = DEFAULT_HORIZON,
+                  universe_scenarios=None, now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     market_date = max((pd.Timestamp(h.index[-1]).date() for h in histories.values() if len(h)), default=None)
     stocks = {r.ticker: stock_entry(r, histories[r.ticker], currencies.get(r.ticker), regions.get(r.ticker, ""),
@@ -125,6 +158,10 @@ def build_payload(*, rows, histories, currencies, regions, atrs, research, bread
     for ticker, risk in (earnings_risk or {}).items():
         if ticker in stocks:
             stocks[ticker]["earnings_risk"] = earnings_risk_entry(risk)
+    for ticker, channel in (channels or {}).items():
+        scenarios = scenarios_entry(channel, currencies.get(ticker), horizon) if ticker in stocks else None
+        if scenarios is not None:
+            stocks[ticker]["scenarios"] = scenarios     # aktier uden kanal får intet felt
     for ticker, items in (news or {}).items():
         if ticker in stocks:
             stocks[ticker]["news_summary"] = next((r.news for r in rows if r.ticker == ticker), None)
@@ -141,6 +178,8 @@ def build_payload(*, rows, histories, currencies, regions, atrs, research, bread
         "candidates": [t for t in candidates if t in stocks],  # tragtens fund i hele universet
         "stocks": stocks,
         "universe": universe_section(factors, scores, regional),
+        # Bear/Base/Bull for universets aktier uden fuld analyse; mandagslistens egne ligger i stocks
+        "scenarios": {t: s for t, s in (universe_scenarios or {}).items() if t not in stocks},
         "screeners": screener_section(factors, scores, regional),
         "paper": paper_section(trades, last_prices),
         "changes": list(changes),
