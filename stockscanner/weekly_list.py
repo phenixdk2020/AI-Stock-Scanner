@@ -46,6 +46,7 @@ class WeeklyRow:
     eps_trend: str | None = None    # value trap-tekst eller None
     shares: int | None = None       # foreslået antal aktier (B-09), kun køb-kandidater
     stop: float | None = None       # stop = kurs − 3 × ATR(14)
+    news: str | None = None         # B-20: "nyheder: 2+ 1−" (+ advarsel ved stor nyhed)
 
 
 def latest_signal(prices: pd.DataFrame, benchmark: pd.DataFrame, weeks: int) -> tuple[str, str | None, float | None]:
@@ -153,5 +154,31 @@ def build_rows(tickers, histories, benchmark, quality_pct, value_pct, momentum_p
                               value_pct.get(ticker), momentum_pct.get(ticker), channel_score, peg, "; ".join(reasons),
                               moat, mss_score(quality, channel_score, moat), mti_text(mti_states.get(ticker)),
                               asymmetry, None if earnings is None else str(earnings), trap))
-    order = {"SÆLG (ejet)": 0, "KØB-KANDIDAT": 1, "BEHOLD (ejet)": 2, "pil ned": 3, "hold øje": 4}
-    return sorted(rows, key=lambda r: (order[r.action], -(r.quality or 0)))
+    return sort_rows(rows)
+
+
+ORDER = {"SÆLG (ejet)": 0, "KØB-KANDIDAT": 1, "BEHOLD (ejet)": 2, "pil ned": 3, "hold øje": 4}
+
+
+def sort_rows(rows: list[WeeklyRow]) -> list[WeeklyRow]:
+    return sorted(rows, key=lambda r: (ORDER[r.action], -(r.quality or 0)))
+
+
+def apply_news(rows: list[WeeklyRow], summaries: dict[str, str | None]) -> list[WeeklyRow]:
+    """Sæt nyhedsresuméet på rækkerne; en stor negativ nyhed de seneste dage blokerer køb (som et regnskab)."""
+    import dataclasses
+
+    out = []
+    for row in rows:
+        text = summaries.get(row.ticker)
+        if not text:
+            out.append(row)
+            continue
+        changes = {"news": text}
+        if "STOR NEGATIV NYHED" in text:
+            alarm = text.split("; ", 1)[1]
+            changes["reasons"] = f"{row.reasons}; {alarm}"
+            if row.action == "KØB-KANDIDAT":
+                changes.update(action="hold øje", shares=None, stop=None)
+        out.append(dataclasses.replace(row, **changes))
+    return sort_rows(out)

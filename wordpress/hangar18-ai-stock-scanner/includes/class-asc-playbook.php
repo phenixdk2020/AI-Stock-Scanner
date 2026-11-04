@@ -58,6 +58,11 @@ final class ASC_Playbook {
 
     /** Sorted unique symbols from all users' watchlists and portfolios. No user data. */
     public static function rest_tickers(WP_REST_Request $request) {
+        return rest_ensure_response(['tickers' => self::followed_tickers()]);
+    }
+
+    /** @return string[] Unikke symboler fra alle brugeres watchlists og porteføljer (ingen brugerdata). */
+    public static function followed_tickers(): array {
         global $wpdb;
         $found = $wpdb->get_results(
             $wpdb->prepare(
@@ -82,7 +87,7 @@ final class ASC_Playbook {
         }
         $list = array_map('strval', array_keys($symbols));
         sort($list, SORT_STRING);
-        return rest_ensure_response(['tickers' => $list]);
+        return $list;
     }
 
     private static function cut(string $value, int $max): string {
@@ -170,6 +175,7 @@ final class ASC_Playbook {
             'benchmark' => self::clean_string($input['benchmark'] ?? null, 20),
             'breadth' => self::clean_breadth($input['breadth'] ?? null),
             'research' => self::clean_ticker_list($input['research'] ?? null, self::MAX_STOCKS),
+            'candidates' => self::clean_ticker_list($input['candidates'] ?? null, self::MAX_STOCKS),
             'stocks' => $stocks,
             'universe' => self::clean_universe($input['universe'] ?? null),
             'screeners' => self::clean_screeners($input['screeners'] ?? null),
@@ -184,7 +190,8 @@ final class ASC_Playbook {
     private static function clean_stock(array $raw): array {
         $strings = [
             'region' => 40, 'action' => 40, 'reasons' => 400, 'stockmap' => 60,
-            'quadrant' => 20, 'tpi' => 60, 'mti' => 60, 'earnings' => 40, 'eps_trend' => 60,
+            'quadrant' => 20, 'tpi' => 60, 'mti' => 60, 'earnings' => 40, 'eps_trend' => 200,
+            'news_summary' => 300,
         ];
         $numbers = [
             'price', 'atr14', 'angle', 'quality', 'moat', 'mss_score', 'value_pct',
@@ -214,6 +221,31 @@ final class ASC_Playbook {
             'stockmap_sell' => ($exit['stockmap_sell'] ?? false) === true,
             'sma50_breaks' => $breaks,
         ];
+        $out['news'] = self::clean_news($raw['news'] ?? null);
+        return $out;
+    }
+
+    /** B-20: højst 5 overskrifter pr. aktie; kun https-links, kendte vurderinger. */
+    private static function clean_news($raw): array {
+        if (!is_array($raw)) { return []; }
+        $out = [];
+        foreach (array_slice(array_values($raw), 0, 5) as $item) {
+            if (!is_array($item)) { continue; }
+            $title = self::clean_string($item['title'] ?? null, 200);
+            $url = is_string($item['url'] ?? null) ? esc_url_raw($item['url'], ['https']) : '';
+            if ($title === null || $url === '') { continue; }
+            $sentiment = is_string($item['sentiment'] ?? null) ? $item['sentiment'] : '';
+            $impact = is_int($item['impact'] ?? null) ? max(0, min(3, $item['impact'])) : 0;
+            $out[] = [
+                'title' => $title,
+                'url' => $url,
+                'source' => self::clean_string($item['source'] ?? null, 80),
+                'published' => self::clean_date($item['published'] ?? null),
+                'sentiment' => in_array($sentiment, ['positiv', 'negativ', 'neutral'], true) ? $sentiment : 'uvurderet',
+                'impact' => $impact,
+                'reason' => self::clean_string($item['reason'] ?? null, 160),
+            ];
+        }
         return $out;
     }
 
@@ -433,6 +465,37 @@ final class ASC_Playbook {
         return is_finite($factor) && $factor > 0 ? $factor : null;
     }
 
+    /** B-20: overskrifterne pr. aktie, sammenfoldet. */
+    private static function render_news(array $rows): void {
+        $marks = ['positiv' => '▲', 'negativ' => '▼', 'neutral' => '•', 'uvurderet' => '?'];
+        $any = false;
+        foreach ($rows as $ticker => $stock) {
+            $items = is_array($stock['news'] ?? null) ? $stock['news'] : [];
+            if (!$items) { continue; }
+            if (!$any) {
+                echo '<h3>Nyheder</h3><p class="asc-subtle">Overskrifter fra de seneste 7 dage (Google News), vurderet af '
+                    . 'en lokal AI på PC\'en. Vurderingen kan tage fejl – læs selv nyheden.</p>';
+                $any = true;
+            }
+            echo '<details class="asc-pb-news"><summary>' . esc_html((string)$ticker) . ' – '
+                . self::s($stock['news_summary'] ?? null) . '</summary><ul>';
+            foreach ($items as $item) {
+                if (!is_array($item) || !is_string($item['url'] ?? null) || !is_string($item['title'] ?? null)) { continue; }
+                $sentiment = is_string($item['sentiment'] ?? null) ? $item['sentiment'] : 'uvurderet';
+                echo '<li class="asc-pb-news-' . esc_attr($sentiment) . '">'
+                    . esc_html(($marks[$sentiment] ?? '?') . str_repeat('!', (int)($item['impact'] ?? 0) >= 3 ? 1 : 0)) . ' '
+                    . self::s($item['published'] ?? null) . ' <a href="' . esc_url($item['url']) . '" rel="noopener nofollow" '
+                    . 'target="_blank">' . esc_html($item['title']) . '</a> <span class="asc-subtle">('
+                    . self::s($item['source'] ?? null) . ')';
+                if (is_string($item['reason'] ?? null) && $item['reason'] !== '') {
+                    echo ' – ' . esc_html($item['reason']);
+                }
+                echo '</span></li>';
+            }
+            echo '</ul></details>';
+        }
+    }
+
     /** @return array{shares:int,stop:float}|null */
     private static function position_size(array $stock, array $sizing): ?array {
         $price = $stock['price'] ?? null;
@@ -557,8 +620,17 @@ final class ASC_Playbook {
         foreach (is_array($watch) ? $watch : [] as $symbol) {
             if (is_string($symbol)) { $wanted[$symbol] = true; }
         }
+        $owned = get_user_meta($user_id, self::PORTFOLIO_META, true);
+        foreach (is_array($owned) ? $owned : [] as $lot) {
+            if (is_array($lot) && is_string($lot['ticker'] ?? null)) { $wanted[$lot['ticker']] = true; }
+        }
         foreach (is_array($data['research'] ?? null) ? $data['research'] : [] as $symbol) {
             if (is_string($symbol)) { $wanted[$symbol] = true; }
+        }
+        // Tragtens fund i hele universet (StockMap-køb + Quality ≥ 60) vises for alle.
+        $from_universe = [];
+        foreach (is_array($data['candidates'] ?? null) ? $data['candidates'] : [] as $symbol) {
+            if (is_string($symbol)) { $wanted[$symbol] = true; $from_universe[$symbol] = true; }
         }
         $rows = [];
         foreach ($data['stocks'] as $ticker => $stock) {
@@ -584,6 +656,8 @@ final class ASC_Playbook {
         }
 
         echo '<h3>Mandagsliste</h3>';
+        echo '<p class="asc-subtle">Din overvågningsliste, din portefølje og research-listen. ★ = fundet ved scanning af '
+            . 'hele universet (StockMap-køb og kvalitet ≥ 60), analyseret fuldt på samme måde.</p>';
         $changes = is_array($data['changes'] ?? null) ? $data['changes'] : [];
         if ($changes) {
             echo '<div class="asc-pb-changes"><strong>Ændringer siden sidst</strong><ul>';
@@ -599,7 +673,8 @@ final class ASC_Playbook {
         } else {
             echo '<div class="asc-table-wrap"><table><thead><tr>';
             foreach (['Aktie', 'Handling', 'StockMap', 'TPI', 'MTI', 'Kvalitet', 'Moat', 'MSS-score',
-                      'Værdi', 'Momentum', 'Kanal', 'PEG', 'Asymmetri', 'Regnskab', 'Størrelse', 'Begrundelse'] as $head) {
+                      'Værdi', 'Momentum', 'Kanal', 'PEG', 'Asymmetri', 'Regnskab', 'Størrelse', 'Nyheder',
+                      'Begrundelse'] as $head) {
                 echo '<th scope="col">' . esc_html($head) . '</th>';
             }
             echo '</tr></thead><tbody>';
@@ -614,7 +689,9 @@ final class ASC_Playbook {
                     $size = $calc === null ? '–'
                         : esc_html(self::n($calc['shares']) . ' stk. · stop ' . self::n($calc['stop'], 2));
                 }
-                echo '<tr><th scope="row">' . esc_html((string)$ticker) . '</th>';
+                echo '<tr><th scope="row">' . esc_html((string)$ticker)
+                    . (isset($from_universe[$ticker]) ? ' <span class="asc-subtle" title="Fundet i hele universet">★</span>' : '')
+                    . '</th>';
                 echo '<td class="' . esc_attr($class) . '">' . self::s($action) . '</td>';
                 echo '<td>' . self::s($stock['stockmap'] ?? null) . '</td>';
                 echo '<td>' . self::s($stock['tpi'] ?? null) . '</td>';
@@ -630,9 +707,11 @@ final class ASC_Playbook {
                     : esc_html(self::n($stock['asymmetry'] ?? null, 1))) . '</td>';
                 echo '<td>' . self::s($stock['earnings'] ?? null) . '</td>';
                 echo '<td>' . ($size === '' ? '' : $size) . '</td>';
+                echo '<td>' . self::s($stock['news_summary'] ?? null) . '</td>';
                 echo '<td class="asc-subtle">' . self::s($stock['reasons'] ?? null) . '</td></tr>';
             }
             echo '</tbody></table></div>';
+            self::render_news($rows);
         }
 
         echo '<div class="asc-add-position asc-pb-sizing"><h3>Positionsstørrelse</h3>';

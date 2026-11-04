@@ -18,7 +18,6 @@ Prioritet: **P1** høj værdi / lav indsats, **P2** middel, **P3** lav eller sv�
 | B-15 | **Kalibrér mod facitlisten** (1180 video-observationer): brug dem med dato som stikprøver | P3 | M | `data/mss_video_observations.csv` | Rapport over hvor mange signaler/zoner vi rammer |
 | B-16 | **TPI fuld metode** (sammenligning med 20–30 års mønstre i aktiens egen historik) | P3 | L | [MSS] H4, H6 | Analog-model; skal slå TPI-lite i urørt periode |
 | B-17 | **WordPress Playbook-side** (fase 6) | P3 | L | TASKS | Side på hangar18.dk med mandagslisten |
-| B-20 | **Nyhedsscanner**: overskrifter for watchlist og portefølje (yfinance), vurderet positiv/negativ/neutral af lokal Ollama | P1 | M | Allan 02-11-2026 | Nyheder pr. aktie i mandagslisten og på hjemmesiden; markering ved stærkt negative nyheder |
 
 ## 2. Udsat
 
@@ -59,3 +58,6 @@ Prioritet: **P1** høj værdi / lav indsats, **P2** middel, **P3** lav eller sv�
 | Visa i SEC-opslag (B-18) | `sec_edgar.py` (SEC's ticker-liste) | `cik_for("V")` = 1403161 |
 | Regressionskanal som salg (B-08) – testet, ikke taget i brug | `regression.py`, `scripts/study_b08_b12.py` | Værste 5 % 2–3 × dårligere end Supertrend ×3 (dok. afsnit 12) |
 | ADX > 25 som filter (B-12) – testet, ikke taget i brug | `regression.adx` | Ingen konsekvent forbedring, færre handler |
+| Nyhedsscanner (B-20) | `news.py`, `scan_cli.py --nyheder`, mandagsliste, hjemmeside 0.6.1 | Google News RSS + lokal Ollama; STOR NEGATIV NYHED blokerer køb kun når de negative er flest (1 af 10 den 02-11-2026) |
+| Tragt: scan hele universet (B-21) | `universe.buy_funnel`, `t_stockmap` i universet, mandagslisten | StockMap-køb + Quality ≥ 60 i de 316 → fuld analyse; ★ på hjemmesiden |
+| Kurser hvert 15. min på hjemmesiden | `ASC_Market_Quotes` (WP-Cron + auto-genindlæsning) | Kræver at "Yahoo-kurser" er slået til i WordPress-admin |

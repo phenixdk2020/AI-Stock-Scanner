@@ -15,7 +15,11 @@ final class ASC_Market_Quotes {
     private const AGE = 900;  // 15 minutes between external requests per ticker.
     private const MAX_RESPONSE = 262144;
     private const MAX_FETCH_PER_PAGE = 1;
+    private const CRON_HOOK = 'asc_quotes_refresh';
+    private const CRON_SCHEDULE = 'asc_15min';
+    private const CRON_MAX_TICKERS = 100;
     private static int $fetches_this_page = 0;
+    private static bool $in_cron = false;
 
     public static function enabled(): bool {
         return get_option(self::OPTION, 'no') === 'yes';
@@ -23,6 +27,48 @@ final class ASC_Market_Quotes {
 
     public static function register(): void {
         add_action('admin_post_asc_quote_options', [self::class, 'save_options']);
+        add_filter('cron_schedules', [self::class, 'cron_schedules']);
+        add_action(self::CRON_HOOK, [self::class, 'refresh_followed']);
+        add_action('init', [self::class, 'ensure_schedule']);
+    }
+
+    /** @param array<string, array<string, mixed>> $schedules */
+    public static function cron_schedules($schedules): array {
+        $schedules = is_array($schedules) ? $schedules : [];
+        $schedules[self::CRON_SCHEDULE] = ['interval' => self::AGE, 'display' => 'Hvert 15. minut (AI Stock Scanner)'];
+        return $schedules;
+    }
+
+    /** Kurser for alle fulgte/ejede aktier hentes i baggrunden hvert 15. minut, når kurskilden er slået til. */
+    public static function ensure_schedule(): void {
+        $scheduled = wp_next_scheduled(self::CRON_HOOK);
+        if (self::enabled() && $scheduled === false) {
+            wp_schedule_event(time() + 60, self::CRON_SCHEDULE, self::CRON_HOOK);
+        } elseif (!self::enabled() && $scheduled !== false) {
+            wp_clear_scheduled_hook(self::CRON_HOOK);
+        }
+    }
+
+    public static function refresh_followed(): void {
+        if (!self::enabled() || !class_exists('ASC_Playbook')) { return; }
+        self::$in_cron = true;
+        try {
+            foreach (array_slice(ASC_Playbook::followed_tickers(), 0, self::CRON_MAX_TICKERS) as $ticker) {
+                // Udløbet cache → ny kurs; endnu frisk → intet kald.
+                self::get($ticker);
+            }
+        } finally {
+            self::$in_cron = false;
+        }
+    }
+
+    /** Genindlæser siden hvert 15. minut, mens den er synlig og ingen formular er i brug. */
+    public static function auto_refresh_markup(): string {
+        if (!self::enabled()) { return ''; }
+        return '<script>(function(){var w=' . (int)(self::AGE * 1000) . ';function t(){setTimeout(function(){'
+            . 'var a=document.activeElement;if(document.visibilityState==="visible"&&!(a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)))'
+            . '{location.reload();}else{t();}},w);}t();})();</script>'
+            . '<p class="asc-subtle">Kurserne opdateres automatisk hvert 15. minut (forsinket, uofficiel kilde).</p>';
     }
 
     public static function save_options(): void {
@@ -43,7 +89,8 @@ final class ASC_Market_Quotes {
             . 'hente seneste kurser server-side. Af hensyn til webhotellets belastning forsøges '
             . 'højst én ny ekstern kursforespørgsel pr. sidevisning (maks. tre sekunder), '
             . 'og samme ticker genhentes højst hvert 15. minut. '
-            . 'De øvrige kurser vises fra cache eller afventer næste besøg. '
+            . 'De øvrige kurser vises fra cache. Et baggrundsjob (WP-Cron) henter desuden kurser for alle '
+            . 'aktier på brugernes overvågningslister og i porteføljerne hvert 15. minut. '
             . 'Din PC behøver ikke køre.</p>';
         echo '<p><strong>Bemærk:</strong> Yahoo chart endpoint er uofficielt og kan stoppe uden varsel. '
             . 'Yahoo begrænser videredistribution. Brug kun som eksperimentel, personlig og '
@@ -74,7 +121,7 @@ final class ASC_Market_Quotes {
         if (get_transient($cooldown) !== false) {
             return self::last_known($ticker);
         }
-        if (self::$fetches_this_page >= self::MAX_FETCH_PER_PAGE) {
+        if (!self::$in_cron && self::$fetches_this_page >= self::MAX_FETCH_PER_PAGE) {
             // Frontend must not time out while adding/viewing the third holding.
             // Return known data immediately instead of stacking slow HTTP calls.
             return self::last_known($ticker);

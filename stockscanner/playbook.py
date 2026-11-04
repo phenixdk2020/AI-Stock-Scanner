@@ -53,6 +53,8 @@ def stock_entry(row, prices: pd.DataFrame, currency: str | None, region: str, at
     }
 
 
+MAX_NEWS = 5
+
 UNIVERSE_COLUMNS = ["ticker", "region", "quality", "value", "momentum", "moat",
                     "quality_r", "value_r", "momentum_r", "moat_r", "upside", "peg", "mcap_usd_bn"]
 
@@ -99,11 +101,18 @@ def paper_section(trades: pd.DataFrame, last_prices: dict[str, float]) -> dict:
 
 
 def build_payload(*, rows, histories, currencies, regions, atrs, research, breadth, benchmark,
-                  factors, scores, regional, trades, last_prices, changes, now: datetime | None = None) -> dict:
+                  factors, scores, regional, trades, last_prices, changes, news=None, candidates=(),
+                  now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     market_date = max((pd.Timestamp(h.index[-1]).date() for h in histories.values() if len(h)), default=None)
     stocks = {r.ticker: stock_entry(r, histories[r.ticker], currencies.get(r.ticker), regions.get(r.ticker, ""),
                                     atrs.get(r.ticker)) for r in rows if r.ticker in histories}
+    for ticker, items in (news or {}).items():
+        if ticker in stocks:
+            stocks[ticker]["news_summary"] = next((r.news for r in rows if r.ticker == ticker), None)
+            stocks[ticker]["news"] = [{"title": i.title[:200], "source": i.source[:80], "url": i.url[:500],
+                                       "published": i.published, "sentiment": i.sentiment, "impact": i.impact,
+                                       "reason": i.reason[:160]} for i in items[:MAX_NEWS]]
     return {
         "schema_version": 2,
         "generated_at": now.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
@@ -111,6 +120,7 @@ def build_payload(*, rows, histories, currencies, regions, atrs, research, bread
         "benchmark": benchmark,
         "breadth": {str(k): _num(v, 1) for k, v in breadth.items()},
         "research": list(research),
+        "candidates": [t for t in candidates if t in stocks],  # tragtens fund i hele universet
         "stocks": stocks,
         "universe": universe_section(factors, scores, regional),
         "screeners": screener_section(factors, scores, regional),

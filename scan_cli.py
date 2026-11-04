@@ -22,7 +22,7 @@ from stockscanner.quality import score_quality
 from stockscanner.quality_rank import quality_percentiles
 from stockscanner.regimes import REGIMES, regime_backtest
 from stockscanner.scores import momentum_scores, value_scores
-from stockscanner.weekly_list import build_rows
+from stockscanner.weekly_list import apply_news, build_rows
 from stockscanner.valuation import fetch_inputs as fetch_value_inputs, value_channel
 from stockscanner.storage import load_or_fetch_fundamentals, load_watchlist, save_scans
 
@@ -242,14 +242,34 @@ def print_screener(name: str, by_region: bool) -> int:
     return 0
 
 
+def print_news(tickers: list[str] | None) -> int:
+    """B-20: nyheder for research-listen og ejede aktier (eller --tickers), vurderet af lokal Ollama."""
+    from stockscanner import news
+    from stockscanner.portfolio import load_portfolio
+
+    if tickers is None:
+        research = Path(__file__).resolve().parent / "data" / "research_watchlist.txt"
+        listed = [line.strip() for line in research.read_text(encoding="utf-8").splitlines()
+                  if line.strip() and not line.startswith("#")] if research.exists() else []
+        tickers = list(dict.fromkeys(listed + list(load_portfolio())))
+    for ticker, items in news.scan(tickers).items():
+        print(f"\n{ticker} ({news.company_name(ticker)}): {news.summary(items) or 'ingen nyheder de seneste 7 dage'}")
+        for item in items:
+            mark = {"positiv": "+", "negativ": "−", "neutral": "·"}.get(item.sentiment, "?")
+            print(f"  {mark}{item.impact or ''} {item.published} {item.title[:90]} ({item.source})"
+                  + (f" – {item.reason}" if item.reason else ""))
+    print("\nOverskrifter fra Google News; vurderet af lokal AI og kan tage fejl – ikke investeringsrådgivning.")
+    return 0
+
+
 def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, by_region: bool = False,
-                      upload: bool = True) -> int:
+                      upload: bool = True, with_news: bool = True) -> int:
     """Mandagsliste: StockMap-signal + Quality/Value/Momentum-percentiler + værdikanal og PEG."""
     import dataclasses
 
     import yfinance as yf
 
-    from stockscanner import paper, playbook, site_sync
+    from stockscanner import news, paper, playbook, site_sync
     from stockscanner.sizing import atr, fx_rate, load_settings, position_size
 
     from stockscanner import universe
@@ -266,9 +286,15 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
             tickers = list(tickers) + site_sync.fetch_tickers(*site)  # også det, brugerne på hjemmesiden følger
         except Exception as error:
             print(f"Hjemmesiden: kunne ikke hente tickere – {error}", file=sys.stderr)
+    reference = universe.load()
+    candidates = universe.buy_funnel(reference, None if reference is None else universe.percentiles(reference, None))
+    if candidates:
+        print(f"Tragt: {len(candidates)} aktier i universet med StockMap-køb og Quality ≥ 60 – analyseres fuldt: "
+              + ", ".join(candidates))
     paper_trades = paper.load()
     held = list(positions) + list(paper.open_positions(paper_trades)["ticker"])
-    tickers = list(dict.fromkeys(list(tickers) + held))  # ejede aktier og åbne papirhandler kommer altid med
+    # ejede aktier, åbne papirhandler og tragtens kandidater kommer altid med
+    tickers = list(dict.fromkeys(list(tickers) + held + candidates))
     bench = fetch_history(benchmark, period="3y")[0]
     histories, channels, factor_rows, mti, index_cache, analyst = {}, {}, [], {}, {}, {}
     for ticker in tickers:
@@ -294,7 +320,6 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
             mti[ticker] = mti_state(histories[ticker], index_cache[index_symbol])
         except Exception:
             pass
-    reference = universe.load()
     targets = pd.DataFrame(factor_rows).set_index("ticker")
     scores = universe.percentiles(targets, reference, by_region=by_region)
     rows = build_rows(list(histories), histories, bench, scores["quality"].dropna().to_dict(),
@@ -314,6 +339,10 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
             rows[i] = dataclasses.replace(r, shares=size.shares, stop=size.stop,
                                           reasons=f"{r.reasons}; køb {size.shares} stk., stop {size.stop:.2f}, "
                                                   f"risiko {size.risk:,.0f} {settings['valuta']}")
+    news_items = {}
+    if with_news:
+        news_items = news.scan(list(histories))
+        rows = apply_news(rows, {t: news.summary(items) for t, items in news_items.items()})
     fmt = lambda x: "–" if x is None or (isinstance(x, float) and x != x) else f"{x:.0f}"
     basis = f"mod {len(reference)} aktier i universet" if reference is not None else "kun inden for listen (byg universet)"
     market = universe.breadth(reference)
@@ -330,6 +359,9 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
         print(f"{r.ticker:<11}{r.action:<15}{r.stockmap:<18}{(r.tpi or '–'):<17}{(r.mti or '–'):<13}{fmt(r.quality):>4}"
               f"{fmt(r.moat):>5}{fmt(r.mss_score):>5}{fmt(r.value_pct):>5}{fmt(r.momentum):>5}{fmt(r.channel_score):>7}"
               f"{peg:>6}{asym:>6}{(r.earnings or '–'):>12}  {r.reasons}")
+    for r in rows:
+        if r.news:
+            print(f"  {r.ticker}: {r.news}")
     if out_dir is not None:
         changes_seen = []
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -374,7 +406,8 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
                     regions={t: universe.region(t) for t in histories}, atrs={t: atr(h) for t, h in histories.items()},
                     research=research, breadth=market, benchmark=benchmark, factors=everyone,
                     scores=universe.percentiles(everyone, None), regional=universe.percentiles(everyone, None, by_region=True),
-                    trades=paper_trades, last_prices=last, changes=changes_seen)
+                    trades=paper_trades, last_prices=last, changes=changes_seen, news=news_items,
+                    candidates=candidates)
                 receipt = site_sync.send_playbook(payload, *site)
                 print(f"Hjemmesiden opdateret: {receipt.get('stocks', len(payload['stocks']))} aktier sendt.")
             except Exception as error:
@@ -411,6 +444,9 @@ def main() -> int:
                         help="B-04–B-06: screener over det cachede univers")
     parser.add_argument("--ingen-upload", action="store_true",
                         help="--mandagsliste: send ikke resultatet til hjemmesiden")
+    parser.add_argument("--nyheder", action="store_true",
+                        help="B-20: nyheder for research-listen og porteføljen, vurderet af lokal Ollama")
+    parser.add_argument("--uden-nyheder", action="store_true", help="--mandagsliste: spring nyhederne over")
     parser.add_argument("--region", action="store_true",
                         help="Percentiler kun mod samme region (USA/Norden/Europa), som MSS")
     parser.add_argument("--vaerdi", action="store_true", help="Værdikanal og værdiansættelsesscore")
@@ -423,6 +459,8 @@ def main() -> int:
 
     if arguments.screener:
         return print_screener(arguments.screener, arguments.region)
+    if arguments.nyheder:
+        return print_news(parse_tickers(arguments.tickers) if arguments.tickers else None)
     if arguments.sammenlign_mss:
         return print_mss_comparison(arguments.benchmark)
 
@@ -442,7 +480,7 @@ def main() -> int:
             selected = [line.strip() for line in research.read_text(encoding="utf-8").splitlines()
                         if line.strip() and not line.startswith("#")]
         return print_weekly_list(selected, arguments.benchmark, Path(__file__).resolve().parent / "data",
-                                 arguments.region, not arguments.ingen_upload)
+                                 arguments.region, not arguments.ingen_upload, not arguments.uden_nyheder)
     if arguments.salg:
         return print_exit_study(selected, arguments.periode, arguments.benchmark, arguments.urort, arguments.kurtage)
     if arguments.regimer:

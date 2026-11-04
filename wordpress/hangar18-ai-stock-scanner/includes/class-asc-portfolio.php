@@ -821,6 +821,7 @@ final class ASC_Portfolio {
         } else {
             echo '<p class="asc-disclaimer">Automatiske kurser kommer fra en uofficiel Yahoo-integration. '
                 . 'De kan være forsinkede eller utilgængelige. Gennemgå datavilkårene før aktivering.</p>';
+            echo ASC_Market_Quotes::auto_refresh_markup();
         }
         echo '</section>';
         return (string)ob_get_clean();

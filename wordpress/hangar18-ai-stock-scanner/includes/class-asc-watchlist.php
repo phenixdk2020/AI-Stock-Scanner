@@ -122,6 +122,7 @@ final class ASC_Watchlist {
         }
         echo '<p class="asc-disclaimer">Automatiske kurser kræver en aktiveret og lovlig datakilde. '
             . 'Yahoo-kurser er eksperimentelle og kan være forsinkede. Din PC behøver ikke være tændt.</p>';
+        echo ASC_Market_Quotes::auto_refresh_markup();
         echo '</section>';
         return (string)ob_get_clean();
     }

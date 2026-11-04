@@ -181,3 +181,8 @@
 .asc-pb-sizing form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:800px){.asc-pb-sizing form{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:550px){.asc-pb-sizing form{grid-template-columns:1fr}}
+.asc-playbook .asc-pb-news{margin:.4rem 0}
+.asc-playbook .asc-pb-news summary{cursor:pointer;font-weight:600}
+.asc-playbook .asc-pb-news ul{margin:.4rem 0 .6rem 1.2rem}
+.asc-playbook .asc-pb-news-positiv{color:#176044}
+.asc-playbook .asc-pb-news-negativ{color:#a72f2f}

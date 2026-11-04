@@ -54,6 +54,14 @@ class RegionTests(unittest.TestCase):
         self.assertAlmostEqual(extras["x_upside"], 20)
         self.assertEqual(extras["x_peg"], 1.4)
 
+    def test_buy_funnel_needs_stockmap_buy_and_quality(self):
+        factors = pd.DataFrame({"t_stockmap": ["køb 2026-10-30", "køb 2026-10-30", "salg 2026-10-30", None]},
+                               index=["GOOD", "WEAK", "SOLD", "NONE"])
+        scores = pd.DataFrame({"quality": [80, 40, 90, 95]}, index=factors.index)
+        self.assertEqual(universe.buy_funnel(factors, scores), ["GOOD"])
+        self.assertEqual(universe.buy_funnel(factors.drop(columns="t_stockmap"), scores), [])
+        self.assertEqual(universe.buy_funnel(None, None), [])
+
     def test_percentiles_by_region_rank_within_region(self):
         rows = {"US1": 0.1, "US2": 0.2, "US3": 0.15, "A.CO": 0.05, "B.CO": 0.06, "C.CO": 0.04}
         frame = pd.DataFrame({t: {"q_roce": v, "qs_roce": v * 100, "q_roa": v, "qs_roa": v * 100, "v_pe": 10,

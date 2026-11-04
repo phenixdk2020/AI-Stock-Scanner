@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.6.0
+ * Version: 0.6.1
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,7 +14,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.6.0');
+define('ASC_PLUGIN_VERSION', '0.6.1');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
 
 // Must initialize before user-profile / REST authentication determines HTTPS.
@@ -39,6 +39,9 @@ ASC_Danish_Catalog::register();
 
 
 register_activation_hook(__FILE__, 'asc_activate');
+register_deactivation_hook(__FILE__, static function (): void {
+    wp_clear_scheduled_hook('asc_quotes_refresh');  // kursopdateringen hvert 15. minut
+});
 function asc_activate(): void {
     add_role('asc_sync_agent', 'AI Stock Scanner Sync Agent', [
         'read' => true, 'asc_sync' => true,
