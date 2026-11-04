@@ -1163,7 +1163,7 @@ final class ASC_Playbook {
         $tabs = [
             'mandag' => 'Mandagsliste',
             'screener' => 'Screenere',
-            'value' => 'Værdi & entry',
+            'value' => 'Find aktier',
             'scores' => 'Aktie-scores',
             'papir' => 'Papirportefølje',
         ];
@@ -1432,8 +1432,8 @@ final class ASC_Playbook {
         return [1, 'Vent: billig, men intet købssignal'];
     }
 
-    /** Værdi & entry: er aktien billig, og er der en entry nu? Fælles markedsdata for hele universet. */
-    private static function tab_value(array $data): void {
+    /** Universets aktier med entry-vurdering, bedste først. @return array<int, array<string, mixed>> */
+    private static function value_rows(array $data): array {
         $rows = [];
         foreach (self::universe_index($data) as $ticker => $row) {
             $ticker = (string)$ticker;
@@ -1447,17 +1447,80 @@ final class ASC_Playbook {
             ];
         }
         usort($rows, static fn(array $a, array $b): int => [$a['rank'], -$a['sort']] <=> [$b['rank'], -$b['sort']]);
-        $entries = count(array_filter($rows, static fn(array $r): bool => $r['rank'] === 0));
+        return $rows;
+    }
+
+    /** Siden Find aktier: de bedste muligheder fra hele universet. */
+    public static function render_find(): string {
+        wp_enqueue_style('hangar18-asc');
+        $data = self::snapshot();
+        ob_start();
+        echo '<section class="asc-playbook">';
+        if ($data === null) {
+            echo '<p class="asc-empty">Ingen scanning modtaget endnu.</p>';
+        } else {
+            echo '<p class="asc-updated">Opdateret ' . esc_html(self::when((string)$data['generated_at'])) . '</p>';
+            self::tab_value($data);
+        }
+        echo '</section>';
+        return (string)ob_get_clean();
+    }
+
+    /** Forsidens kort: op til fem aktier med entry nu. Tom streng uden data. */
+    public static function top_opportunities(string $more_url): string {
+        $data = self::snapshot();
+        if ($data === null) { return ''; }
+        $rows = self::value_rows($data);
+        $best = array_slice(array_values(array_filter($rows, static fn(array $r): bool => $r['rank'] === 0)), 0, 5);
         $waiting = count(array_filter($rows, static fn(array $r): bool => $r['rank'] === 1));
-        echo '<h2>Værdi &amp; entry</h2>';
-        echo '<p class="asc-subtle">Er aktien billig i forhold til sin egen værdi, og er der en entry nu? '
-            . 'Entry: alle købskrav er opfyldt. Vent: billig, men StockMap har ikke givet købssignal. '
+        $html = '<div class="asc-top-picks"><h2>Aktier med entry nu</h2>';
+        if (!$best) {
+            $html .= '<p>Ingen aktier opfylder alle købskrav lige nu.</p>';
+        } else {
+            $html .= '<ul>';
+            foreach ($best as $item) {
+                $sc = is_array($item['sc']) ? $item['sc'] : [];
+                $stock = is_array($item['stock']) ? $item['stock'] : [];
+                $html .= '<li>' . ASC_Stock_Page::link($item['ticker']) . ' <span>Kvalitet '
+                    . esc_html(self::n($item['row']['quality'] ?? null)) . ', Kanal '
+                    . esc_html(self::n($stock['channel_score'] ?? $sc['channel_score'] ?? null)) . ', Base '
+                    . esc_html(self::n($sc['upside_pct']['base'] ?? null, 1)) . ' %</span> '
+                    . self::earnings_block_badge($stock) . '</li>';
+            }
+            $html .= '</ul>';
+        }
+        return $html . '<p>' . esc_html((string)$waiting) . ' billige aktier venter på købssignal. <a href="'
+            . esc_url($more_url) . '">Se alle muligheder</a></p>'
+            . '<p class="asc-disclaimer">Screening efter faste regler, ikke en købsanbefaling.</p></div>';
+    }
+
+    /** Værdi & entry: er aktien billig, og er der en entry nu? Fælles markedsdata for hele universet. */
+    private static function tab_value(array $data): void {
+        $all = self::value_rows($data);
+        $count = static fn(int $rank): int => count(array_filter($all, static fn(array $r): bool => $r['rank'] === $rank));
+        $entries = $count(0);
+        $waiting = $count(1);
+        $show = sanitize_key(self::query_text('asc_show'));
+        if (!in_array($show, ['best', 'entry', 'all'], true)) { $show = 'best'; }
+        $rows = array_values(array_filter($all, static fn(array $r): bool =>
+            $show === 'all' || $r['rank'] === 0 || ($show === 'best' && $r['rank'] === 1)));
+        echo '<h2>Find aktier</h2>';
+        echo '<p class="asc-subtle">Gode selskaber, der er billige i forhold til deres egen værdi, og som har et signal til '
+            . 'entry. Entry: alle købskrav er opfyldt. Vent: god og billig, men StockMap har ikke givet købssignal. '
             . 'En regelbaseret screening, ikke en købsanbefaling.</p>';
-        echo '<p class="asc-updated">' . esc_html((string)$entries) . ' med entry, '
-            . esc_html((string)$waiting) . ' billige der venter på signal, ud af '
-            . esc_html((string)count($rows)) . ' aktier.</p>';
+        echo '<nav class="asc-pb-tabs" aria-label="Vis aktier">';
+        foreach ([
+            'best' => 'Bedste muligheder (' . ($entries + $waiting) . ')',
+            'entry' => 'Kun entry nu (' . $entries . ')',
+            'all' => 'Alle aktier (' . count($all) . ')',
+        ] as $key => $label) {
+            echo '<a class="asc-pb-tab' . ($show === $key ? ' is-active' : '') . '" href="'
+                . esc_url(add_query_arg('asc_show', $key)) . '"' . ($show === $key ? ' aria-current="true"' : '') . '>'
+                . esc_html($label) . '</a>';
+        }
+        echo '</nav>';
         if (!$rows) {
-            echo '<p class="asc-empty">Ingen aktier i denne kørsel.</p>';
+            echo '<p class="asc-empty">Ingen aktier opfylder kravene i denne kørsel.</p>';
             return;
         }
         echo '<div class="asc-table-wrap"><table><thead><tr>';

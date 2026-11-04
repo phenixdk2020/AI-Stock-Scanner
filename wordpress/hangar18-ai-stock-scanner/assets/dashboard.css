@@ -283,3 +283,8 @@ a.asc-stock-btn:hover,a.asc-stock-btn:focus-visible{background:#edf4fb}
 .asc-chart-figures dt{font-size:.82rem;opacity:.75;margin:0}
 .asc-chart-figures dd{margin:.15rem 0 0;font-weight:700;overflow-wrap:anywhere}
 @media(max-width:600px){.asc-chart-canvas{height:300px}.asc-chart-value{font-size:1.3rem}.asc-chart-figures{grid-template-columns:repeat(2,minmax(0,1fr))}.asc-stock button.asc-chart-btn{flex:none}}
+.asc-top-picks{margin:1.25rem 0;padding:1.1rem;background:#f1f6fc;border:1px solid #d8e3ef;border-radius:12px}
+.asc-top-picks h2{margin:0 0 .5rem;font-size:1.15rem}
+.asc-top-picks ul{list-style:none;margin:0 0 .6rem;padding:0}
+.asc-top-picks li{padding:.4rem 0;border-bottom:1px solid #d8e3ef}
+.asc-top-picks li span{color:#42566b;font-size:.88rem;margin-left:.4rem}
