@@ -377,13 +377,13 @@ final class ASC_Playbook {
 
     /**
      * Sell rule for an owned lot, used by the portfolio table. Returns the
-     * complete, escaped table cell.
+     * complete, escaped table row (empty when the stock is not in the snapshot).
      */
-    public static function exit_rule_cell(string $ticker, string $buy_date): string {
+    public static function exit_rule_row(string $ticker, string $buy_date, int $columns): string {
         $data = self::snapshot();
         $stock = $data !== null && is_array($data['stocks'][$ticker] ?? null)
             ? $data['stocks'][$ticker] : null;
-        if ($stock === null) { return '<td>–</td>'; }
+        if ($stock === null) { return ''; }
         $exit = is_array($stock['exit'] ?? null) ? $stock['exit'] : [];
         $reasons = [];
         $valid_date = preg_match(self::DATE_RE, $buy_date) === 1;
@@ -400,10 +400,10 @@ final class ASC_Playbook {
         if (!empty($exit['stockmap_sell'])) { $reasons[] = 'StockMap-salg denne uge'; }
         $break = $after($exit['sma50_breaks'] ?? null);
         if ($break !== '') { $reasons[] = 'brud under SMA50 (' . $break . ')'; }
-        if ($reasons) {
-            return '<td class="asc-pb-sell">SÆLG: ' . esc_html(implode(', ', $reasons)) . '</td>';
-        }
-        return '<td>behold</td>';
+        $text = $reasons
+            ? '<span class="asc-pb-sell">SÆLG: ' . esc_html(implode(', ', $reasons)) . '</span>'
+            : 'behold';
+        return '<tr class="asc-rule-row"><td colspan="' . $columns . '"><div>Salgsregel: ' . $text . '</div></td></tr>';
     }
 
     // ----------------------------------------------------------------- Sizing
