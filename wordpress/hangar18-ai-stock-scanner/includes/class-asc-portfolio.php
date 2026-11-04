@@ -38,6 +38,15 @@ final class ASC_Portfolio {
         return is_array($data) ? array_values(array_filter($data, 'is_array')) : [];
     }
 
+    /**
+     * Brugerens egne køb i én aktie (til aktiesiden: købsdatoer og salgsregel). Kun læsning.
+     * @return array<int, array<string, mixed>>
+     */
+    public static function lots_for(int $user_id, string $ticker): array {
+        return array_values(array_filter(self::positions($user_id),
+            static fn(array $p): bool => (string)($p['ticker'] ?? '') === $ticker));
+    }
+
     private static function field(string $key): string {
         $value = $_POST[$key] ?? '';
         return is_string($value) ? trim(sanitize_text_field(wp_unslash($value))) : '';
@@ -376,6 +385,7 @@ final class ASC_Portfolio {
             'portfolio' => ['Min portefølje', '▣'],
             'stocks' => ['Danske aktier', '⌕'],
             'watchlist' => ['Watchlist', '☆'],
+            'stock' => ['Aktie', '◎'],
             'scanner' => ['Aktiescanner', '▤'],
             'playbook' => ['Playbook', '◆'],
             'simulator' => ['Simulator', '◈'],
@@ -441,6 +451,8 @@ final class ASC_Portfolio {
             echo ASC_Danish_Catalog::render();
         } elseif ($view === 'watchlist') {
             echo ASC_Watchlist::render();
+        } elseif ($view === 'stock') {
+            echo ASC_Stock_Page::render();
         } elseif ($view === 'scanner') {
             echo '<div id="asc-research">' . do_shortcode('[ai_stock_scanner]') . '</div>';
         } elseif ($view === 'playbook') {
@@ -600,8 +612,8 @@ final class ASC_Portfolio {
                 $label = ASC_Market_Quotes::enabled() ? 'Kurs ikke tilgængelig' : 'Automatisk kurskilde ikke aktiveret';
             }
 
-            echo '<tr><th scope="row">' . esc_html((string)($p['label'] ?: $ticker))
-                . '<div class="asc-subtle">' . esc_html((string)($p['instrument_type'] ?? 'Aktie')) . ' · ' . esc_html($ticker) . self::external_link($ticker) . '</div>'
+            echo '<tr><th scope="row">' . ASC_Stock_Page::link($ticker, (string)($p['label'] ?: $ticker))
+                . '<div class="asc-subtle">' . esc_html((string)($p['instrument_type'] ?? 'Aktie')) . ' · ' . ASC_Stock_Page::link($ticker) . self::external_link($ticker) . '</div>'
                 . '<div class="asc-subtle">' . esc_html((string)($p['buy_date'] ?? '')) . '</div></th>';
             echo '<td>' . self::share_count($quantity) . ' stk.</td><td>' . self::amount($cost) . ' ' . esc_html($currency) . '</td>';
             echo '<td>' . ($price !== null ? self::amount($price) . ' ' . esc_html($currency) : '—')
@@ -806,6 +818,9 @@ final class ASC_Portfolio {
         }
         $suggested_name = function_exists('mb_substr')
             ? mb_substr($suggested_name, 0, 80) : substr($suggested_name, 0, 80);
+        $suggested_currency = isset($_GET['asc_currency']) && is_string($_GET['asc_currency'])
+            ? strtoupper(sanitize_text_field(wp_unslash($_GET['asc_currency']))) : '';
+        if (preg_match('/^(DKK|SEK|NOK|EUR|USD)$/D', $suggested_currency) !== 1) { $suggested_currency = ''; }
         echo '<label>Ticker (Yahoo-symbol)<input type="text" name="asc_ticker" maxlength="20" '
             . 'placeholder="NOBI.ST, HARB-B.CO eller ASML.AS" value="'
             . esc_attr($suggested_ticker) . '" required></label>';
@@ -817,7 +832,8 @@ final class ASC_Portfolio {
         echo '<label>Aktuel kurs (valgfrit, manuel)<input type="text" name="asc_initial_price" inputmode="decimal" placeholder="13,25"></label>';
         echo '<label>Valuta<select name="asc_currency">';
         foreach (['DKK', 'SEK', 'NOK', 'EUR', 'USD'] as $currency) {
-            echo '<option value="' . esc_attr($currency) . '">' . esc_html($currency) . '</option>';
+            echo '<option value="' . esc_attr($currency) . '"' . selected($suggested_currency, $currency, false)
+                . '>' . esc_html($currency) . '</option>';
         }
         echo '</select></label>';
         echo '<label>Købsdato (valgfri)<input type="date" name="asc_buy_date" max="' . esc_attr(wp_date('Y-m-d')) . '"></label>';

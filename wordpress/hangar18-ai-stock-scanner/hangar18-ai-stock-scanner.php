@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.7.1
+ * Version: 0.8.0
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,7 +14,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.7.1');
+define('ASC_PLUGIN_VERSION', '0.8.0');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
 
 // Must initialize before user-profile / REST authentication determines HTTPS.
@@ -34,6 +34,8 @@ require_once __DIR__ . '/includes/class-asc-simulator.php';
 ASC_Simulator::register();
 require_once __DIR__ . '/includes/class-asc-watchlist.php';
 ASC_Watchlist::register();
+require_once __DIR__ . '/includes/class-asc-stock-page.php';
+ASC_Stock_Page::register();
 require_once __DIR__ . '/includes/class-asc-analysis.php';
 ASC_Analysis::register();
 require_once __DIR__ . '/includes/class-asc-danish-catalog.php';
@@ -316,7 +318,7 @@ function asc_render_dashboard(): string {
         foreach ($rows as $row) {
             $score = (int)$row['score'];
             $class = $score >= 80 ? 'asc-strong' : ($score >= 60 ? 'asc-watch' : 'asc-weak');
-            echo '<tr><th scope="row">' . esc_html($row['ticker']) . '</th>';
+            echo '<tr><th scope="row">' . ASC_Stock_Page::link((string)$row['ticker']) . '</th>';
             echo '<td>' . esc_html((string)($row['instrument_type'] ?? 'Ukendt')) . '</td>';
             echo '<td>' . esc_html($row['market']) . '</td>';
             echo '<td>' . esc_html($row['market_date']) . '</td>';
@@ -368,6 +370,7 @@ function asc_admin_page(): void {
     echo '<p>Startside: <strong>Personligt login, portefølje og watchlist</strong>. '
         . 'Du kan tilføje køb og manuel aktuel kurs, redigere beholdninger og eksportere egne køb som CSV – helt uden PC-scanneren.</p>';
     echo '<p>Med en aktiveret kurskilde kan du også se candlesticks, gennemsnitlig handelsvolumen og estimeret handelsværdi over 5/21 børsdage.</p>';
+    echo '<p><strong>v0.8.0:</strong> Samlet aktieside: klik på et aktiesymbol i en hvilken som helst tabel, eller søg en aktie frem (symbol eller navn), også en du ikke følger. Siden viser kurs, candlegraf med volumen og SMA50/SMA200 (1 måned til 5 år), dine køb og salg på grafen, playbook-analyse, regnskab, nyheder og knapper til Følg, Køb i simulator og Registrér køb. Brug <code>[ai_stock_page]</code> eller menupunktet Aktie.</p>';
     echo '<p><strong>v0.7.1:</strong> Størrelses- og likviditetskategorier (Mega–Micro, Høj/Middel/Lav) i playbook og universet, filter for tyndt handlede aktier, og &quot;en dags handel&quot; med advarsel i simulatorens opslag. Regnskab vises med nedtælling (rød inden for 7 dage, KØB-KANDIDAT får &quot;spærret: regnskab&quot;), og regnskabsrisiko (Lav/Middel/Høj, kun en advarsel) vises i mandagslisten, simulatorens opslag og porteføljen. Sortering og søgning på alle tabeller, kurser hentes ved sidevisning og hvert 15. minut, Aktiescanner får rigtige data fra mandagslisten.</p>';
     echo '<p><strong>v0.7.0:</strong> Simulator: virtuel børs og portefølje pr. bruger (30 dages runder, 10 aktier, sammenligning med RSP). Brug <code>[ai_stock_simulator]</code> eller menupunktet Simulator.</p>';
     echo '<p><strong>v0.6.0:</strong> Playbook: mandagsliste, screenere, aktie-scores og papirportefølje fra PC-appen, positionsstørrelse pr. bruger og salgsregel i porteføljen.</p>';
@@ -388,7 +391,7 @@ function asc_admin_page(): void {
     if (isset($_GET['asc_home']) && $_GET['asc_home'] === 'created') {
         echo '<div class="notice notice-success"><p>Startsiden er oprettet/aktiveret.</p></div>';
     }
-    echo '<p>Alternativt: Opret en WordPress-side med <code>[ai_stock_home]</code>, <code>[ai_stock_portfolio]</code> eller <code>[ai_stock_watchlist]</code> eller <code>[ai_stock_playbook]</code> (mandagsliste og screenere) eller <code>[ai_stock_simulator]</code> (virtuel handel).</p>';
+    echo '<p>Alternativt: Opret en WordPress-side med <code>[ai_stock_home]</code>, <code>[ai_stock_portfolio]</code> eller <code>[ai_stock_watchlist]</code> eller <code>[ai_stock_playbook]</code> (mandagsliste og screenere) eller <code>[ai_stock_simulator]</code> (virtuel handel) eller <code>[ai_stock_page]</code> (aktieside med søgning).</p>';
     echo '<p>Scanner-dashboardet findes fortsat via <code>[ai_stock_scanner]</code>. Kun indloggede brugere ser aktiedata.</p>';
     echo '<p>Python-scanneren og Ollama kører lokalt på din computer; hjemmesiden viser kun de senest modtagne data.</p>';
     echo '<p><a class="button button-primary" href="' . esc_url(admin_url('admin.php?page=asc-updates')) . '">GitHub-opdateringer</a> ';

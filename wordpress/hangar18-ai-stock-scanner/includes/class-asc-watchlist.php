@@ -20,6 +20,11 @@ final class ASC_Watchlist {
             is_string($s) && preg_match('/^[A-Z0-9^][A-Z0-9.^=-]{0,19}$/D', $s) === 1));
     }
 
+    /** Følger den indloggede bruger aktien? (til aktiesidens knap) */
+    public static function is_followed(string $ticker): bool {
+        return in_array($ticker, self::symbols(), true);
+    }
+
     private static function redirect(string $status): void {
         $referer = wp_get_referer();
         $url = is_string($referer) ? wp_validate_redirect($referer, home_url('/')) : home_url('/');
@@ -101,7 +106,7 @@ final class ASC_Watchlist {
                 $date = is_array($quote) && isset($quote['market_time'])
                     ? wp_date('d-m-Y H:i', (int)$quote['market_time']) : 'Ikke tilgængelig';
                 if (is_array($quote) && !empty($quote['stale'])) { $date .= ' (forældet)'; }
-                echo '<tr><th scope="row">' . esc_html($ticker) . '</th>'
+                echo '<tr><th scope="row">' . ASC_Stock_Page::link((string)$ticker) . '</th>'
                     . '<td>' . esc_html($price) . '</td><td>' . esc_html($currency) . '</td>'
                     . '<td>' . esc_html($date) . '</td><td>';
                 echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';

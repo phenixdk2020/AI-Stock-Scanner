@@ -221,3 +221,27 @@ th button.asc-sort::after{content:" ↕";opacity:.35;font-weight:400}
 th[aria-sort=ascending] button.asc-sort::after{content:" ↑";opacity:1}
 th[aria-sort=descending] button.asc-sort::after{content:" ↓";opacity:1}
 th button.asc-sort:focus-visible{outline:2px solid #0758a5;outline-offset:2px;border-radius:3px}
+
+/* v0.8.0: aktieside og aktielinks i tabeller */
+a.asc-stock-link{color:#0b4f8a;font-weight:inherit;text-decoration:underline;text-underline-offset:2px}
+a.asc-stock-link:hover,a.asc-stock-link:focus-visible{color:#063a69;text-decoration-thickness:2px}
+.asc-dashboard th a.asc-stock-link,.asc-portfolio th a.asc-stock-link{font-weight:700}
+.asc-stock-title{margin:1rem 0 .4rem;overflow-wrap:anywhere}
+.asc-stock-quote{margin:.3rem 0 .8rem}
+.asc-stock-price{font-size:1.7rem;margin-right:.4rem}
+.asc-stock-search{margin-bottom:1rem}
+.asc-stock-hits ul{padding-left:1.1rem}.asc-stock-hits li{margin:.3rem 0;overflow-wrap:anywhere}
+.asc-stock-chart-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;background:#fff;border:1px solid #cbd5e1;border-radius:12px;margin-top:.6rem}
+.asc-stock-chart-scroll svg{display:block;width:100%;min-width:600px;height:auto}
+.asc-chart-legend{display:flex;flex-wrap:wrap;gap:.35rem 1.1rem;list-style:none;margin:.7rem 0;padding:0;font-size:.88rem}
+.asc-chart-legend li{display:flex;align-items:center;gap:.4rem}
+.asc-leg{display:inline-block;width:1.7rem;height:.6rem;border-radius:3px;flex:none}
+.asc-leg-up{background:#167b59}.asc-leg-down{background:#c8394c}
+.asc-leg-sma50{height:3px;background:#d97706}.asc-leg-sma200{height:3px;background:#7c3aed}
+.asc-leg-mark{width:1.2rem;height:1.2rem;border-radius:50%;background:#0369a1;color:#fff;font-style:normal;font-weight:700;font-size:.75rem;line-height:1.2rem;text-align:center}
+.asc-stock-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.7rem;margin:1.2rem 0}
+.asc-stock-actions form{margin:0}
+.asc-stock-actions>.asc-notice{flex-basis:100%;margin:0}
+a.asc-stock-btn{display:inline-block;min-height:42px;box-sizing:border-box;padding:.6rem 1rem;border:1px solid #365a7f;border-radius:8px;color:#0b3a66;background:#fff;font-weight:650;text-decoration:none}
+a.asc-stock-btn:hover,a.asc-stock-btn:focus-visible{background:#edf4fb}
+@media(max-width:600px){.asc-stock-price{font-size:1.4rem}.asc-stock-actions>form,.asc-stock-actions>a{flex:1 1 100%}.asc-stock-actions a.asc-stock-btn,.asc-stock-actions button{width:100%;text-align:center}}

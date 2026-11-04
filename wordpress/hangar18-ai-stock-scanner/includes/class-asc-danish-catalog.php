@@ -174,6 +174,44 @@ final class ASC_Danish_Catalog {
         return true;
     }
 
+    /**
+     * Søgning i kataloget på selskabsnavn, ticker, kildekode eller ISIN (til aktiesidens søgefelt). Kun læsning.
+     * @return array<string, string> ticker => selskabsnavn, højst $limit
+     */
+    public static function search(string $query, int $limit = 12): array {
+        $query = trim($query);
+        if ($query === '' || strlen($query) > 90) { return []; }
+        $rows = self::catalog()['rows'] ?? [];
+        $found = [];
+        foreach (is_array($rows) ? $rows : [] as $row) {
+            if (!is_array($row)) { continue; }
+            $ticker = (string)($row['ticker'] ?? '');
+            if (preg_match('/^[A-Z0-9^][A-Z0-9.^=-]{0,19}$/D', $ticker) !== 1) { continue; }
+            foreach (['name', 'ticker', 'symbol', 'isin'] as $field) {
+                $value = (string)($row[$field] ?? '');
+                if ($value !== '' && (function_exists('mb_stripos')
+                    ? mb_stripos($value, $query, 0, 'UTF-8') !== false
+                    : stripos($value, $query) !== false)) {
+                    $found[$ticker] = (string)($row['name'] ?? '');
+                    break;
+                }
+            }
+            if (count($found) >= $limit) { break; }
+        }
+        return $found;
+    }
+
+    /** Selskabsnavnet for en ticker i kataloget; null hvis den ikke findes. */
+    public static function name_for(string $ticker): ?string {
+        $rows = self::catalog()['rows'] ?? [];
+        foreach (is_array($rows) ? $rows : [] as $row) {
+            if (is_array($row) && (string)($row['ticker'] ?? '') === $ticker && (string)($row['name'] ?? '') !== '') {
+                return (string)$row['name'];
+            }
+        }
+        return null;
+    }
+
     private static function catalog(): array {
         $stored = get_option(self::OPTION, []);
         $valid = is_array($stored) && is_array($stored['rows'] ?? null)
@@ -457,7 +495,7 @@ final class ASC_Danish_Catalog {
                 'asc_currency' => 'DKK',
             ], get_permalink(get_queried_object_id()) ?: home_url('/'));
             echo '<tr><th scope="row">' . esc_html($r['name']) . '</th>';
-            echo '<td><strong>' . esc_html($r['ticker']) . '</strong>'
+            echo '<td><strong>' . ASC_Stock_Page::link((string)$r['ticker']) . '</strong>'
                 . '<span class="asc-subtle">Kildekode: ' . esc_html($r['symbol']) . '</span></td>';
             echo '<td>' . esc_html($r['isin'] !== '' ? $r['isin'] : '—') . '</td>';
             echo '<td>' . esc_html($r['sector'] !== '' ? $r['sector'] : '—') . '</td>';
