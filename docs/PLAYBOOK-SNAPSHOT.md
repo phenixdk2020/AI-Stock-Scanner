@@ -60,8 +60,8 @@ PC'en henter først `/tickers`, så mandagslisten også dækker aktier, brugerne
 
 - Tal kan være `null`. `*_r`-kolonnerne er percentiler inden for regionen (som MSS); de andre er mod hele universet.
 - `asymmetry_inf: true` betyder, at kursen ligger under bear-linjen (ingen nedside).
-- `exit.sma50_breaks`: datoer for brud under SMA50 det seneste år. En ejet aktie har salgsregel ramt, hvis
-  `supertrend_down` eller `stockmap_sell` er sand, eller hvis et brud ligger på eller efter brugerens købsdato
+- `exit.sma50_breaks` og `exit.supertrend_flips`: datoer for brud det seneste år. En ejet aktie har salgsregel ramt, hvis
+  `stockmap_sell` er sand, hvis SMA50 er brudt EFTER købsdatoen, eller hvis Supertrend er vendt ned efter købsdatoen og stadig peger ned
   (samme regel som `portfolio.exit_check`).
 - Positionsstørrelse på siden: stop = `price − 3 × atr14`; antal = min(kapital × risiko % / (price − stop),
   kapital × maks % / price), omregnet med pluginets ECB-kurser. Kapital, valuta, risiko og maks gemmes pr. bruger.
