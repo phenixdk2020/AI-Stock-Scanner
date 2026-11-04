@@ -73,6 +73,25 @@ PC'en henter først `/tickers`, så mandagslisten også dækker aktier, brugerne
   det er et risikomål, ikke et salgssignal. Uden feltet viser pluginet intet. Pluginet beregner nedtællingen til `earnings` selv ved hver
   sidevisning (rød inden for 7 dage; en KØB-KANDIDAT får "spærret: regnskab"; manglende dato vises som "Dato ukendt").
   En køb-kandidat uden kendt regnskabsdato får begrundelsen "regnskabsdato ukendt" i `reasons`.
+- Topniveau `scenarios` (plugin ≥ 0.8.1, additivt): samme felter pr. ticker for universets aktier uden for `stocks`, fra `data/universe_scenarios.json` (`stockscanner/universe_scenarios.py`, bygges ugentligt).
+- `scenarios` (plugin ≥ 0.8.1, additivt; skema stadig 2): automatisk Bear/Base/Bull fra `valuation.ValueChannel`. Kun med når kanalen har
+  mindst ét scenariepris; aktier uden kanal (manglende EPS-estimater eller P/E-historik) får intet felt, og pluginet siger "Ikke beregnet endnu".
+  Kursmål = `eps_horizon` × `pe` for hvert scenarie, dvs. et regnestykke ud fra historiske P/E og analytikernes estimater, ikke en prognose.
+  ```json
+  "scenarios": {"currency": "USD", "horizon_years": 2.0, "price": 60.0, "eps_today": 4.0, "eps_horizon": 5.0,
+                "pe": {"bear": 10.0, "base": 15.0, "bull": 20.0},
+                "prices": {"bear": 50.0, "base": 75.0, "bull": 100.0},
+                "upside_pct": {"bear": -16.7, "base": 25.0, "bull": 66.7},
+                "cagr_pct": {"bear": -8.7, "base": 11.8, "bull": 29.1},
+                "asymmetry": 1.5, "asymmetry_inf": false, "peg": 1.2, "notes": ["Under 3 års P/E-historik"]}
+  ```
+  Alle tal kan være `null` (NaN og uendelige tal sendes aldrig); `asymmetry_inf: true` når kursen ligger under bear-linjen. `notes`: højst 6
+  tekster på højst 160 tegn. Pluginet renser pr. felt (tal inden for grænser, valuta på 3 bogstaver) og viser tre kort i analysepanelet
+  (aktiesiden og simulatorens opslag) samt på Analyse-siden, hvor EPS og de tre P/E også udfylder den manuelle beregner.
+- Flere brugere (plugin ≥ 0.8.1): snapshottet er fælles og indeholder alle symboler, scanneren analyserer, men pluginet viser pr. bruger kun
+  `research`, `candidates` og det, brugeren selv følger, ejer (WordPress-porteføljen) eller har i simulatoren. `action` "BEHOLD (ejet)"/"SÆLG (ejet)"
+  og "% siden køb" i `reasons` stammer fra scannerens egen lokale portefølje; pluginet regner dem om pr. bruger ud fra brugerens egne køb
+  (`exit`-fakta + købsdato) og viser "hold øje" for aktier, brugeren ikke selv ejer. "(ejet)"-ændringer i `changes` vises ikke, og `paper` er fælles.
 - `asymmetry_inf: true` betyder, at kursen ligger under bear-linjen (ingen nedside).
 - `exit.sma50_breaks` og `exit.supertrend_flips`: datoer for brud det seneste år. En ejet aktie har salgsregel ramt, hvis
   `stockmap_sell` er sand, hvis SMA50 er brudt EFTER købsdatoen, eller hvis Supertrend er vendt ned efter købsdatoen og stadig peger ned

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.8.0
+ * Version: 0.8.1
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,7 +14,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.8.0');
+define('ASC_PLUGIN_VERSION', '0.8.1');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
 
 // Must initialize before user-profile / REST authentication determines HTTPS.
@@ -36,6 +36,8 @@ require_once __DIR__ . '/includes/class-asc-watchlist.php';
 ASC_Watchlist::register();
 require_once __DIR__ . '/includes/class-asc-stock-page.php';
 ASC_Stock_Page::register();
+require_once __DIR__ . '/includes/class-asc-help.php';
+ASC_Help::register();
 require_once __DIR__ . '/includes/class-asc-analysis.php';
 ASC_Analysis::register();
 require_once __DIR__ . '/includes/class-asc-danish-catalog.php';
@@ -163,8 +165,8 @@ function asc_accept_snapshot(WP_REST_Request $request) {
     if (count($items) < 1 || count($items) > 50 || array_values($items) !== $items) {
         return new WP_Error('asc_count', 'Antallet skal være mellem 1 og 50.', ['status' => 400]);
     }
-    $markets = ['Danmark', 'Tyskland', 'Sverige', 'Norge', 'USA', 'Frankrig', 'Holland', 'Spanien', 'Finland'];
-    $signals = ['Interessant', 'Hold øje', 'Afvent'];
+    $markets = ['Danmark', 'Tyskland', 'Sverige', 'Norge', 'USA', 'Frankrig', 'Holland', 'Spanien', 'Finland', 'Andet'];
+    $signals = ['Købskandidat', 'Hold øje', 'Salgssignal', 'Afvent', 'Interessant'];  // Interessant: gamle scannere
     $accepted = [];
     $seen = [];
     foreach ($items as $row) {
@@ -172,7 +174,7 @@ function asc_accept_snapshot(WP_REST_Request $request) {
             !is_string($row['ticker'] ?? null) ||
             !is_string($row['market'] ?? null) ||
             !is_string($row['market_date'] ?? null) ||
-            !is_int($row['score'] ?? null) ||
+            !(is_int($row['score'] ?? null) || ($row['score'] ?? null) === null) ||
             !is_string($row['signal'] ?? null)
         ) {
             return new WP_Error('asc_row', 'Ugyldigt aktieresultat.', ['status' => 400]);
@@ -180,15 +182,15 @@ function asc_accept_snapshot(WP_REST_Request $request) {
         $ticker = strtoupper(trim($row['ticker']));
         $market = $row['market'];
         $date = $row['market_date'];
-        $score = $row['score'];
-        $signal = $row['signal'];
+        $score = $row['score'] ?? null;  // null: aktien har ingen score endnu.
+        $signal = $row['signal'] === 'Interessant' ? 'Købskandidat' : $row['signal'];
         $instrument_type = $row['instrument_type'] ?? 'Ukendt';
         if (!preg_match('/^[A-Z0-9^][A-Z0-9.^=-]{0,19}$/', $ticker) ||
             isset($seen[$ticker]) ||
             !in_array($market, $markets, true) ||
             !in_array($signal, $signals, true) ||
             !in_array($instrument_type, ['Aktie', 'ETF', 'Ukendt'], true) ||
-            $score < 0 || $score > 100 ||
+            ($score !== null && ($score < 0 || $score > 100)) ||
             !preg_match('/^\d{4}-\d\d-\d\d$/', $date)
         ) {
             return new WP_Error('asc_value', 'Resultatet indeholder ugyldige felter.', ['status' => 400]);
@@ -223,6 +225,22 @@ function asc_accept_snapshot(WP_REST_Request $request) {
     ]);
 }
 
+/**
+ * Alle private visninger (playbook, overvågningsliste, analyse, hjælp og scanner) viser personlige data eller kræver login:
+ * ingen delt sidecache for indloggede, så en bruger aldrig får en andens side. Portefølje, simulator og aktieside gør det selv.
+ */
+add_action('template_redirect', static function (): void {
+    if (!is_user_logged_in() || !is_singular()) { return; }
+    $content = (string)get_post_field('post_content', get_queried_object_id());
+    foreach (['ai_stock_playbook', 'ai_stock_watchlist', 'ai_stock_analysis', 'ai_stock_help', 'ai_stock_scanner'] as $code) {
+        if (has_shortcode($content, $code)) {
+            if (!defined('DONOTCACHEPAGE')) { define('DONOTCACHEPAGE', true); }
+            nocache_headers();
+            return;
+        }
+    }
+}, 0);
+
 add_action('wp_enqueue_scripts', static function (): void {
     wp_register_style(
         'hangar18-asc',
@@ -255,17 +273,18 @@ function asc_render_dashboard(): string {
     $requested_min = isset($_GET['asc_score_min']) && is_string($_GET['asc_score_min'])
         ? (int)$_GET['asc_score_min'] : 0;
     $requested_min = max(0, min(100, $requested_min));
-    $markets = ['Danmark','Tyskland','Sverige','Norge','USA','Frankrig','Holland','Spanien','Finland'];
+    $markets = ['Danmark','Tyskland','Sverige','Norge','USA','Frankrig','Holland','Spanien','Finland','Andet'];
     if (!in_array($requested_market, $markets, true)) { $requested_market = ''; }
     if (!in_array($requested_type, ['Aktie','ETF','Ukendt'], true)) { $requested_type = ''; }
-    if (!in_array($requested_signal, ['Interessant','Hold øje','Afvent'], true)) { $requested_signal = ''; }
+    $signal_names = ['Købskandidat','Hold øje','Salgssignal','Afvent'];
+    if (!in_array($requested_signal, $signal_names, true)) { $requested_signal = ''; }
     $all_count = count($rows);
     $rows = array_values(array_filter($rows, static function ($row) use ($requested_market, $requested_type, $requested_signal, $requested_min): bool {
         return is_array($row) &&
             ($requested_market === '' || ($row['market'] ?? '') === $requested_market) &&
             ($requested_type === '' || ($row['instrument_type'] ?? 'Ukendt') === $requested_type) &&
             ($requested_signal === '' || ($row['signal'] ?? '') === $requested_signal) &&
-            (int)($row['score'] ?? -1) >= $requested_min;
+            ($requested_min === 0 || (int)($row['score'] ?? -1) >= $requested_min);
     }));
     ob_start();
     echo '<section class="asc-dashboard" aria-label="AI-Stock-Scanner">';
@@ -285,7 +304,7 @@ function asc_render_dashboard(): string {
             . selected($requested_type, $type, false) . '>' . esc_html($type) . '</option>';
     }
     echo '</select></label><label>Signal<select name="asc_signal"><option value="">Alle signaler</option>';
-    foreach (['Interessant','Hold øje','Afvent'] as $signal) {
+    foreach ($signal_names as $signal) {
         echo '<option value="' . esc_attr($signal) . '" '
             . selected($requested_signal, $signal, false) . '>' . esc_html($signal) . '</option>';
     }
@@ -314,21 +333,23 @@ function asc_render_dashboard(): string {
         echo '<p class="asc-updated">Seneste synkronisering (UTC): ' . esc_html($when) . '</p>';
         echo '<div class="asc-table-wrap"><table><thead><tr>';
         echo '<th scope="col">Værdipapir</th><th scope="col">Type</th><th scope="col">Marked</th><th scope="col">Handelsdato</th>';
-        echo '<th scope="col">Teknisk score</th><th scope="col">Signal</th></tr></thead><tbody>';
+        echo '<th scope="col">MSS-score</th><th scope="col">Signal</th></tr></thead><tbody>';
         foreach ($rows as $row) {
-            $score = (int)$row['score'];
+            $has_score = is_numeric($row['score'] ?? null);
+            $score = (int)($row['score'] ?? 0);
             $class = $score >= 80 ? 'asc-strong' : ($score >= 60 ? 'asc-watch' : 'asc-weak');
+            $signal_text = (string)$row['signal'] === 'Interessant' ? 'Købskandidat' : (string)$row['signal'];
             echo '<tr><th scope="row">' . ASC_Stock_Page::link((string)$row['ticker']) . '</th>';
             echo '<td>' . esc_html((string)($row['instrument_type'] ?? 'Ukendt')) . '</td>';
             echo '<td>' . esc_html($row['market']) . '</td>';
             echo '<td>' . esc_html($row['market_date']) . '</td>';
-            echo '<td><span class="asc-score ' . esc_attr($class) . '">' .
-                 esc_html((string)$score) . '/100</span></td>';
-            echo '<td>' . esc_html($row['signal']) . '</td></tr>';
+            echo '<td>' . ($has_score ? '<span class="asc-score ' . esc_attr($class) . '">' .
+                 esc_html((string)$score) . '/100</span>' : '–') . '</td>';
+            echo '<td>' . esc_html($signal_text) . '</td></tr>';
         }
         echo '</tbody></table></div>';
     }
-    echo '<p class="asc-disclaimer">Tekniske researchsignaler er ikke køb/salg-anbefalinger. Score er ikke en sandsynlighed for afkast. Kursdata og AI-udtalelser skal vurderes selvstændigt.</p>';
+    echo '<p class="asc-disclaimer">Screening efter faste regler, ikke køb/salg-anbefalinger. Score er ikke en sandsynlighed for afkast. Kursdata og AI-udtalelser skal vurderes selvstændigt.</p>';
     echo '</section>';
     return (string)ob_get_clean();
 }
@@ -370,6 +391,7 @@ function asc_admin_page(): void {
     echo '<p>Startside: <strong>Personligt login, portefølje og watchlist</strong>. '
         . 'Du kan tilføje køb og manuel aktuel kurs, redigere beholdninger og eksportere egne køb som CSV – helt uden PC-scanneren.</p>';
     echo '<p>Med en aktiveret kurskilde kan du også se candlesticks, gennemsnitlig handelsvolumen og estimeret handelsværdi over 5/21 børsdage.</p>';
+    echo '<p><strong>v0.8.1:</strong> Hjælp-side med alle sider og kolonner, Bear/Base/Bull for hele universet, fanen Værdi &amp; entry, forklaring af kolonner ved mus-over og under tabellerne, og valg af marked på alle aktietabeller. Aktiescanner viser MSS-score, Købskandidat og Salgssignal og alle aktier fra mandagslisten. Automatisk Bear/Base/Bull (kursmål = EPS × P/E, ikke en prognose) i aktiesidens og simulatorens analyse og på Analyse-siden med vælger. Flere brugere: mandagslisten viser kun research-listen, tragtens kandidater og brugerens egne aktier; &quot;(ejet)&quot; og gevinst siden køb vises kun for aktier i brugerens egen portefølje, og papirporteføljen er tydeligt fælles. Alle private sider er uden delt sidecache.</p>';
     echo '<p><strong>v0.8.0:</strong> Samlet aktieside: klik på et aktiesymbol i en hvilken som helst tabel, eller søg en aktie frem (symbol eller navn), også en du ikke følger. Siden viser kurs, candlegraf med volumen og SMA50/SMA200 (1 måned til 5 år), dine køb og salg på grafen, playbook-analyse, regnskab, nyheder og knapper til Følg, Køb i simulator og Registrér køb. Brug <code>[ai_stock_page]</code> eller menupunktet Aktie.</p>';
     echo '<p><strong>v0.7.1:</strong> Størrelses- og likviditetskategorier (Mega–Micro, Høj/Middel/Lav) i playbook og universet, filter for tyndt handlede aktier, og &quot;en dags handel&quot; med advarsel i simulatorens opslag. Regnskab vises med nedtælling (rød inden for 7 dage, KØB-KANDIDAT får &quot;spærret: regnskab&quot;), og regnskabsrisiko (Lav/Middel/Høj, kun en advarsel) vises i mandagslisten, simulatorens opslag og porteføljen. Sortering og søgning på alle tabeller, kurser hentes ved sidevisning og hvert 15. minut, Aktiescanner får rigtige data fra mandagslisten.</p>';
     echo '<p><strong>v0.7.0:</strong> Simulator: virtuel børs og portefølje pr. bruger (30 dages runder, 10 aktier, sammenligning med RSP). Brug <code>[ai_stock_simulator]</code> eller menupunktet Simulator.</p>';

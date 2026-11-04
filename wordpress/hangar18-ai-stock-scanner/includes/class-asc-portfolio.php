@@ -390,6 +390,7 @@ final class ASC_Portfolio {
             'playbook' => ['Playbook', '◆'],
             'simulator' => ['Simulator', '◈'],
             'analysis' => ['Analyse', '◷'],
+            'help' => ['Hjælp', '?'],
             'settings' => ['Indstillinger', '⚙'],
         ];
         $raw = isset($_GET['asc_view']) && is_string($_GET['asc_view'])
@@ -459,6 +460,8 @@ final class ASC_Portfolio {
             echo ASC_Playbook::render();
         } elseif ($view === 'simulator') {
             echo ASC_Simulator::render();
+        } elseif ($view === 'help') {
+            echo ASC_Help::render();
         } elseif ($view === 'analysis') {
             echo do_shortcode('[ai_stock_analysis]');
         } else {
