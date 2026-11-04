@@ -378,6 +378,7 @@ final class ASC_Portfolio {
             'watchlist' => ['Watchlist', '☆'],
             'scanner' => ['Aktiescanner', '▤'],
             'playbook' => ['Playbook', '◆'],
+            'simulator' => ['Simulator', '◈'],
             'analysis' => ['Analyse', '◷'],
             'settings' => ['Indstillinger', '⚙'],
         ];
@@ -444,6 +445,8 @@ final class ASC_Portfolio {
             echo '<div id="asc-research">' . do_shortcode('[ai_stock_scanner]') . '</div>';
         } elseif ($view === 'playbook') {
             echo ASC_Playbook::render();
+        } elseif ($view === 'simulator') {
+            echo ASC_Simulator::render();
         } elseif ($view === 'analysis') {
             echo do_shortcode('[ai_stock_analysis]');
         } else {

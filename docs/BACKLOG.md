@@ -61,3 +61,4 @@ Prioritet: **P1** høj værdi / lav indsats, **P2** middel, **P3** lav eller sv�
 | TPI fuld metode, analog (B-16) – testet, ikke taget i brug | `tpi_analog.py`, `scripts/study_b16.py` | Slår ikke TPI-lite i urørt periode (12,2 % mod 13,8 %) (docs/RESULTAT-B16.md) |
 | Playbook på aktier.hangar18.dk (B-17) | plugin 0.6.x, `playbook.py`, `site_sync.py` | Automatisk upload efter hver kørsel |
 | Salgsregel: kun brud efter købsdatoen | `portfolio.exit_check`, plugin | Rettet 03-11-2026: Supertrend tæller kun, hvis den vender ned efter købet |
+| Aktiesimulator: virtuel konto, køb/salg, 30-dages runde mod RSP | `class-asc-simulator.php`, `[ai_stock_simulator]`, plugin 0.7.0 | Kurser fra Yahoo, 0,1 % i omkostning pr. handel; adskilt fra den rigtige portefølje |

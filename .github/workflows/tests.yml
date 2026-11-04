@@ -34,6 +34,7 @@ jobs:
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-fx-rates.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-analysis.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-danish-catalog.php
+          php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-simulator.php
       - name: Copenhagen stock directory and CSV import regression
         run: php tests/wp_danish_catalog.php
       - name: DKK conversion and effective purchase FX regression
