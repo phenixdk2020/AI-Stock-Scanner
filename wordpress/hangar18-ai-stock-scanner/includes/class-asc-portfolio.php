@@ -554,10 +554,10 @@ final class ASC_Portfolio {
         echo '<div class="asc-table-wrap"><table><thead><tr>';
         echo '<th scope="col">Aktie</th><th scope="col">Antal</th><th scope="col">Købskurs</th>';
         echo '<th scope="col">Seneste kurs</th><th scope="col">Investeret</th>';
-        echo '<th scope="col">Værdi</th><th scope="col">Gevinst/tab</th><th scope="col">Salgsregel</th><th scope="col">Handling</th>';
+        echo '<th scope="col">Værdi</th><th scope="col">Gevinst/tab</th><th scope="col">Handling</th>';
         echo '</tr></thead><tbody>';
         if (!$positions) {
-            echo '<tr><td colspan="9">Du har endnu ingen aktier. Indtast dit første køb nedenfor. Angiv også en manuel aktuel kurs for at se gevinst/tab med det samme.</td></tr>';
+            echo '<tr><td colspan="8">Du har endnu ingen aktier. Indtast dit første køb nedenfor. Angiv også en manuel aktuel kurs for at se gevinst/tab med det samme.</td></tr>';
         }
         foreach ($positions as $p) {
             $ticker = (string)($p['ticker'] ?? '');
@@ -675,9 +675,6 @@ final class ASC_Portfolio {
                 echo '<td>—</td><td>—</td>';
             }
 
-            echo class_exists('ASC_Playbook')
-                ? ASC_Playbook::exit_rule_cell($ticker, (string)($p['buy_date'] ?? ''))
-                : '<td>–</td>';
             echo '<td><details><summary>Opdater</summary>';
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="asc-inline-form">';
             echo '<input type="hidden" name="action" value="asc_portfolio_edit">';
@@ -707,8 +704,11 @@ final class ASC_Portfolio {
             wp_nonce_field('asc_portfolio_delete');
             echo '<button type="submit" class="asc-delete">Slet køb</button></form>';
             echo '</details></td></tr>';
+            if (class_exists('ASC_Playbook')) {
+                echo ASC_Playbook::exit_rule_row($ticker, (string)($p['buy_date'] ?? ''), 8);
+            }
             if (is_array($quote) && !empty($quote['history'])) {
-                echo '<tr class="asc-chart-row"><td colspan="9">';
+                echo '<tr class="asc-chart-row"><td colspan="8">';
                 echo '<details><summary>Vis kursgraf og handelsvolumen for ' . esc_html($ticker) . '</summary>';
                 echo ASC_Market_Quotes::chart_markup($ticker, $quote);
                 echo '</details></td></tr>';
