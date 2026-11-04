@@ -25,6 +25,8 @@ final class ASC_Simulator {
     private const FEE_RATE = 0.001;      // 0,1 % of the amount on every buy and sell.
     private const BENCHMARK = 'RSP';
     private const STALE_AFTER = 432000;  // A quote older than 5 days is marked "gammel".
+    private const LIQUID_DAYS = 21;      // Dage i gennemsnittet for en dags handel.
+    private const THIN_TRADE_DKK = 14000000.0; // Under ca. 2 mio. USD om dagen advares der (køb blokeres ikke).
     /** @var array<string, array|null> */
     private static array $quote_cache = [];
 
@@ -183,6 +185,19 @@ final class ASC_Simulator {
         }
         self::$quote_cache[$ticker] = $result;
         return $result;
+    }
+
+    /** Gennemsnit af lukkekurs × volumen i kr. over de seneste dage; null uden volumen i kurshistorikken. */
+    private static function daily_turnover_dkk(array $history, float $fx): ?float {
+        $sum = 0.0;
+        $days = 0;
+        foreach (array_slice($history, -self::LIQUID_DAYS) as $bar) {
+            if (!is_array($bar) || !is_numeric($bar['close'] ?? null) || !is_numeric($bar['volume'] ?? null)) { continue; }
+            $sum += (float)$bar['close'] * (float)$bar['volume'];
+            $days++;
+        }
+        $value = $days > 0 ? $sum / $days * $fx : null;
+        return $value !== null && is_finite($value) ? $value : null;
     }
 
     /** DKK per unit of the currency (ECB), or null when unavailable. */
@@ -605,6 +620,17 @@ final class ASC_Simulator {
             echo '<p class="asc-warning">Ingen valutakurs til DKK for ' . esc_html($quote['currency'])
                 . ' – aktien kan ikke købes i simulatoren.</p>';
             return;
+        }
+        $turnover = self::daily_turnover_dkk($quote['history'], (float)$fx);
+        if ($turnover !== null) {
+            echo '<p>En dags handel &asymp; <strong>' . esc_html(self::fmt($turnover, 0)) . ' kr.</strong> '
+                . '<span class="asc-subtle">(gennemsnit af lukkekurs &times; volumen, seneste '
+                . esc_html((string)self::LIQUID_DAYS) . ' dage)</span></p>';
+            if ($turnover < self::THIN_TRADE_DKK) {
+                echo '<p class="asc-warning">Tyndt handlet: under ca. ' . esc_html(self::fmt(self::THIN_TRADE_DKK / 1000000, 0))
+                    . ' mio. kr. om dagen. Det kan være svært at købe og sælge uden at flytte kursen. '
+                    . 'Playbook-listen gør ikke sådanne aktier til købskandidater.</p>';
+            }
         }
         $held = false;
         foreach ($round['positions'] as $position) {

@@ -29,10 +29,12 @@ PC'en henter først `/tickers`, så mandagslisten også dækker aktier, brugerne
       "region": "USA", "currency": "USD", "price": 520.17, "atr14": 11.76,
       "action": "pil ned", "reasons": "StockMap-salg denne uge (ikke ejet)",
       "stockmap": "salg 2026-10-30", "quadrant": "gul", "angle": 212.0,
-      "tpi": "grøn/neutral", "mti": "uge grøn",
+      "tpi": "grøn/neutral", "mti": "uge grøn", "size": "Mega", "liquidity": "Høj",
       "quality": 82, "moat": 95, "mss_score": 92, "value_pct": 13, "momentum": 51,
       "channel_score": 115, "peg": 1.0, "asymmetry": null, "asymmetry_inf": true,
       "earnings": "2027-01-27", "eps_trend": null,
+      "earnings_risk": {"level": "Høj", "points": 2, "reasons": ["analytikerne har sænket estimaterne de seneste 30 dage", "nyheder: ingen data"],
+                        "avg_move_pct": 8.1, "down_share_pct": 62, "count": 8, "note": null},
       "exit": {"supertrend_down": false, "sma50_breaks": ["2026-10-14"], "stockmap_sell": true},
       "news_summary": "nyheder: 5+ 0−; stor positiv nyhed: …",
       "news": [{"title": "…", "source": "Børsen", "url": "https://…", "published": "2026-11-02",
@@ -41,8 +43,8 @@ PC'en henter først `/tickers`, så mandagslisten også dækker aktier, brugerne
   },
   "universe": {
     "columns": ["ticker", "region", "quality", "value", "momentum", "moat",
-                "quality_r", "value_r", "momentum_r", "moat_r", "upside", "peg", "mcap_usd_bn"],
-    "rows": [["MSFT", "USA", 82, 13, 51, 95, 80, 20, 55, 93, 12.5, 2.1, 3870]]
+                "quality_r", "value_r", "momentum_r", "moat_r", "upside", "peg", "mcap_usd_bn", "size", "liquidity"],
+    "rows": [["MSFT", "USA", 82, 13, 51, 95, 80, 20, 55, 93, 12.5, 2.1, 3870, "Mega", "Høj"]]
   },
   "screeners": {
     "triple-green": {"label": "...", "global": ["INVE-B.ST"], "regional": ["INVE-B.ST"]},
@@ -59,6 +61,18 @@ PC'en henter først `/tickers`, så mandagslisten også dækker aktier, brugerne
 ```
 
 - Tal kan være `null`. `*_r`-kolonnerne er percentiler inden for regionen (som MSS); de andre er mod hele universet.
+- `size` (plugin ≥ 0.7.1 viser den): Mega over 200 mia. USD, Large 10–200, Mid 2–10, Small 0,3–2, Micro under 0,3, ellers "ukendt".
+  `liquidity`: Høj (≥ 20 mio. USD i gennemsnitlig dagsomsætning de seneste 21 dage), Middel, Lav (under 2 mio. eller over 2 dage
+  uden handel) eller "ukendt". Aktier med `Lav` bliver aldrig køb-kandidater (begrundelse "for lidt handel"); ejede aktier rammes ikke.
+  Begge felter er additive (skema stadig 2): et ældre plugin ignorerer ukendte stock-felter og universkolonner, og en ældre
+  scanner uden dem får "–" i det nye plugin.
+- `earnings_risk` (plugin ≥ 0.7.1, additivt; kun med når regnskabet er højst 14 dage væk): `level` Lav/Middel/Høj
+  (0 point = Lav, 1 = Middel, 2-3 = Høj), `points`, `reasons` (inkl. "ingen data" for manglende estimater, nyheder eller kurser),
+  `avg_move_pct` (gennemsnitlig absolut kursbevægelse over de seneste op til 8 regnskaber), `down_share_pct` (andel fald), `count`
+  (antal regnskaber). Med under 4 regnskaber er de to første `null` og `note` er "for få regnskaber". Feltet ændrer aldrig `action`;
+  det er et risikomål, ikke et salgssignal. Uden feltet viser pluginet intet. Pluginet beregner nedtællingen til `earnings` selv ved hver
+  sidevisning (rød inden for 7 dage; en KØB-KANDIDAT får "spærret: regnskab"; manglende dato vises som "Dato ukendt").
+  En køb-kandidat uden kendt regnskabsdato får begrundelsen "regnskabsdato ukendt" i `reasons`.
 - `asymmetry_inf: true` betyder, at kursen ligger under bear-linjen (ingen nedside).
 - `exit.sma50_breaks` og `exit.supertrend_flips`: datoer for brud det seneste år. En ejet aktie har salgsregel ramt, hvis
   `stockmap_sell` er sand, hvis SMA50 er brudt EFTER købsdatoen, eller hvis Supertrend er vendt ned efter købsdatoen og stadig peger ned

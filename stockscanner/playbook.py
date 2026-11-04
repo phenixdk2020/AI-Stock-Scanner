@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 
 from stockscanner.exits import exit_signals, supertrend
+from stockscanner.universe import liquidity_class, size_class
 
 
 def _num(value, digits: int = 2):
@@ -52,15 +53,24 @@ def stock_entry(row, prices: pd.DataFrame, currency: str | None, region: str, at
         "mss_score": _num(row.mss_score, 0), "value_pct": _num(row.value_pct, 0),
         "momentum": _num(row.momentum, 0), "channel_score": _num(row.channel_score, 0), "peg": _num(row.peg, 2),
         "asymmetry": None if infinite else _num(row.asymmetry, 2), "asymmetry_inf": infinite,
-        "earnings": row.earnings, "eps_trend": row.eps_trend,
+        "earnings": row.earnings, "eps_trend": row.eps_trend, "size": row.size, "liquidity": row.liquidity,
         "exit": exit_facts(prices, "StockMap-salg denne uge" in row.reasons),
     }
 
 
 MAX_NEWS = 5
 
+
+def earnings_risk_entry(risk: dict) -> dict:
+    """Regnskabsrisiko (earnings_risk.build_risks) til payloaden. Kun en advarsel; ændrer aldrig `action`."""
+    return {"level": risk["level"], "points": int(risk["points"]),
+            "reasons": [str(r)[:160] for r in risk["reasons"]],
+            "avg_move_pct": _num(risk.get("avg_abs_pct"), 1), "down_share_pct": _num(risk.get("down_share_pct"), 0),
+            "count": int(risk.get("count") or 0), "note": risk.get("note")}
+
 UNIVERSE_COLUMNS = ["ticker", "region", "quality", "value", "momentum", "moat",
-                    "quality_r", "value_r", "momentum_r", "moat_r", "upside", "peg", "mcap_usd_bn"]
+                    "quality_r", "value_r", "momentum_r", "moat_r", "upside", "peg", "mcap_usd_bn",
+                    "size", "liquidity"]
 
 
 def universe_section(factors: pd.DataFrame | None, scores: pd.DataFrame | None,
@@ -75,7 +85,8 @@ def universe_section(factors: pd.DataFrame | None, scores: pd.DataFrame | None,
         rows.append([ticker, f.get("region"), *(_num(s.get(k), 0) for k in ("quality", "value", "momentum", "moat")),
                      *(_num(r.get(k), 0) for k in ("quality", "value", "momentum", "moat")),
                      _num(f.get("x_upside"), 1), _num(f.get("x_peg"), 2),
-                     None if _num(cap) is None else _num(float(cap) / 1e9, 1)])
+                     None if _num(cap) is None else _num(float(cap) / 1e9, 1),
+                     size_class(cap), liquidity_class(f.get("x_adv_usd"), f.get("x_idle_days"))])
     return {"columns": UNIVERSE_COLUMNS, "rows": rows}
 
 
@@ -106,11 +117,14 @@ def paper_section(trades: pd.DataFrame, last_prices: dict[str, float]) -> dict:
 
 def build_payload(*, rows, histories, currencies, regions, atrs, research, breadth, benchmark,
                   factors, scores, regional, trades, last_prices, changes, news=None, candidates=(),
-                  now: datetime | None = None) -> dict:
+                  earnings_risk=None, now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     market_date = max((pd.Timestamp(h.index[-1]).date() for h in histories.values() if len(h)), default=None)
     stocks = {r.ticker: stock_entry(r, histories[r.ticker], currencies.get(r.ticker), regions.get(r.ticker, ""),
                                     atrs.get(r.ticker)) for r in rows if r.ticker in histories}
+    for ticker, risk in (earnings_risk or {}).items():
+        if ticker in stocks:
+            stocks[ticker]["earnings_risk"] = earnings_risk_entry(risk)
     for ticker, items in (news or {}).items():
         if ticker in stocks:
             stocks[ticker]["news_summary"] = next((r.news for r in rows if r.ticker == ticker), None)

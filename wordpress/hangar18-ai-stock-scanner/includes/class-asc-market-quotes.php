@@ -13,6 +13,10 @@ if (!defined('ABSPATH')) { exit; }
 final class ASC_Market_Quotes {
     private const OPTION = 'asc_yahoo_quotes_opt_in';
     private const AGE = 900;  // 15 minutes between external requests per ticker.
+    private const CACHE_AGE = 840;  // Lidt under AGE, så hver 15-minutters kørsel altid finder cachen udløbet.
+    private const RETRY_AFTER = 120;  // En mislykket hentning prøves først igen efter 2 minutter.
+    private const REFRESH_BATCH = 5;  // Højst så mange kurser pr. kald fra siden (hver op til 3 sekunder).
+    private const LAST_RUN = 'asc_quotes_last_run';
     private const MAX_RESPONSE = 262144;
     private const MAX_FETCH_PER_PAGE = 1;
     private const CRON_HOOK = 'asc_quotes_refresh';
@@ -20,6 +24,7 @@ final class ASC_Market_Quotes {
     private const CRON_MAX_TICKERS = 100;
     private static int $fetches_this_page = 0;
     private static bool $in_cron = false;
+    private static bool $markup_done = false;
 
     public static function enabled(): bool {
         return get_option(self::OPTION, 'no') === 'yes';
@@ -30,6 +35,43 @@ final class ASC_Market_Quotes {
         add_filter('cron_schedules', [self::class, 'cron_schedules']);
         add_action(self::CRON_HOOK, [self::class, 'refresh_followed']);
         add_action('init', [self::class, 'ensure_schedule']);
+        add_action('rest_api_init', [self::class, 'register_routes']);
+    }
+
+    public static function register_routes(): void {
+        register_rest_route('ai-stock-scanner/v1', '/quotes/refresh', [
+            'methods'             => 'POST',
+            'callback'            => [self::class, 'rest_refresh'],
+            'permission_callback' => static fn() => is_user_logged_in(),
+        ]);
+    }
+
+    /** Skal kursen hentes nu? Ikke hvis cachen er frisk, eller et forsøg lige er mislykkedes. */
+    private static function due(string $ticker): bool {
+        $hash = md5($ticker);
+        return !is_array(get_transient('asc_quote_' . $hash))
+            && get_transient('asc_quote_attempt_' . $hash) === false;
+    }
+
+    /**
+     * Siden kalder dette, så en visning henter alle forældede kurser i små portioner
+     * uden at selve sidevisningen venter på Yahoo (MAX_FETCH_PER_PAGE).
+     */
+    public static function rest_refresh(): array {
+        if (!self::enabled() || !class_exists('ASC_Playbook')) { return ['updated' => 0, 'remaining' => 0]; }
+        $due = array_values(array_filter(ASC_Playbook::followed_tickers(), [self::class, 'due']));
+        $batch = array_slice($due, 0, self::REFRESH_BATCH);
+        $updated = 0;
+        self::$in_cron = true;
+        try {
+            foreach ($batch as $ticker) {
+                $quote = self::get($ticker);
+                if (is_array($quote) && empty($quote['stale'])) { $updated++; }
+            }
+        } finally {
+            self::$in_cron = false;
+        }
+        return ['updated' => $updated, 'remaining' => count($due) - count($batch)];
     }
 
     /** @param array<string, array<string, mixed>> $schedules */
@@ -62,13 +104,33 @@ final class ASC_Market_Quotes {
         }
     }
 
-    /** Genindlæser siden hvert 15. minut, mens den er synlig og ingen formular er i brug. */
+    /**
+     * Henter forældede kurser, når siden åbnes og hvert 15. minut, og genindlæser kun når der er nye kurser.
+     * Er fanen skjult, sker det, når den vises igen. Genindlæser ikke midt i en formular.
+     */
     public static function auto_refresh_markup(): string {
-        if (!self::enabled()) { return ''; }
-        return '<script>(function(){var w=' . (int)(self::AGE * 1000) . ';function t(){setTimeout(function(){'
-            . 'var a=document.activeElement;if(document.visibilityState==="visible"&&!(a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)))'
-            . '{location.reload();}else{t();}},w);}t();})();</script>'
-            . '<p class="asc-subtle">Kurserne opdateres automatisk hvert 15. minut (forsinket, uofficiel kilde).</p>';
+        if (!self::enabled() || !is_user_logged_in()) { return ''; }
+        $last = (int)get_option(self::LAST_RUN, 0);
+        $when = $last > 0 ? wp_date('H:i', $last) : false;
+        $note = '<p class="asc-subtle">Kurserne opdateres automatisk hvert 15. minut (forsinket, uofficiel kilde).'
+            . (is_string($when) ? ' Sidst hentet kl. ' . esc_html($when) . '.' : '') . '</p>';
+        if (self::$markup_done) { return ''; }
+        self::$markup_done = true;
+        $url = wp_json_encode(rest_url('ai-stock-scanner/v1/quotes/refresh'), JSON_HEX_TAG | JSON_HEX_AMP);
+        $nonce = wp_json_encode(wp_create_nonce('wp_rest'), JSON_HEX_TAG | JSON_HEX_AMP);
+        return '<script>(function(){var u=' . $url . ',n=' . $nonce . ',w=' . (int)(self::AGE * 1000)
+            . ',d=Date.now()+w,k=0;'
+            . 'function b(){var a=document.activeElement;return !!(a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName));}'
+            . 'function e(c){if(c>0&&!b()){location.reload();}}'
+            . 'function p(c,i){fetch(u,{method:"POST",credentials:"same-origin",headers:{"X-WP-Nonce":n}})'
+            . '.then(function(r){return r.ok?r.json():null;}).then(function(j){'
+            // Et afvist kald på en gammel fane skyldes ofte en udløbet nonce: en genindlæsning giver en ny.
+            . 'if(!j){if(k>0&&!b()){location.reload();}return;}'
+            . 'c+=j.updated;if(j.remaining>0&&i<20){p(c,i+1);}else{e(c);}})'
+            . '.catch(function(){e(c);});}'
+            . 'function t(){if(document.visibilityState==="visible"&&Date.now()>=d&&!b()){d=Date.now()+w;k++;p(0,0);}}'
+            . 'p(0,0);setInterval(t,30000);document.addEventListener("visibilitychange",t);})();</script>'
+            . $note;
     }
 
     public static function save_options(): void {
@@ -127,7 +189,7 @@ final class ASC_Market_Quotes {
             return self::last_known($ticker);
         }
         self::$fetches_this_page++;
-        set_transient($cooldown, 1, self::AGE);
+        set_transient($cooldown, 1, self::RETRY_AFTER);
         $url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
             . rawurlencode($ticker) . '?range=6mo&interval=1d';
         $response = wp_safe_remote_get($url, [
@@ -174,7 +236,8 @@ final class ASC_Market_Quotes {
             && (float)$outstanding > 0) {
             $quote['shares_outstanding'] = (float)$outstanding;
         }
-        set_transient($key, $quote, self::AGE);
+        set_transient($key, $quote, self::CACHE_AGE);
+        update_option(self::LAST_RUN, time(), false);
         // Keep previous successful quote as fallback for up to 7 days; clearly label stale.
         update_option('asc_last_quote_' . md5($ticker), $quote, false);
         return $quote;

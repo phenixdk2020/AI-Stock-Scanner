@@ -122,7 +122,7 @@
 .asc-app-content .asc-portfolio{margin:0}.asc-app-content .asc-home{margin:0}
 .asc-filter-form{display:flex;gap:.6rem;align-items:end;flex-wrap:wrap;margin:1rem 0;padding:1rem;border-radius:12px;background:#edf4fb}
 .asc-filter-form label{display:flex;flex-direction:column;gap:.25rem;font-size:.82rem;font-weight:650}
-.asc-filter-form input,.asc-filter-form select{min-height:39px;border:1px solid #b9c8d8;border-radius:7px;padding:.4rem;background:#fff;color:#173248;max-width:190px}
+.asc-filter-form input,.asc-filter-form select{box-sizing:border-box;height:39px;min-height:39px;border:1px solid #b9c8d8;border-radius:7px;padding:.4rem;background:#fff;color:#173248;max-width:190px}
 .asc-filter-form button{min-height:39px;padding:.5rem 1rem;background:#0758a5;color:#fff;border:0;border-radius:8px;cursor:pointer}
 .asc-analysis-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
 .asc-analysis-card{border:1px solid #d3dfeb;border-radius:12px;padding:1rem;background:#f4f8fc}
@@ -177,6 +177,7 @@
 .asc-pb-changes ul{margin:.4rem 0 0 1.1rem;padding:0}
 .asc-playbook td.asc-pb-sell{color:#a72f2f;font-weight:700;white-space:normal}
 .asc-pb-sell{color:#a72f2f;font-weight:700}
+.asc-risk-mid{color:#815509;font-weight:700}
 .asc-table-wrap{container-type:inline-size}
 .asc-rule-row td{background:#f8fafc;white-space:normal!important;padding:.45rem 1rem!important}
 .asc-rule-row td>div,.asc-chart-row td>details{position:sticky;left:1rem;max-width:calc(100cqw - 2rem)}
@@ -212,3 +213,11 @@
 .asc-sim-facts dd{margin:0;font-weight:650}
 .asc-sim-buy{display:flex;flex-wrap:wrap;gap:.85rem;align-items:end;margin-top:1rem}
 a.asc-sim-link{font-size:.8rem;white-space:nowrap}
+.asc-table-tools{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin:.75rem 0 .5rem}
+.asc-table-tools input[type=search]{box-sizing:border-box;height:39px;min-height:39px;flex:1 1 14rem;max-width:22rem;padding:.4rem .65rem;border:1px solid #b9c8d8;border-radius:7px;background:#fff;color:#173248}
+.asc-table-count{font-size:.82rem;color:#42566b}
+th button.asc-sort,.asc-portfolio th button.asc-sort,.asc-dashboard th button.asc-sort{all:unset;box-sizing:border-box;cursor:pointer;font:inherit;font-weight:700;color:inherit;white-space:nowrap}
+th button.asc-sort::after{content:" ↕";opacity:.35;font-weight:400}
+th[aria-sort=ascending] button.asc-sort::after{content:" ↑";opacity:1}
+th[aria-sort=descending] button.asc-sort::after{content:" ↓";opacity:1}
+th button.asc-sort:focus-visible{outline:2px solid #0758a5;outline-offset:2px;border-radius:3px}

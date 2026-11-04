@@ -23,6 +23,9 @@ FX_TO_USD = {"USD": 1.0, "DKK": 0.155, "SEK": 0.095, "NOK": 0.092, "EUR": 1.16, 
              "CHF": 1.25, "ISK": 0.0075, "PLN": 0.27}
 FACTORS_FILE = ROOT / "data" / "universe_factors.csv"
 MAX_AGE_DAYS = 14
+# Størrelsesklasser (markedsværdi i USD, nedre grænse) og likviditet (dagsomsætning i USD, 21 dage)
+SIZE_LIMITS = ((200e9, "Mega"), (10e9, "Large"), (2e9, "Mid"), (0.3e9, "Small"))   # Mega er over 200 mia.
+LIQ_HIGH, LIQ_LOW, LIQ_DAYS, LIQ_MAX_IDLE = 20e6, 2e6, 21, 2
 
 
 def read_tickers(path: Path = UNIVERSE_FILE) -> list[str]:
@@ -37,6 +40,51 @@ def region(ticker: str) -> str:
     if "." not in ticker:
         return "USA"
     return "Norden" if ticker.upper().endswith(NORDIC_SUFFIXES) else "Europa"
+
+
+def _finite(value) -> float | None:
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return None
+    return value if value == value and abs(value) != float("inf") else None
+
+
+def size_class(cap_usd) -> str:
+    """Mega (>200 mia. USD), Large (10–200), Mid (2–10), Small (0,3–2), Micro (<0,3); "ukendt" uden gyldig værdi."""
+    cap = _finite(cap_usd)
+    if cap is None or cap <= 0:
+        return "ukendt"
+    if cap > SIZE_LIMITS[0][0]:
+        return "Mega"
+    return next((name for limit, name in SIZE_LIMITS[1:] if cap >= limit), "Micro")
+
+
+def liquidity_class(adv_usd, idle_days=None) -> str:
+    """"Høj" (≥ 20 mio. USD/dag), "Middel" eller "Lav" (< 2 mio. eller over 2 dage uden handel i de seneste 21)."""
+    adv = _finite(adv_usd)
+    if adv is None:
+        return "ukendt"
+    idle = _finite(idle_days)
+    if adv < LIQ_LOW or (idle is not None and idle > LIQ_MAX_IDLE):
+        return "Lav"
+    return "Høj" if adv >= LIQ_HIGH else "Middel"
+
+
+def liquidity_facts(history: pd.DataFrame | None, rate) -> dict:
+    """x_adv_usd (gns. Close × Volume i USD) og x_idle_days (dage uden handel) for de seneste 21 dage.
+    Tomt resultat uden Volume; uden kurs (`rate`) kun x_idle_days."""
+    if history is None or "Volume" not in history.columns or "Close" not in history.columns:
+        return {}
+    recent = history[pd.to_numeric(history["Close"], errors="coerce").notna()].tail(LIQ_DAYS)
+    volume = pd.to_numeric(recent["Volume"], errors="coerce")
+    if volume.notna().sum() == 0:
+        return {}
+    row = {"x_idle_days": int((volume.fillna(0) <= 0).sum())}
+    rate = _finite(rate)
+    if rate and rate > 0:
+        row["x_adv_usd"] = float((pd.to_numeric(recent["Close"], errors="coerce") * volume.fillna(0)).mean() * rate)
+    return row
 
 
 def trend_flags(history: pd.DataFrame) -> dict:
@@ -98,6 +146,7 @@ def factor_row(ticker: str, fundamentals_loader, info_loader, history_loader, fx
         row.update(info_extras(info, fx_to_usd))
     except Exception:
         pass
+    history = None
     try:
         history = history_loader(ticker)
         row.update({f"m_{k}": v for k, v in momentum_factors(history).items()})
@@ -112,6 +161,12 @@ def factor_row(ticker: str, fundamentals_loader, info_loader, history_loader, fx
             row["t_stockmap"] = latest_signal(history, benchmark, 2)[0]
     except Exception:
         pass
+    try:
+        # kurs til USD som i info_extras: markedsværdi i USD / markedsværdi i egen valuta
+        rate = row["x_mcap_usd"] / row["x_mcap"] if row.get("x_mcap") and row.get("x_mcap_usd") else None
+        row.update(liquidity_facts(history, rate))
+    except Exception:
+        pass
     return row
 
 
@@ -122,7 +177,12 @@ def buy_funnel(factors: pd.DataFrame | None, scores: pd.DataFrame | None, min_qu
         return []
     signal = factors["t_stockmap"].fillna("").astype(str)
     quality = pd.to_numeric(scores["quality"].reindex(factors.index), errors="coerce")
-    hits = factors.index[signal.str.startswith("køb") & (quality >= min_quality)]
+    thin = pd.Series(False, index=factors.index)    # tyndt handlede aktier bliver aldrig kandidater (ukendt slipper igennem)
+    if "x_adv_usd" in factors.columns:
+        idle = factors["x_idle_days"] if "x_idle_days" in factors.columns else pd.Series(None, index=factors.index)
+        thin = pd.Series([liquidity_class(a, i) == "Lav" for a, i in zip(factors["x_adv_usd"], idle)],
+                         index=factors.index)
+    hits = factors.index[signal.str.startswith("køb") & (quality >= min_quality) & ~thin]
     return sorted(hits, key=lambda t: -quality[t])
 
 

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.7.0
+ * Version: 0.7.1
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,7 +14,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.7.0');
+define('ASC_PLUGIN_VERSION', '0.7.1');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
 
 // Must initialize before user-profile / REST authentication determines HTTPS.
@@ -228,6 +228,8 @@ add_action('wp_enqueue_scripts', static function (): void {
         [],
         ASC_PLUGIN_VERSION
     );
+    // Sortering og søgning på alle tabeller; gør intet på sider uden .asc-table-wrap.
+    wp_enqueue_script('hangar18-asc-tables', plugins_url('assets/tables.js', __FILE__), [], ASC_PLUGIN_VERSION, true);
 });
 
 add_shortcode('ai_stock_scanner', 'asc_render_dashboard');
@@ -366,6 +368,7 @@ function asc_admin_page(): void {
     echo '<p>Startside: <strong>Personligt login, portefølje og watchlist</strong>. '
         . 'Du kan tilføje køb og manuel aktuel kurs, redigere beholdninger og eksportere egne køb som CSV – helt uden PC-scanneren.</p>';
     echo '<p>Med en aktiveret kurskilde kan du også se candlesticks, gennemsnitlig handelsvolumen og estimeret handelsværdi over 5/21 børsdage.</p>';
+    echo '<p><strong>v0.7.1:</strong> Størrelses- og likviditetskategorier (Mega–Micro, Høj/Middel/Lav) i playbook og universet, filter for tyndt handlede aktier, og &quot;en dags handel&quot; med advarsel i simulatorens opslag. Regnskab vises med nedtælling (rød inden for 7 dage, KØB-KANDIDAT får &quot;spærret: regnskab&quot;), og regnskabsrisiko (Lav/Middel/Høj, kun en advarsel) vises i mandagslisten, simulatorens opslag og porteføljen. Sortering og søgning på alle tabeller, kurser hentes ved sidevisning og hvert 15. minut, Aktiescanner får rigtige data fra mandagslisten.</p>';
     echo '<p><strong>v0.7.0:</strong> Simulator: virtuel børs og portefølje pr. bruger (30 dages runder, 10 aktier, sammenligning med RSP). Brug <code>[ai_stock_simulator]</code> eller menupunktet Simulator.</p>';
     echo '<p><strong>v0.6.0:</strong> Playbook: mandagsliste, screenere, aktie-scores og papirportefølje fra PC-appen, positionsstørrelse pr. bruger og salgsregel i porteføljen.</p>';
     echo '<p><strong>v0.5.2:</strong> Fast venstremenu ved scroll og sikker sammenligning med dateret børsaktieliste (CSV). Manglende aktier markeres til kontrol, aldrig slettes.</p>';

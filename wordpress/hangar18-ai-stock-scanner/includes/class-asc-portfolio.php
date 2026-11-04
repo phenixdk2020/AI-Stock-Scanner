@@ -583,6 +583,8 @@ final class ASC_Portfolio {
             $price = null;
             $label = '';
             $price_at = '';
+            $risk_value = null;
+            $risk_value_dkk = null;
             if (is_array($quote) && ($quote['currency'] ?? '') === $currency
                 && is_numeric($quote['price'] ?? null) && (float)$quote['price'] > 0) {
                 $price = (float)$quote['price'];
@@ -627,6 +629,8 @@ final class ASC_Portfolio {
                 $class = $pnl >= 0 ? 'asc-positive' : 'asc-negative';
                 $dkk = self::calculate_dkk_values($quantity, $cost, $price,
                     $currency, $paid_dkk, $latest_rate);
+                $risk_value = $value;
+                $risk_value_dkk = $dkk !== null ? (float)$dkk['value_dkk'] : null;
                 echo '<td>' . self::amount($value) . ' ' . esc_html($currency);
                 if ($dkk !== null) {
                     echo '<div class="asc-dkk-detail">'
@@ -709,6 +713,7 @@ final class ASC_Portfolio {
             echo '</details></td></tr>';
             if (class_exists('ASC_Playbook')) {
                 echo ASC_Playbook::exit_rule_row($ticker, (string)($p['buy_date'] ?? ''), 8);
+                echo ASC_Playbook::earnings_risk_row($ticker, $risk_value, $risk_value_dkk, $currency, 8);
             }
             if (is_array($quote) && !empty($quote['history'])) {
                 echo '<tr class="asc-chart-row"><td colspan="8">';
