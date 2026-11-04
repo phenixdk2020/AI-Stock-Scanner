@@ -12,6 +12,7 @@ Prioritet: **P1** høj værdi / lav indsats, **P2** middel, **P3** lav eller sv�
 
 | ID | Funktion | Prio | Indsats | Kilde | Færdig når |
 |---|---|---|---|---|---|
+| B-22 | **Vurdér regnskabsrisikoen ud fra loggen** | P2 | Lille | 04-11-2026 | Efter 2-3 regnskabssæsoner: sammenlign `data/regnskabsrisiko_log.csv` (niveau, point, begrundelser) med `udfald_pct` (faktisk bevægelse). Punkt 1 (sænkede estimater) og punkt 2 (negative nyheder) kan IKKE backtestes, fordi vi ikke har gamle estimater og nyheder; kun punkt 3 (kursen steget 15 % på 30 dage) kan prøves bagud på kurser. Justér først point og grænser, når loggen viser en sammenhæng |
 
 ## 2. Udsat
 
@@ -54,6 +55,8 @@ Prioritet: **P1** høj værdi / lav indsats, **P2** middel, **P3** lav eller sv�
 | ADX > 25 som filter (B-12) – testet, ikke taget i brug | `regression.adx` | Ingen konsekvent forbedring, færre handler |
 | Nyhedsscanner (B-20) | `news.py`, `scan_cli.py --nyheder`, mandagsliste, hjemmeside 0.6.1 | Google News RSS + lokal Ollama; STOR NEGATIV NYHED blokerer køb kun når de negative er flest (1 af 10 den 02-11-2026) |
 | Tragt: scan hele universet (B-21) | `universe.buy_funnel`, `t_stockmap` i universet, mandagslisten | StockMap-køb + Quality ≥ 60 i de 316 → fuld analyse; ★ på hjemmesiden |
+| Størrelses- og likviditetskategorier (04-11-2026) | `universe.size_class/liquidity_class/liquidity_facts`, `weekly_list.classify`, plugin 0.7.1 | Mega–Micro og Høj/Middel/Lav (21 dages gns. omsætning i USD; Lav < 2 mio. eller over 2 dage uden handel). Lav blokerer køb-kandidat ("for lidt handel") og tragten; ejede aktier rammes ikke. Vist i playbook, universet, filter på Aktie-scores og simulatorens opslag ("en dags handel", advarsel under ca. 14 mio. kr.). Universet skal genopbygges for at få x_adv_usd; indtil da gælder reglen kun via mandagslistens egne kurshistorikker |
+| Regnskabsnedtælling og regnskabsrisiko (04-11-2026) | `earnings_risk.py`, `weekly_list.build_rows`, `playbook.earnings_risk_entry`, plugin 0.7.1 | Nedtælling "11-11-2026 (om 7 dage)" beregnes ved hver sidevisning (rød inden for 7 dage, KØB-KANDIDAT får "spærret: regnskab"; manglende dato = "Dato ukendt"). Køb-kandidat uden kendt dato forbliver kandidat med begrundelsen "regnskabsdato ukendt" (blokerer ikke; ejede aktier uberørt). Regnskabsrisiko fra 14 dage før regnskab: sænkede estimater, flest negative nyheder, kurs +15 % på 30 dage → Lav/Middel/Høj; ændrer aldrig handling eller salgsregler. Logges i `data/regnskabsrisiko_log.csv` med faktisk udfald. Kun advarsel: "Risikomål, ikke et salgssignal." |
 | Kurser hvert 15. min på hjemmesiden | `ASC_Market_Quotes` (WP-Cron + auto-genindlæsning) | Kræver at "Yahoo-kurser" er slået til i WordPress-admin |
 | Sektor-bekræftelse af StockMap og MTI-sektor (B-07, B-11) – testet, ikke krav | `sector_rs.py`, `scripts/study_b07_b11.py` | Effekt inden for støj; MTI-sektor mindsker kun værste 5 % (docs/RESULTAT-B07-B11.md) |
 | De fire algostrategier (B-10) | `strategies.py`, `scripts/study_b10.py`, `scripts/strategies_monthly.py` | Kun pris-delene kan bagtestes: momentum 24 %/år mod RSP 13 % (overlevelsesbias!); QM/TPI+/VM/VQ spores fremad fra 03-11-2026 (docs/RESULTAT-B10.md) |

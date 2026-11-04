@@ -23,7 +23,11 @@ final class ASC_Playbook {
     private const UNIVERSE_COLUMNS = [
         'ticker', 'region', 'quality', 'value', 'momentum', 'moat',
         'quality_r', 'value_r', 'momentum_r', 'moat_r', 'upside', 'peg', 'mcap_usd_bn',
+        'size', 'liquidity',
     ];
+    private const EARNINGS_BLOCK_DAYS = 7; // som EARNINGS_BLOCK_DAYS i stockscanner/analyst.py
+    private const RISK_LEVELS = ['Lav', 'Middel', 'Høj'];
+    private const RISK_DISCLAIMER = 'Risikomål, ikke et salgssignal.';
     private const SCREENERS = ['triple-green', 'tpi-trend', 'stock-of-the-day'];
     private const CURRENCIES = ['DKK', 'SEK', 'NOK', 'EUR', 'USD'];
     private const ACTION_ORDER = [
@@ -206,7 +210,7 @@ final class ASC_Playbook {
         $strings = [
             'region' => 40, 'action' => 40, 'reasons' => 400, 'stockmap' => 60,
             'quadrant' => 20, 'tpi' => 60, 'mti' => 60, 'earnings' => 40, 'eps_trend' => 200,
-            'news_summary' => 300,
+            'news_summary' => 300, 'size' => 20, 'liquidity' => 20,
         ];
         $numbers = [
             'price', 'atr14', 'angle', 'quality', 'moat', 'mss_score', 'value_pct',
@@ -238,7 +242,33 @@ final class ASC_Playbook {
             'sma50_breaks' => $dates($exit['sma50_breaks'] ?? null),
         ];
         $out['news'] = self::clean_news($raw['news'] ?? null);
+        $out['earnings_risk'] = self::clean_earnings_risk($raw['earnings_risk'] ?? null);
         return $out;
+    }
+
+    /** Regnskabsrisiko (additivt felt): kendt niveau, højst 6 begrundelser, andele 0-100; ellers null. */
+    private static function clean_earnings_risk($raw): ?array {
+        if (!is_array($raw)) { return null; }
+        $level = is_string($raw['level'] ?? null) ? $raw['level'] : '';
+        if (!in_array($level, self::RISK_LEVELS, true)) { return null; }
+        $reasons = [];
+        foreach (array_slice(is_array($raw['reasons'] ?? null) ? array_values($raw['reasons']) : [], 0, 6) as $reason) {
+            $reason = self::clean_string($reason, 160);
+            if ($reason !== null) { $reasons[] = $reason; }
+        }
+        $share = static function ($value, float $max) {
+            $number = self::clean_number($value);
+            return $number === null ? null : max(0.0, min($max, (float)$number));
+        };
+        return [
+            'level' => $level,
+            'points' => is_int($raw['points'] ?? null) ? max(0, min(3, $raw['points'])) : 0,
+            'reasons' => $reasons,
+            'avg_move_pct' => $share($raw['avg_move_pct'] ?? null, 1000.0),
+            'down_share_pct' => $share($raw['down_share_pct'] ?? null, 100.0),
+            'count' => is_int($raw['count'] ?? null) ? max(0, min(50, $raw['count'])) : 0,
+            'note' => self::clean_string($raw['note'] ?? null, 60),
+        ];
     }
 
     /** B-20: højst 5 overskrifter pr. aktie; kun https-links, kendte vurderinger. */
@@ -298,7 +328,7 @@ final class ASC_Playbook {
             foreach (self::UNIVERSE_COLUMNS as $name) {
                 $value = isset($index[$name]) ? ($row[$index[$name]] ?? null) : null;
                 if ($name === 'ticker') { $clean[] = $ticker; }
-                elseif ($name === 'region') { $clean[] = self::clean_string($value, 40); }
+                elseif (in_array($name, ['region', 'size', 'liquidity'], true)) { $clean[] = self::clean_string($value, 40); }
                 else { $clean[] = self::clean_number($value); }
             }
             $result['rows'][] = $clean;
@@ -402,7 +432,10 @@ final class ASC_Playbook {
         $html = '<div class="asc-sim-analysis"><h4>Playbook-analyse</h4>';
         if ($stock !== null) {
             $html .= '<p><strong>' . self::s($stock['action'] ?? null) . '</strong> – '
-                . self::s($stock['reasons'] ?? null) . '</p><dl class="asc-sim-facts">';
+                . self::s($stock['reasons'] ?? null) . ' ' . self::earnings_block_badge($stock) . '</p>';
+            $risk = self::risk_html($stock);
+            if ($risk !== '') { $html .= '<p class="asc-pb-risk">' . $risk . '</p>'; }
+            $html .= '<dl class="asc-sim-facts">';
             $facts = [
                 'StockMap' => self::s($stock['stockmap'] ?? null),
                 'TPI' => self::s($stock['tpi'] ?? null),
@@ -416,8 +449,10 @@ final class ASC_Playbook {
                 'PEG' => esc_html(self::n($stock['peg'] ?? null, 1)),
                 'Asymmetri' => !empty($stock['asymmetry_inf']) ? '∞'
                     : esc_html(self::n($stock['asymmetry'] ?? null, 1)),
-                'Regnskab' => self::s($stock['earnings'] ?? null),
+                'Regnskab' => self::earnings_html($stock['earnings'] ?? null),
                 'EPS-trend' => self::s($stock['eps_trend'] ?? null),
+                'Størrelse' => self::s($stock['size'] ?? null),
+                'Likviditet' => self::liquidity_badge($stock['liquidity'] ?? null),
             ];
             foreach ($facts as $label => $value) {
                 $html .= '<div><dt>' . esc_html($label) . '</dt><dd>' . $value . '</dd></div>';
@@ -437,6 +472,8 @@ final class ASC_Playbook {
             $html .= '<div><dt>Region</dt><dd>' . self::s($row['region'] ?? null) . '</dd></div>';
             $html .= '<div><dt>Upside %</dt><dd>' . esc_html(self::n($row['upside'] ?? null, 1)) . '</dd></div>';
             $html .= '<div><dt>PEG</dt><dd>' . esc_html(self::n($row['peg'] ?? null, 1)) . '</dd></div>';
+            $html .= '<div><dt>Størrelse</dt><dd>' . self::s($row['size'] ?? null) . '</dd></div>';
+            $html .= '<div><dt>Likviditet</dt><dd>' . self::liquidity_badge($row['liquidity'] ?? null) . '</dd></div>';
             return $html . '</dl></div>';
         }
         return $html . '<p>Ikke analyseret endnu – kommer med ved næste kørsel, hvis du køber aktien i simulatoren '
@@ -611,6 +648,115 @@ final class ASC_Playbook {
         return is_string($value) && $value !== '' ? esc_html($value) : '–';
     }
 
+    /** Likviditetsklasse som mærkat (escaped HTML); "Lav" markeres, manglende felt er "–". */
+    private static function liquidity_badge($value): string {
+        if (!is_string($value) || $value === '') { return '–'; }
+        $class = $value === 'Lav' ? 'asc-score asc-weak' : ($value === 'Høj' ? 'asc-score asc-strong' : '');
+        return $class === '' ? esc_html($value) : '<span class="' . esc_attr($class) . '">' . esc_html($value) . '</span>';
+    }
+
+    // ------------------------------------------------------- Regnskab og risiko
+
+    /** Dage fra i dag (site-tid, beregnes ved hver sidevisning) til datoen; negativ = afholdt, null = ukendt. */
+    private static function earnings_days($iso): ?int {
+        $clean = self::clean_date($iso);
+        if ($clean === null) { return null; }
+        $utc = new DateTimeZone('UTC');
+        $now = wp_date('Y-m-d');
+        if (!is_string($now)) { return null; }
+        $today = DateTimeImmutable::createFromFormat('!Y-m-d', $now, $utc);
+        $target = DateTimeImmutable::createFromFormat('!Y-m-d', $clean, $utc);
+        if (!$today || !$target) { return null; }
+        return (int)$today->diff($target)->format('%r%a');
+    }
+
+    private static function earnings_soon(?int $days): bool {
+        return $days !== null && $days >= 0 && $days <= self::EARNINGS_BLOCK_DAYS;
+    }
+
+    /** Regnskabsdato med nedtælling (escaped HTML): "11-11-2026 (om 7 dage)"; rød inden for 7 dage. */
+    public static function earnings_html($iso): string {
+        $days = self::earnings_days($iso);
+        if ($days === null) { return 'Dato ukendt'; }
+        $clean = (string)$iso;
+        $date = substr($clean, 8, 2) . '-' . substr($clean, 5, 2) . '-' . substr($clean, 0, 4);
+        if ($days < 0) {
+            $when = $days === -1 ? 'afholdt i går' : 'afholdt for ' . (-$days) . ' dage siden';
+        } elseif ($days === 0) {
+            $when = 'i dag';
+        } else {
+            $when = $days === 1 ? 'om 1 dag' : 'om ' . $days . ' dage';
+        }
+        $text = esc_html($date . ' (' . $when . ')');
+        return self::earnings_soon($days) ? '<span class="asc-pb-sell">' . $text . '</span>' : $text;
+    }
+
+    /** Mærket "spærret: regnskab" på en KØB-KANDIDAT med regnskab inden for 7 dage (escaped HTML, ellers tom). */
+    private static function earnings_block_badge(array $stock): string {
+        if (($stock['action'] ?? null) !== 'KØB-KANDIDAT') { return ''; }
+        return self::earnings_soon(self::earnings_days($stock['earnings'] ?? null))
+            ? '<span class="asc-pb-sell">spærret: regnskab</span>' : '';
+    }
+
+    /** Beløbstekst til en position: DKK hvis kendt ("ca. 12.000 kr."), ellers i aktiens valuta; null uden værdi. */
+    private static function risk_amount(?float $avg_move, ?float $value, ?float $value_dkk, string $currency): ?string {
+        if ($avg_move === null) { return null; }
+        $base = $value_dkk ?? $value;
+        if ($base === null || $base <= 0) { return null; }
+        $amount = $base * $avg_move / 100;
+        $step = $amount >= 1000 ? 100 : 10;
+        $rounded = round($amount / $step) * $step;
+        return 'ca. ' . number_format($rounded, 0, ',', '.') . ' ' . ($value_dkk !== null ? 'kr.' : $currency)
+            . ' på din position';
+    }
+
+    /**
+     * Regnskabsrisiko som tekst (escaped HTML); tom uden payload-data. $amount er den færdige beløbstekst
+     * (kun i porteføljen). Risikomål, aldrig et salgssignal.
+     */
+    private static function risk_html(array $stock, ?string $amount = null): string {
+        $risk = $stock['earnings_risk'] ?? null;
+        if (!is_array($risk) || !in_array($risk['level'] ?? null, self::RISK_LEVELS, true)) { return ''; }
+        $level = (string)$risk['level'];
+        $class = $level === 'Høj' ? 'asc-pb-sell' : ($level === 'Middel' ? 'asc-risk-mid' : '');
+        $html = 'Regnskabsrisiko: <strong' . ($class !== '' ? ' class="' . esc_attr($class) . '"' : '') . '>'
+            . esc_html($level) . '</strong>';
+        $reasons = [];
+        foreach (is_array($risk['reasons'] ?? null) ? $risk['reasons'] : [] as $reason) {
+            if (is_string($reason) && $reason !== '') { $reasons[] = $reason; }
+        }
+        if ($reasons) { $html .= ' – ' . esc_html(implode('; ', $reasons)); }
+        $avg = is_numeric($risk['avg_move_pct'] ?? null) ? (float)$risk['avg_move_pct'] : null;
+        $count = is_int($risk['count'] ?? null) ? $risk['count'] : 0;
+        if ($avg === null) {
+            $html .= '. Regnskabsbevægelse: for få regnskaber (' . esc_html((string)$count) . ')';
+        } else {
+            $html .= '. Plejer at bevæge sig ±' . esc_html(self::n($avg, 0)) . ' %';
+            if ($amount !== null) { $html .= ', ' . esc_html($amount); }
+            if (is_numeric($risk['down_share_pct'] ?? null)) {
+                $html .= ' (faldt i ' . esc_html(self::n((float)$risk['down_share_pct'])) . ' % af '
+                    . esc_html((string)$count) . ' regnskaber)';
+            }
+        }
+        return $html . '. ' . esc_html(self::RISK_DISCLAIMER);
+    }
+
+    /**
+     * Regnskabsrisiko på en ejet position i porteføljen (hel tabelrække, escaped HTML). Tom uden payload-data.
+     * Beløbet er positionens værdi × aktiens typiske regnskabsbevægelse.
+     */
+    public static function earnings_risk_row(string $ticker, ?float $value, ?float $value_dkk, string $currency, int $columns): string {
+        $data = self::snapshot();
+        $stock = $data !== null && is_array($data['stocks'][$ticker] ?? null) ? $data['stocks'][$ticker] : null;
+        if ($stock === null || !is_array($stock['earnings_risk'] ?? null)) { return ''; }
+        $avg = is_numeric($stock['earnings_risk']['avg_move_pct'] ?? null)
+            ? (float)$stock['earnings_risk']['avg_move_pct'] : null;
+        $text = self::risk_html($stock, self::risk_amount($avg, $value, $value_dkk, $currency));
+        if ($text === '') { return ''; }
+        return '<tr class="asc-rule-row"><td colspan="' . $columns . '"><div>Regnskab: '
+            . self::earnings_html($stock['earnings'] ?? null) . '. ' . $text . '</div></td></tr>';
+    }
+
     private static function query_text(string $key): string {
         return isset($_GET[$key]) && is_string($_GET[$key])
             ? sanitize_text_field(wp_unslash($_GET[$key])) : '';
@@ -645,7 +791,7 @@ final class ASC_Playbook {
         $tab = sanitize_key(self::query_text('asc_tab'));
         if (!isset($tabs[$tab])) { $tab = 'mandag'; }
         $base = remove_query_arg(
-            ['asc_tab', 'asc_q', 'asc_screen', 'asc_region', 'asc_sizing_status'],
+            ['asc_tab', 'asc_q', 'asc_screen', 'asc_region', 'asc_liq', 'asc_sizing_status'],
             add_query_arg([])
         );
 
@@ -754,8 +900,8 @@ final class ASC_Playbook {
         } else {
             echo '<div class="asc-table-wrap"><table><thead><tr>';
             foreach (['Aktie', 'Handling', 'StockMap', 'TPI', 'MTI', 'Kvalitet', 'Moat', 'MSS-score',
-                      'Værdi', 'Momentum', 'Kanal', 'PEG', 'Asymmetri', 'Regnskab', 'Størrelse', 'Nyheder',
-                      'Begrundelse'] as $head) {
+                      'Værdi', 'Momentum', 'Kanal', 'PEG', 'Asymmetri', 'Regnskab', 'Størrelsesklasse', 'Likviditet', 'Størrelse',
+                      'Nyheder', 'Begrundelse'] as $head) {
                 echo '<th scope="col">' . esc_html($head) . '</th>';
             }
             echo '</tr></thead><tbody>';
@@ -774,7 +920,8 @@ final class ASC_Playbook {
                     . (isset($from_universe[$ticker]) ? ' <span class="asc-subtle" title="Fundet i hele universet">★</span>' : '')
                     . ($action === 'KØB-KANDIDAT' ? '<div class="asc-subtle">' . self::simulator_link((string)$ticker) . '</div>' : '')
                     . '</th>';
-                echo '<td class="' . esc_attr($class) . '">' . self::s($action) . '</td>';
+                echo '<td class="' . esc_attr($class) . '">' . self::s($action)
+                    . (self::earnings_block_badge($stock) !== '' ? '<div>' . self::earnings_block_badge($stock) . '</div>' : '') . '</td>';
                 echo '<td>' . self::s($stock['stockmap'] ?? null) . '</td>';
                 echo '<td>' . self::s($stock['tpi'] ?? null) . '</td>';
                 echo '<td>' . self::s($stock['mti'] ?? null) . '</td>';
@@ -787,10 +934,16 @@ final class ASC_Playbook {
                 echo '<td>' . esc_html(self::n($stock['peg'] ?? null, 1)) . '</td>';
                 echo '<td>' . (!empty($stock['asymmetry_inf']) ? '∞'
                     : esc_html(self::n($stock['asymmetry'] ?? null, 1))) . '</td>';
-                echo '<td>' . self::s($stock['earnings'] ?? null) . '</td>';
+                echo '<td>' . self::earnings_html($stock['earnings'] ?? null) . '</td>';
+                echo '<td>' . self::s($stock['size'] ?? null) . '</td>';
+                echo '<td>' . self::liquidity_badge($stock['liquidity'] ?? null) . '</td>';
                 echo '<td>' . ($size === '' ? '' : $size) . '</td>';
                 echo '<td>' . self::s($stock['news_summary'] ?? null) . '</td>';
                 echo '<td class="asc-subtle">' . self::s($stock['reasons'] ?? null) . '</td></tr>';
+                $risk = self::risk_html($stock);
+                if ($risk !== '') {
+                    echo '<tr class="asc-rule-row"><td colspan="19"><div>' . $risk . '</div></td></tr>';
+                }
             }
             echo '</tbody></table></div>';
             self::render_news($rows);
@@ -862,7 +1015,8 @@ final class ASC_Playbook {
         }
         $suffix = $regional ? '_r' : '';
         echo '<div class="asc-table-wrap"><table><thead><tr>';
-        foreach (['Aktie', 'Region', 'Kvalitet', 'Værdi', 'Momentum', 'Moat', 'Upside %', 'PEG', 'Mkt.værdi (mia. USD)'] as $head) {
+        foreach (['Aktie', 'Region', 'Kvalitet', 'Værdi', 'Momentum', 'Moat', 'Upside %', 'PEG', 'Mkt.værdi (mia. USD)',
+                  'Størrelse', 'Likviditet'] as $head) {
             echo '<th scope="col">' . esc_html($head) . '</th>';
         }
         echo '</tr></thead><tbody>';
@@ -876,7 +1030,9 @@ final class ASC_Playbook {
             }
             echo '<td>' . esc_html(self::n($row['upside'] ?? null, 1)) . '</td>';
             echo '<td>' . esc_html(self::n($row['peg'] ?? null, 1)) . '</td>';
-            echo '<td>' . esc_html(self::n($row['mcap_usd_bn'] ?? null, 1)) . '</td></tr>';
+            echo '<td>' . esc_html(self::n($row['mcap_usd_bn'] ?? null, 1)) . '</td>';
+            echo '<td>' . self::s($row['size'] ?? null) . '</td>';
+            echo '<td>' . self::liquidity_badge($row['liquidity'] ?? null) . '</td></tr>';
         }
         echo '</tbody></table></div>';
     }
@@ -886,8 +1042,10 @@ final class ASC_Playbook {
         $query = preg_replace('/[^A-Z0-9.^=-]/', '', $query);
         $query = is_string($query) ? self::cut($query, 20) : '';
         $index = self::universe_index($data);
+        $hide_thin = self::query_text('asc_liq') === '1';
         $matches = [];
         foreach ($index as $ticker => $row) {
+            if ($hide_thin && ($row['liquidity'] ?? null) === 'Lav') { continue; }
             if ($query === '' || str_contains((string)$ticker, $query)) { $matches[(string)$ticker] = $row; }
         }
         uasort($matches, static function (array $a, array $b): int {
@@ -901,6 +1059,8 @@ final class ASC_Playbook {
         echo '<form class="asc-filter-form" method="get">' . self::hidden_view('scores');
         echo '<label>Søg ticker <input type="text" name="asc_q" maxlength="20" value="'
             . esc_attr($query) . '" placeholder="fx MSFT"></label>';
+        echo '<label><span><input type="checkbox" name="asc_liq" value="1"' . checked($hide_thin, true, false)
+            . '> skjul tyndt handlede (lav likviditet)</span></label>';
         echo '<button type="submit">Søg</button></form>';
         echo '<p class="asc-updated">Viser ' . esc_html((string)min($limit, count($matches))) . ' af '
             . esc_html((string)count($matches)) . ' aktier. Tal er percentiler (global / region).</p>';
@@ -909,7 +1069,8 @@ final class ASC_Playbook {
             return;
         }
         echo '<div class="asc-table-wrap"><table><thead><tr>';
-        foreach (['Aktie', 'Region', 'Kvalitet', 'Værdi', 'Momentum', 'Moat', 'Upside %', 'PEG', 'Mkt.værdi (mia. USD)'] as $head) {
+        foreach (['Aktie', 'Region', 'Kvalitet', 'Værdi', 'Momentum', 'Moat', 'Upside %', 'PEG', 'Mkt.værdi (mia. USD)',
+                  'Størrelse', 'Likviditet'] as $head) {
             echo '<th scope="col">' . esc_html($head) . '</th>';
         }
         echo '</tr></thead><tbody>';
@@ -922,7 +1083,9 @@ final class ASC_Playbook {
             }
             echo '<td>' . esc_html(self::n($row['upside'] ?? null, 1)) . '</td>';
             echo '<td>' . esc_html(self::n($row['peg'] ?? null, 1)) . '</td>';
-            echo '<td>' . esc_html(self::n($row['mcap_usd_bn'] ?? null, 1)) . '</td></tr>';
+            echo '<td>' . esc_html(self::n($row['mcap_usd_bn'] ?? null, 1)) . '</td>';
+            echo '<td>' . self::s($row['size'] ?? null) . '</td>';
+            echo '<td>' . self::liquidity_badge($row['liquidity'] ?? null) . '</td></tr>';
         }
         echo '</tbody></table></div>';
     }

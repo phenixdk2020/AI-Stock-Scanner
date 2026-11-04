@@ -74,3 +74,71 @@ class RegionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def volume_history(volumes, close=10.0):
+    index = pd.bdate_range(end="2026-10-30", periods=len(volumes))
+    return pd.DataFrame({"Close": float(close), "Volume": volumes}, index=index, dtype=float)
+
+
+class SizeAndLiquidityTests(unittest.TestCase):
+    def test_size_class_boundaries(self):
+        cases = [(300e9, "Mega"), (200e9, "Large"), (10e9, "Large"), (9.9e9, "Mid"), (2e9, "Mid"),
+                 (1.9e9, "Small"), (0.3e9, "Small"), (0.29e9, "Micro"), (1.0, "Micro")]
+        for cap, expected in cases:
+            self.assertEqual(universe.size_class(cap), expected, cap)
+
+    def test_size_class_unknown(self):
+        for cap in (None, float("nan"), 0, 0.0, -5e9, "abc"):
+            self.assertEqual(universe.size_class(cap), "ukendt", cap)
+
+    def test_liquidity_class(self):
+        self.assertEqual(universe.liquidity_class(20e6, 0), "Høj")
+        self.assertEqual(universe.liquidity_class(5e6, 0), "Middel")
+        self.assertEqual(universe.liquidity_class(2e6, 2), "Middel")
+        self.assertEqual(universe.liquidity_class(1.9e6, 0), "Lav")
+        self.assertEqual(universe.liquidity_class(50e6, 3), "Lav")          # for mange dage uden handel
+        self.assertEqual(universe.liquidity_class(50e6, None), "Høj")
+        for adv in (None, float("nan")):
+            self.assertEqual(universe.liquidity_class(adv, 0), "ukendt")
+
+    def test_liquidity_facts_uses_last_21_days_and_rate(self):
+        history = volume_history([1.0] * 10 + [1000.0] * 21)
+        facts = universe.liquidity_facts(history, 0.5)
+        self.assertAlmostEqual(facts["x_adv_usd"], 10.0 * 1000.0 * 0.5)
+        self.assertEqual(facts["x_idle_days"], 0)
+
+    def test_liquidity_facts_counts_idle_days(self):
+        history = volume_history([1000.0] * 15 + [0.0, 0.0, float("nan")] + [1000.0] * 3)
+        facts = universe.liquidity_facts(history, 1.0)
+        self.assertEqual(facts["x_idle_days"], 3)
+        self.assertAlmostEqual(facts["x_adv_usd"], 10.0 * 1000.0 * 18 / 21)
+
+    def test_liquidity_facts_empty_or_missing_data(self):
+        self.assertEqual(universe.liquidity_facts(None, 1.0), {})
+        self.assertEqual(universe.liquidity_facts(pd.DataFrame(), 1.0), {})
+        self.assertEqual(universe.liquidity_facts(volume_history([]), 1.0), {})
+        self.assertEqual(universe.liquidity_facts(volume_history([float("nan")] * 25), 1.0), {})
+        self.assertEqual(universe.liquidity_facts(volume_history([1.0] * 25).drop(columns="Volume"), 1.0), {})
+        self.assertNotIn("x_adv_usd", universe.liquidity_facts(volume_history([1000.0] * 25), None))
+
+    def test_factor_row_stores_liquidity_with_rate_from_mcap(self):
+        history = volume_history([1000.0] * 30)
+        row = universe.factor_row("X.CO", lambda t: {}, lambda t: {"marketCap": 1e9, "currency": "DKK"},
+                                  lambda t: history)
+        self.assertAlmostEqual(row["x_adv_usd"], 10.0 * 1000.0 * universe.FX_TO_USD["DKK"])
+        self.assertEqual(row["x_idle_days"], 0)
+        no_rate = universe.factor_row("X", lambda t: {}, lambda t: {}, lambda t: history)
+        self.assertNotIn("x_adv_usd", no_rate)
+
+    def test_buy_funnel_drops_thin_stocks_but_lets_unknown_through(self):
+        factors = pd.DataFrame({"t_stockmap": ["køb 2026-10-30"] * 5,
+                                "x_adv_usd": [50e6, 1e6, float("nan"), 50e6, 5e6],
+                                "x_idle_days": [0, 0, float("nan"), 5, float("nan")]},
+                               index=["LIQ", "THIN", "UNKNOWN", "IDLE", "MID"])
+        scores = pd.DataFrame({"quality": [80, 90, 70, 95, 60]}, index=factors.index)
+        self.assertEqual(universe.buy_funnel(factors, scores), ["LIQ", "UNKNOWN", "MID"])
+        self.assertEqual(universe.buy_funnel(factors.drop(columns=["x_adv_usd", "x_idle_days"]), scores),
+                         ["IDLE", "THIN", "LIQ", "UNKNOWN", "MID"])
+        self.assertEqual(universe.buy_funnel(factors.drop(columns="x_idle_days"), scores),
+                         ["IDLE", "LIQ", "UNKNOWN", "MID"])

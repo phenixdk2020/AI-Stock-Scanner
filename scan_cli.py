@@ -269,7 +269,7 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
 
     import yfinance as yf
 
-    from stockscanner import news, paper, playbook, site_sync
+    from stockscanner import earnings_risk, news, paper, playbook, site_sync
     from stockscanner.sizing import atr, fx_rate, load_settings, position_size
 
     from stockscanner import universe
@@ -322,10 +322,18 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
             pass
     targets = pd.DataFrame(factor_rows).set_index("ticker")
     scores = universe.percentiles(targets, reference, by_region=by_region)
+    sizes, liquidity = {}, {}    # fra egen kurshistorik, så reglen også gælder aktier uden volumen i universet
+    for ticker in histories:
+        info = targets.loc[ticker] if ticker in targets.index else {}
+        cap, mcap = info.get("x_mcap_usd"), info.get("x_mcap")
+        rate = cap / mcap if cap == cap and mcap == mcap and cap and mcap else universe.FX_TO_USD.get(info.get("x_currency"))
+        facts = universe.liquidity_facts(histories[ticker], rate)
+        sizes[ticker] = universe.size_class(cap)
+        liquidity[ticker] = universe.liquidity_class(facts.get("x_adv_usd"), facts.get("x_idle_days"))
     rows = build_rows(list(histories), histories, bench, scores["quality"].dropna().to_dict(),
                       scores["value"].dropna().to_dict(), scores["momentum"].dropna().to_dict(), channels,
                       positions=positions, moat_pct=scores["moat"].dropna().to_dict(), mti_states=mti,
-                      analyst=analyst)
+                      analyst=analyst, sizes=sizes, liquidity=liquidity)
     settings = load_settings()
     currencies = targets["x_currency"].to_dict() if "x_currency" in targets.columns else {}
     for i, r in enumerate(rows):
@@ -343,6 +351,7 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
     if with_news:
         news_items = news.scan(list(histories))
         rows = apply_news(rows, {t: news.summary(items) for t, items in news_items.items()})
+    risks = earnings_risk.build_risks(rows, analyst, news_items, histories, date.today())  # kun en advarsel
     fmt = lambda x: "–" if x is None or (isinstance(x, float) and x != x) else f"{x:.0f}"
     basis = f"mod {len(reference)} aktier i universet" if reference is not None else "kun inden for listen (byg universet)"
     market = universe.breadth(reference)
@@ -352,19 +361,26 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
         print("Markedsindeks (andel over SMA20/50/200): " + " / ".join(f"{market[d]:.0f} %" for d in sorted(market))
               + f" → marked {trend}")
     print(f"{'Aktie':<11}{'Handling':<15}{'StockMap':<18}{'TPI-lite':<17}{'MTI':<13}{'Q':>4}{'Moat':>5}{'MSS':>5}"
-          f"{'V%':>5}{'Mom':>5}{'Kanal':>7}{'PEG':>6}{'Asym':>6}{'Regnskab':>12}  Begrundelse")
+          f"{'V%':>5}{'Mom':>5}{'Kanal':>7}{'PEG':>6}{'Asym':>6}{'Regnskab':>12}{'Str.':>7}{'Likv.':>8}  Begrundelse")
     for r in rows:
         peg = "–" if r.peg is None else f"{r.peg:.1f}"
         asym = "–" if r.asymmetry is None else ("∞" if r.asymmetry == float("inf") else f"{r.asymmetry:.1f}")
         print(f"{r.ticker:<11}{r.action:<15}{r.stockmap:<18}{(r.tpi or '–'):<17}{(r.mti or '–'):<13}{fmt(r.quality):>4}"
               f"{fmt(r.moat):>5}{fmt(r.mss_score):>5}{fmt(r.value_pct):>5}{fmt(r.momentum):>5}{fmt(r.channel_score):>7}"
-              f"{peg:>6}{asym:>6}{(r.earnings or '–'):>12}  {r.reasons}")
+              f"{peg:>6}{asym:>6}{(r.earnings or '–'):>12}{(r.size or '–'):>7}{(r.liquidity or '–'):>8}  {r.reasons}")
     for r in rows:
         if r.news:
             print(f"  {r.ticker}: {r.news}")
+    for ticker, risk in risks.items():
+        print(f"  {ticker}: {earnings_risk.describe(risk)}")
     if out_dir is not None:
         changes_seen = []
         out_dir.mkdir(parents=True, exist_ok=True)
+        log_path = out_dir / "regnskabsrisiko_log.csv"
+        earnings_risk.log_assessments(risks, date.today(), log_path)
+        filled = earnings_risk.fill_outcomes(histories, date.today(), log_path)
+        if filled:
+            print(f"Regnskabsrisiko-log: {filled} udfald udfyldt.")
         frame = pd.DataFrame([r.__dict__ for r in rows]).assign(dato=str(date.today()))
         path = out_dir / f"mandagsliste_{date.today()}.csv"
         frame.to_csv(path, sep=";", index=False, encoding="utf-8-sig")
@@ -407,11 +423,17 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
                     research=research, breadth=market, benchmark=benchmark, factors=everyone,
                     scores=universe.percentiles(everyone, None), regional=universe.percentiles(everyone, None, by_region=True),
                     trades=paper_trades, last_prices=last, changes=changes_seen, news=news_items,
-                    candidates=candidates)
+                    candidates=candidates, earnings_risk=risks)
                 receipt = site_sync.send_playbook(payload, *site)
                 print(f"Hjemmesiden opdateret: {receipt.get('stocks', len(payload['stocks']))} aktier sendt.")
             except Exception as error:
                 print(f"Hjemmesiden blev IKKE opdateret: {error}", file=sys.stderr)
+            try:    # den ældre Aktiescanner-side får sine data ad en anden vej end Playbook
+                dates = {t: h.index[-1].date() for t, h in histories.items() if len(h)}
+                site_sync.send_snapshot(site_sync.snapshot_from_rows(rows, dates), *site)
+                print("Aktiescanner-siden opdateret.")
+            except Exception as error:
+                print(f"Aktiescanner-siden blev IKKE opdateret: {error}", file=sys.stderr)
         else:
             print("Hjemmesiden: ikke sat op (ASC_WP_SITE_URL, ASC_WP_USER, ASC_WP_APP_PASSWORD mangler) – springer over.")
     print("Screening efter egne regler inspireret af MSS – ikke en købsanbefaling.")

@@ -57,3 +57,25 @@ class AsymmetryOfTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LiquidityTests(unittest.TestCase):
+    def test_thin_trading_blocks_buy(self):
+        action, reasons = classify("køb 2026-10-30", False, 75, 60, 1.2, liquidity="Lav")
+        self.assertEqual(action, "hold øje")
+        self.assertEqual(reasons, ["for lidt handel"])
+
+    def test_other_liquidity_values_do_not_block(self):
+        for value in (None, "ukendt", "Middel", "Høj"):
+            self.assertEqual(classify("køb 2026-10-30", False, 75, 60, 1.2, liquidity=value)[0], "KØB-KANDIDAT")
+
+    def test_owned_stock_is_not_affected(self):
+        self.assertEqual(classify("", False, 90, 80, 1.0, [], liquidity="Lav")[0], "BEHOLD (ejet)")
+        self.assertEqual(classify("", False, 90, 80, 1.0, ["x"], liquidity="Lav")[0], "SÆLG (ejet)")
+
+    def test_row_has_size_and_liquidity_defaults(self):
+        from stockscanner.weekly_list import WeeklyRow
+
+        row = WeeklyRow("A", "hold øje", "–", None, None, None, 1.0, 1.0, 1.0, 1.0, 1.0, "")
+        self.assertIsNone(row.size)
+        self.assertIsNone(row.liquidity)

@@ -21,7 +21,8 @@ from stockscanner.tpi_lite import tpi_states
 MIN_QUALITY = 60.0
 MIN_VALUE_SCORE = 50.0
 MAX_PEG = 2.0
-MIN_ASYMMETRY = 3.0     # base-upside mindst 3 × bear-nedside (MSS: 2–4)
+UNKNOWN_EARNINGS = "regnskabsdato ukendt"   # begrundelse på en køb-kandidat uden kendt regnskabsdato (blokerer ikke)
+MIN_ASYMMETRY = 3.0    # base-upside mindst 3 × bear-nedside (MSS: 2–4)
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,8 @@ class WeeklyRow:
     shares: int | None = None       # foreslået antal aktier (B-09), kun køb-kandidater
     stop: float | None = None       # stop = kurs − 3 × ATR(14)
     news: str | None = None         # B-20: "nyheder: 2+ 1−" (+ advarsel ved stor nyhed)
+    size: str | None = None         # Mega/Large/Mid/Small/Micro/ukendt
+    liquidity: str | None = None    # Høj/Middel/Lav/ukendt
 
 
 def latest_signal(prices: pd.DataFrame, benchmark: pd.DataFrame, weeks: int) -> tuple[str, str | None, float | None]:
@@ -72,9 +75,10 @@ def asymmetry_of(channel) -> float | None:
 
 def classify(signal: str, last_week_sell: bool, quality, channel_score, peg,
              exit_reasons: list[str] | None = None, asymmetry=None, earnings_days: int | None = None,
-             trap: str | None = None) -> tuple[str, list[str]]:
+             trap: str | None = None, liquidity: str | None = None) -> tuple[str, list[str]]:
     """`exit_reasons` er None for aktier man ikke ejer, ellers listen af aktive salgsgrunde.
-    `earnings_days`: dage til næste regnskab; `trap`: value trap-tekst (faldende estimater)."""
+    `earnings_days`: dage til næste regnskab; `trap`: value trap-tekst (faldende estimater);
+    `liquidity`: "Lav" (sjældent handlet) blokerer køb – ejede aktier rammes ikke."""
     reasons = []
     if exit_reasons is not None:
         action = ("SÆLG (ejet)", exit_reasons) if exit_reasons else ("BEHOLD (ejet)", ["ingen salgsregel ramt"])
@@ -94,6 +98,8 @@ def classify(signal: str, last_week_sell: bool, quality, channel_score, peg,
         ok = False; reasons.append(f"asymmetri {asymmetry:.1f} < {MIN_ASYMMETRY:.0f}")
     if earnings_days is not None and 0 <= earnings_days <= EARNINGS_BLOCK_DAYS:
         ok = False; reasons.append(f"regnskab om {earnings_days} d")
+    if liquidity == "Lav":
+        ok = False; reasons.append("for lidt handel")
     if trap:
         ok = False; reasons.append(trap)
     return ("KØB-KANDIDAT" if ok else "hold øje"), (reasons or ["alle krav opfyldt"])
@@ -111,11 +117,12 @@ def mti_text(state: dict | None) -> str | None:
 
 def build_rows(tickers, histories, benchmark, quality_pct, value_pct, momentum_pct, channels,
                signal_weeks: int = 2, positions=None, moat_pct=None, mti_states=None, analyst=None,
-               today: date | None = None) -> list[WeeklyRow]:
+               today: date | None = None, sizes=None, liquidity=None) -> list[WeeklyRow]:
     """Saml rækker; alle input er forudberegnede (dict/Series pr. ticker), så funktionen kan testes offline.
     `positions`: ejede aktier (ticker → portfolio.Position); kun de får salgsregler.
     `moat_pct`, `mti_states`: valgfri Moat-percentil og MTI-lite-tilstand pr. ticker.
-    `analyst`: valgfri analyst.AnalystInfo pr. ticker (regnskabsdato og EPS-estimater)."""
+    `analyst`: valgfri analyst.AnalystInfo pr. ticker (regnskabsdato og EPS-estimater).
+    `sizes`, `liquidity`: valgfri størrelses- og likviditetsklasse pr. ticker (universe.size_class/liquidity_class)."""
     from stockscanner.portfolio import exit_check, profit_pct
     from stockscanner.quality_rank import mss_score
 
@@ -123,6 +130,8 @@ def build_rows(tickers, histories, benchmark, quality_pct, value_pct, momentum_p
     moat_pct = moat_pct or {}
     mti_states = mti_states or {}
     analyst = analyst or {}
+    sizes = sizes or {}
+    liquidity = liquidity or {}
     today = today or date.today()
     rows = []
     for ticker in tickers:
@@ -145,7 +154,9 @@ def build_rows(tickers, histories, benchmark, quality_pct, value_pct, momentum_p
         trap = None if info is None else info.trap
         asymmetry = asymmetry_of(channel)
         action, reasons = classify(signal, recent.startswith("salg"), quality, channel_score, peg, exits,
-                                   asymmetry, days_to_earnings(earnings, today), trap)
+                                   asymmetry, days_to_earnings(earnings, today), trap, liquidity.get(ticker))
+        if position is None and action == "KØB-KANDIDAT" and earnings is None:
+            reasons = reasons + [UNKNOWN_EARNINGS]   # advarsel, blokerer ikke (ejede aktier berøres ikke)
         if position is not None:
             gain = profit_pct(prices, position)
             reasons = ([f"{gain:+.1f} % siden køb"] if gain is not None else []) + reasons
@@ -153,7 +164,8 @@ def build_rows(tickers, histories, benchmark, quality_pct, value_pct, momentum_p
         rows.append(WeeklyRow(ticker, action, signal or "–", quadrant, angle, tpi, quality,
                               value_pct.get(ticker), momentum_pct.get(ticker), channel_score, peg, "; ".join(reasons),
                               moat, mss_score(quality, channel_score, moat), mti_text(mti_states.get(ticker)),
-                              asymmetry, None if earnings is None else str(earnings), trap))
+                              asymmetry, None if earnings is None else str(earnings), trap,
+                              size=sizes.get(ticker), liquidity=liquidity.get(ticker)))
     return sort_rows(rows)
 
 

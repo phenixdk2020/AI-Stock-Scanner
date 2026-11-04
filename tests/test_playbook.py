@@ -41,6 +41,22 @@ class PlaybookTests(unittest.TestCase):
         self.assertEqual(payload["breadth"], {"50": 61.2})
         self.assertIn("schema_version", text)
 
+    def test_size_and_liquidity_in_stock_and_universe(self):
+        entry = playbook.stock_entry(row("A"), prices(np.linspace(50, 100, 60)), "USD", "USA", 1.0)
+        self.assertIsNone(entry["size"])
+        self.assertIsNone(entry["liquidity"])
+        factors = pd.DataFrame({"region": ["USA", "Norden"], "x_mcap_usd": [300e9, 0.0],
+                                "x_adv_usd": [50e6, float("nan")], "x_idle_days": [0, float("nan")]},
+                               index=["BIG", "UNL"])
+        scores = pd.DataFrame({"quality": [80, 50]}, index=factors.index)
+        section = playbook.universe_section(factors, scores, None)
+        named = {r[0]: dict(zip(section["columns"], r)) for r in section["rows"]}
+        self.assertEqual((named["BIG"]["size"], named["BIG"]["liquidity"]), ("Mega", "Høj"))
+        self.assertEqual((named["UNL"]["size"], named["UNL"]["liquidity"]), ("ukendt", "ukendt"))
+        old = factors.drop(columns=["x_adv_usd", "x_idle_days"])      # gammel cache uden likviditetskolonner
+        self.assertEqual(playbook.universe_section(old, scores, None)["rows"][0][-1], "ukendt")
+        json.dumps(section, allow_nan=False)
+
     def test_exit_facts_finds_sma50_break(self):
         falling = prices(np.r_[np.linspace(50, 100, 250), np.linspace(100, 70, 50)])
         facts = playbook.exit_facts(falling, False)
