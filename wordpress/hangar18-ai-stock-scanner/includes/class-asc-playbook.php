@@ -208,18 +208,19 @@ final class ASC_Playbook {
         }
         $out['asymmetry_inf'] = ($raw['asymmetry_inf'] ?? false) === true;
         $exit = is_array($raw['exit'] ?? null) ? $raw['exit'] : [];
-        $breaks = [];
-        if (is_array($exit['sma50_breaks'] ?? null)) {
-            foreach ($exit['sma50_breaks'] as $date) {
+        $dates = static function ($raw): array {
+            $out = [];
+            foreach (is_array($raw) ? $raw : [] as $date) {
                 $date = self::clean_date($date);
-                if ($date !== null) { $breaks[] = $date; }
+                if ($date !== null) { $out[] = $date; }
             }
-            $breaks = array_slice($breaks, -60); // de seneste brud tæller for salgsreglen
-        }
+            return array_slice($out, -60); // de seneste brud tæller for salgsreglen
+        };
         $out['exit'] = [
             'supertrend_down' => ($exit['supertrend_down'] ?? false) === true,
+            'supertrend_flips' => $dates($exit['supertrend_flips'] ?? null),
             'stockmap_sell' => ($exit['stockmap_sell'] ?? false) === true,
-            'sma50_breaks' => $breaks,
+            'sma50_breaks' => $dates($exit['sma50_breaks'] ?? null),
         ];
         $out['news'] = self::clean_news($raw['news'] ?? null);
         return $out;
@@ -385,15 +386,20 @@ final class ASC_Playbook {
         if ($stock === null) { return '<td>–</td>'; }
         $exit = is_array($stock['exit'] ?? null) ? $stock['exit'] : [];
         $reasons = [];
-        if (!empty($exit['supertrend_down'])) { $reasons[] = 'Supertrend ×3 vendt ned'; }
-        if (!empty($exit['stockmap_sell'])) { $reasons[] = 'StockMap-salg denne uge'; }
-        if (preg_match(self::DATE_RE, $buy_date) === 1 && is_array($exit['sma50_breaks'] ?? null)) {
+        $valid_date = preg_match(self::DATE_RE, $buy_date) === 1;
+        // Kun brud EFTER købsdatoen tæller (som i backtesten); en aktie købt i en nedtrend sælges ikke straks.
+        $after = static function ($dates) use ($buy_date, $valid_date): string {
             $latest = '';
-            foreach ($exit['sma50_breaks'] as $date) {
-                if (is_string($date) && $date >= $buy_date && $date > $latest) { $latest = $date; }
+            foreach ($valid_date && is_array($dates) ? $dates : [] as $date) {
+                if (is_string($date) && $date > $buy_date && $date > $latest) { $latest = $date; }
             }
-            if ($latest !== '') { $reasons[] = 'brud under SMA50 (' . $latest . ')'; }
-        }
+            return $latest;
+        };
+        $flip = $after($exit['supertrend_flips'] ?? null);
+        if ($flip !== '' && !empty($exit['supertrend_down'])) { $reasons[] = 'Supertrend ×3 vendt ned (' . $flip . ')'; }
+        if (!empty($exit['stockmap_sell'])) { $reasons[] = 'StockMap-salg denne uge'; }
+        $break = $after($exit['sma50_breaks'] ?? null);
+        if ($break !== '') { $reasons[] = 'brud under SMA50 (' . $break . ')'; }
         if ($reasons) {
             return '<td class="asc-pb-sell">SÆLG: ' . esc_html(implode(', ', $reasons)) . '</td>';
         }

@@ -44,8 +44,8 @@ def update(frame: pd.DataFrame, rows, histories: dict, today: date) -> tuple[pd.
     by_ticker = {r.ticker: r for r in rows}
     for index, trade in open_positions(frame).iterrows():
         prices = histories.get(trade["ticker"])
-        if prices is None or prices.empty:
-            continue
+        if prices is None or prices.empty or str(trade["koebsdato"]) >= str(today):
+            continue  # aldrig salg samme dag som købet (flere kørsler samme dag)
         row = by_ticker.get(trade["ticker"])
         position = Position(trade["ticker"], 0, float(trade["koebskurs"]), pd.Timestamp(trade["koebsdato"]).date())
         reasons = exit_check(prices, position, row is not None and row.action == "pil ned")

@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import time
 from urllib.parse import urlsplit
 
 import requests
@@ -84,6 +85,22 @@ def make_endpoint(site_url: str) -> str:
     return site_url + ENDPOINT
 
 
+RETRY_WAITS = (5, 15, 45)   # sekunder; webhotellet afbrød tilfældigt ca. hver 3. forbindelse (03-11-2026)
+
+
+def _retrying(method):
+    """Prøv igen ved afbrudt forbindelse (ikke ved et svar fra WordPress – det afgør kalderen)."""
+    def call(*args, **kwargs):
+        for wait in (*RETRY_WAITS, None):
+            try:
+                return method(*args, **kwargs)
+            except (requests.ConnectionError, requests.Timeout):
+                if wait is None:
+                    raise
+                time.sleep(wait)
+    return call
+
+
 def _post_or_get_with_auth(
     url: str, username: str, app_password: str, *, payload: dict | None = None
 ) -> requests.Response:
@@ -99,11 +116,11 @@ def _post_or_get_with_auth(
         raise ValueError("WordPress kræver HTTPS.")
 
     common = {
-        "timeout": (8, 60),
+        "timeout": (30, 120),  # playbook-snapshottet kan være flere hundrede KB
         "allow_redirects": False,
         "headers": {"User-Agent": "AI-Stock-Scanner/1.3"},
     }
-    method = requests.post if payload is not None else requests.get
+    method = _retrying(requests.post if payload is not None else requests.get)
     args = {"json": payload} if payload is not None else {}
     response = method(url, auth=(username, app_password), **common, **args)
     if response.status_code == 401:

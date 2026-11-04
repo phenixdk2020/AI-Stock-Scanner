@@ -12,12 +12,6 @@ Prioritet: **P1** høj værdi / lav indsats, **P2** middel, **P3** lav eller sv�
 
 | ID | Funktion | Prio | Indsats | Kilde | Færdig når |
 |---|---|---|---|---|---|
-| B-07 | **StockMap-bekræftelse fra branche/sektor** (sektor-ETF eller -indeks tipper også op) | P2 | M | [MSS] G5, Playbook-siden | Vinkel for sektor i listen; backtest med/uden krav |
-| B-10 | **De fire algostrategier** (Quality Momentum, TPI Plus, Value Momentum, Value Quality; top 15, månedlig) | P2 | L | [MSS] "Profitable strategier", strategy mixer, månedsopdatering (lydspor 505255aa…) | Momentum-varianter backtestet ærligt med 1,5 %/år i handelsomkostninger; Quality/Value kun fremad (papirportefølje); valg af 5 eller 15 aktier pr. strategi |
-| B-11 | **MTI sektor-del** (relativ styrke mod sektor ud over hjemmeindeks) | P2 | M | [MSS] G-dokument 3.7 | `mti_lite` med sektor; test |
-| B-15 | **Kalibrér mod facitlisten** (1180 video-observationer): brug dem med dato som stikprøver | P3 | M | `data/mss_video_observations.csv` | Rapport over hvor mange signaler/zoner vi rammer |
-| B-16 | **TPI fuld metode** (sammenligning med 20–30 års mønstre i aktiens egen historik) | P3 | L | [MSS] H4, H6 | Analog-model; skal slå TPI-lite i urørt periode |
-| B-17 | **WordPress Playbook-side** (fase 6) | P3 | L | TASKS | Side på hangar18.dk med mandagslisten |
 
 ## 2. Udsat
 
@@ -61,3 +55,9 @@ Prioritet: **P1** høj værdi / lav indsats, **P2** middel, **P3** lav eller sv�
 | Nyhedsscanner (B-20) | `news.py`, `scan_cli.py --nyheder`, mandagsliste, hjemmeside 0.6.1 | Google News RSS + lokal Ollama; STOR NEGATIV NYHED blokerer køb kun når de negative er flest (1 af 10 den 02-11-2026) |
 | Tragt: scan hele universet (B-21) | `universe.buy_funnel`, `t_stockmap` i universet, mandagslisten | StockMap-køb + Quality ≥ 60 i de 316 → fuld analyse; ★ på hjemmesiden |
 | Kurser hvert 15. min på hjemmesiden | `ASC_Market_Quotes` (WP-Cron + auto-genindlæsning) | Kræver at "Yahoo-kurser" er slået til i WordPress-admin |
+| Sektor-bekræftelse af StockMap og MTI-sektor (B-07, B-11) – testet, ikke krav | `sector_rs.py`, `scripts/study_b07_b11.py` | Effekt inden for støj; MTI-sektor mindsker kun værste 5 % (docs/RESULTAT-B07-B11.md) |
+| De fire algostrategier (B-10) | `strategies.py`, `scripts/study_b10.py`, `scripts/strategies_monthly.py` | Kun pris-delene kan bagtestes: momentum 24 %/år mod RSP 13 % (overlevelsesbias!); QM/TPI+/VM/VQ spores fremad fra 03-11-2026 (docs/RESULTAT-B10.md) |
+| Kalibrering mod videoernes facitliste (B-15) | `calibration.py`, `scripts/calibrate_b15.py` | MTI-lite 11/12 og TPI lang trend 8/9 stemmer; StockMap/værdikanal for få data (docs/RESULTAT-B15.md) |
+| TPI fuld metode, analog (B-16) – testet, ikke taget i brug | `tpi_analog.py`, `scripts/study_b16.py` | Slår ikke TPI-lite i urørt periode (12,2 % mod 13,8 %) (docs/RESULTAT-B16.md) |
+| Playbook på aktier.hangar18.dk (B-17) | plugin 0.6.x, `playbook.py`, `site_sync.py` | Automatisk upload efter hver kørsel |
+| Salgsregel: kun brud efter købsdatoen | `portfolio.exit_check`, plugin | Rettet 03-11-2026: Supertrend tæller kun, hvis den vender ned efter købet |

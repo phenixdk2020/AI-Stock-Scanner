@@ -1,0 +1,107 @@
+﻿nøgle;navn_i_facit;ticker;kilde;sikker;note
+adi;ADI (Analog Devices);ADI;manuel;ja;
+adobe;Adobe;ADBE;manuel;ja;
+alcabello;Alcabello;ALK-B.CO;manuel;nej;
+algebello;Algebello;ALK-B.CO;manuel;nej;
+almindelig brand;Almindelig Brand;;ukendt;nej;uverificeret
+alter beauty;Alter Beauty (usikkert);;ukendt;nej;uverificeret
+amazon;Amazon;AMZN;manuel;ja;
+ambu;Ambu (Ambo, usikkert);AMBU-B.CO;manuel;ja;
+amd;AMD;AMD;manuel;ja;
+apple;Apple;AAPL;manuel;ja;
+arjo;Arjo;ARJO-B.ST;manuel;ja;
+bang & olufsen;Bang & Olufsen;BO.CO;yfinance-søgning;nej;uverificeret
+barrick mining;Barrick Mining (B);B;manuel;ja;
+betsson;Betsson;BETS-B.ST;manuel;ja;
+bill finger;Bill Finger (usikkert: Bilfinger?);GBF.DE;manuel;nej;
+bioporto;BioPorto;BIOPOR.CO;manuel;ja;
+carlsberg;Carlsberg;CARL-B.CO;manuel;ja;
+carvana;Carvana;CVNA;manuel;ja;
+cb;CB (usikkert ticker);CB;yfinance-søgning;nej;uverificeret
+cdns;CDNS;CDNS;manuel;ja;
+celan pharma;Celan Pharma;ZEAL.CO;manuel;nej;
+ceylon farma;Ceylon Farma (usikkert navn);;ukendt;nej;uverificeret
+chemomatic;ChemoMatic;CHEMM.CO;manuel;nej;
+coinbase;Coinbase;COIN;manuel;ja;
+crowdstrike;CrowdStrike;CRWD;manuel;ja;
+daimler truck;Daimler Truck;DTG.DE;manuel;ja;
+danske bank;Danske Bank;DANSKE.CO;manuel;ja;
+demant;Demant (Demand i udskrift);DEMANT.CO;manuel;ja;
+dsv;DSV;DSV.CO;manuel;ja;
+elektra;Elektra (usikkert);;ukendt;nej;uverificeret
+evolution;Evolution (Evolution Gaming);EVO.ST;manuel;ja;
+ferrari;Ferrari;RACE;manuel;ja;
+fingerprint;Fingerprint;FING-B.ST;manuel;ja;
+first solar;First Solar;FSLR;manuel;ja;
+fl smith;FL Smith;FLS.CO;manuel;ja;
+freeport mcmoran;Freeport-McMoRan (FCX);FCX;manuel;ja;
+funcom;Funcom;;ukendt;nej;uverificeret
+genmab;Genmab (Genmap);GMAB.CO;manuel;ja;
+genmap;Genmap;GMAB.CO;manuel;ja;
+getinge;Getinge;GETI-B.ST;manuel;ja;
+gic;GIC;GIC;yfinance-søgning;nej;uverificeret
+glencore;Glencore;GLEN.L;manuel;ja;
+gn store nord;GN Store Nord;GN.CO;manuel;ja;
+hennes & mauritz;Hennes & Mauritz;HM-B.ST;manuel;ja;
+iss;ISS;ISS.CO;manuel;ja;
+kemomatic;Kemomatic;CHEMM.CO;manuel;nej;
+kering;Kering (usikkert);KER.PA;manuel;ja;
+kroger;Kroger;KR;manuel;ja;
+lanthiers holding;Lanthiers Holding (usikkert navn);;ukendt;nej;uverificeret
+lundbaek;Lundbæk;LUN.CO;manuel;ja;
+maersk;Mærsk;MAERSK-B.CO;manuel;ja;
+matas;Matas;MATAS.CO;manuel;ja;
+mattel;Mattel;MAT;manuel;ja;
+micron;Micron (MU);MU;manuel;ja;
+microsoft;Microsoft (MSFT);MSFT;manuel;ja;
+modern times group;Modern Times Group;MTG-B.ST;manuel;ja;
+montage group;Montage Group;;ukendt;nej;uverificeret
+munters group;Munters Group;MTRS.ST;manuel;ja;
+netcompany;Netcompany;NETC.CO;manuel;ja;
+nkt;NKT;NKT.CO;manuel;ja;
+nokian tyres;Nokian Tyres (navn usikkert);TYRES.HE;manuel;nej;
+norske agro solutions;Norske Agro Solutions (usikkert navn);;ukendt;nej;uverificeret
+novo;Novo;NOVO-B.CO;manuel;ja;
+novo nordisk;Novo Nordisk;NOVO-B.CO;manuel;ja;
+nvidia;NVIDIA (NVDA);NVDA;manuel;ja;
+nxpi;NXPI;NXPI;manuel;ja;
+orphazine;Orphazine;ORPHA.CO;manuel;nej;
+orsted;Ørsted;ORSTED.CO;manuel;ja;
+pandora;Pandora;PNDORA.CO;manuel;ja;
+paypal;PayPal;PYPL;manuel;ja;
+per aarhusleff;Per Aarhusleff;PAAL-B.CO;manuel;ja;
+per aarsleff;Per Aarsleff;PAAL-B.CO;manuel;ja;
+plejt;Plejt (navn usikkert, LED-lysstyring);PLEJD.ST;manuel;nej;
+protector forsikring;Protector Forsikring;PROT.OL;manuel;ja;
+quanta services;Quanta Services (PWR);PWR;manuel;ja;
+rec silicon;REC Silicon (RIC Silicon);;ukendt;nej;uverificeret
+regnmetall;Regnmetall;RHM.DE;manuel;ja;
+rheinmetall;Rheinmetall;RHM.DE;manuel;ja;
+ringkobing landbobank;Ringkøbing Landbobank;RILBA.CO;manuel;ja;
+rio tinto;Rio Tinto;RIO.L;manuel;ja;
+royal caribbean;Royal Caribbean;RCL;manuel;ja;
+royal unibrew;Royal Unibrew;RBREW.CO;manuel;ja;
+rsp vs s&p 500;RSP vs S&P 500;;ukendt;nej;uverificeret
+rtx;RTX;RTX;manuel;ja;
+sandvik;Sandvik;SAND.ST;manuel;ja;
+seloxid;Seloxid;;ukendt;nej;uverificeret
+shape robotics;Shape Robotics;;ukendt;nej;uverificeret
+simcorp;SimCorp;SIM.CO;manuel;ja;
+solar;Solar (usikkert navn);SOLAR-B.CO;manuel;ja;
+stolt nielsen;Stolt-Nielsen;SNI.OL;manuel;ja;
+synchrony financials;Synchrony Financials;SYF;manuel;ja;
+taiwan semi;Taiwan Semi (TSM);TSM;manuel;ja;
+tall brothers;Tall Brothers;;ukendt;nej;uverificeret
+target;Target;TGT;manuel;ja;
+tesla;Tesla;TSLA;manuel;ja;
+teva;Teva;TEVA;manuel;ja;
+texas instruments;Texas Instruments;TXN;manuel;ja;
+tk tankers;TK Tankers;TNK;manuel;ja;
+tol;TOL;TOL;yfinance-søgning;nej;uverificeret
+tryg;Tryg;TRYG.CO;manuel;ja;
+tsm;TSM;TSM;manuel;ja;
+ukendt;ukendt (formentlig Vestas, usikkert);;ukendt;nej;uverificeret
+ultra beauty;Ultra Beauty;ULTA;manuel;ja;
+vestas;Vestas;VWS.CO;manuel;ja;
+visa;Visa;V;manuel;ja;
+volvo;Volvo;VOLV-B.ST;manuel;ja;

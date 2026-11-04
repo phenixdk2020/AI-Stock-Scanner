@@ -38,6 +38,11 @@ class PortfolioTests(unittest.TestCase):
         self.assertTrue(any("SMA50" in r for r in reasons))
         self.assertIn("StockMap-salg denne uge", reasons)
 
+    def test_bought_in_downtrend_is_not_sold_before_a_new_break(self):
+        fall = daily(np.concatenate([np.linspace(100, 200, 250), np.linspace(200, 140, 50)]))
+        bought_today = Position("X", 1, 140, fall.index[-1].date())
+        self.assertEqual(exit_check(fall, bought_today, False), [])
+
 
 if __name__ == "__main__":
     unittest.main()

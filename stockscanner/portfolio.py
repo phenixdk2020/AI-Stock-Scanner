@@ -40,14 +40,19 @@ def load_portfolio(path: Path = PORTFOLIO_FILE) -> dict[str, Position]:
 
 
 def exit_check(prices: pd.DataFrame, position: Position, stockmap_sell: bool) -> list[str]:
-    """Aktive salgsgrunde for en ejet aktie: brud siden købsdatoen eller nuværende tilstand."""
+    """Aktive salgsgrunde for en ejet aktie: brud EFTER købsdatoen, som i backtesten (exits.exit_signals).
+    Supertrend tæller kun, når den er vendt ned efter købet og stadig peger ned – ellers blev en aktie købt
+    i en nedadgående Supertrend solgt ved første kørsel (papirporteføljen 03-11-2026)."""
     reasons = []
-    since = pd.Timestamp(position.buy_date)
     signals = exit_signals(prices)
-    recent = signals[signals.index >= since]
+    index = pd.DatetimeIndex(signals.index)
+    since = pd.Timestamp(position.buy_date)
+    if index.tz is not None:
+        since = since.tz_localize(index.tz)
+    recent = signals[index.normalize() > since]
     up = supertrend(prices, 10, 3.0)
-    if not up.empty and not bool(up.iloc[-1]):
-        reasons.append("Supertrend ×3 er vendt ned")
+    if not recent.empty and recent["Supertrend x3"].any() and not up.empty and not bool(up.iloc[-1]):
+        reasons.append(f"Supertrend ×3 vendt ned ({recent.index[recent['Supertrend x3']][-1].date()})")
     if not recent.empty and recent["SMA50"].any():
         reasons.append(f"brud under SMA50 ({recent.index[recent['SMA50']][-1].date()})")
     if stockmap_sell:
