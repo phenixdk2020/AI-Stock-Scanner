@@ -36,6 +36,7 @@ jobs:
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-danish-catalog.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-simulator.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-stock-page.php
+          php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-stock-chart.php
           php -l wordpress/hangar18-ai-stock-scanner/includes/class-asc-help.php
       - name: Copenhagen stock directory and CSV import regression
         run: php tests/wp_danish_catalog.php

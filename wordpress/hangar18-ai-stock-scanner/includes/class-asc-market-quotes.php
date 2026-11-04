@@ -26,6 +26,12 @@ final class ASC_Market_Quotes {
     /** Perioder på aktiesiden: kalenderdage bagud fra seneste bar; null = al hentet historik, samlet til uger. */
     public const PERIOD_DAYS = ['1m' => 31, '6m' => 183, '1y' => 366, '5y' => null];
     public const PERIOD_LABELS = ['1m' => '1 måned', '6m' => '6 måneder', '1y' => '1 år', '5y' => '5 år'];
+    private const INTRADAY_AGE = 600;  // Intradagsdata caches i 10 minutter.
+    private const INTRADAY_RETRY_AFTER = 300;  // Mislykket hentning af intradagsdata prøves først igen efter 5 minutter.
+    private const INTRADAY_MAX_RESPONSE = 524288;
+    private const INTRADAY_MAX_BARS = 600;
+    /** Intradagsgrafens perioder: Yahoo-range => interval (1 D = 5 minutter, 1 U = 15 minutter). */
+    private const INTRADAY_RANGES = ['1d' => '5m', '5d' => '15m'];
     /** Markører på aktiegrafen: bogstav, forklaring og retning. */
     private const MARKER_KINDS = [
         'buy' => ['K', 'Køb (portefølje)', 'up'],
@@ -57,6 +63,49 @@ final class ASC_Market_Quotes {
             'callback'            => [self::class, 'rest_refresh'],
             'permission_callback' => static fn() => is_user_logged_in(),
         ]);
+        // Intradagsdata til grafens 1 D og 1 U. Kun for indloggede (cookie + X-WP-Nonce), kun læsning.
+        register_rest_route('ai-stock-scanner/v1', '/quotes/intraday', [
+            'methods'             => 'GET',
+            'callback'            => [self::class, 'rest_intraday'],
+            'permission_callback' => static fn() => is_user_logged_in(),
+            'args'                => [
+                'ticker' => ['required' => true, 'type' => 'string'],
+                'range'  => ['required' => true, 'type' => 'string', 'enum' => ['1d', '5d']],
+            ],
+        ]);
+    }
+
+    /** @return WP_REST_Response|WP_Error */
+    public static function rest_intraday(WP_REST_Request $request) {
+        $ticker = $request->get_param('ticker');
+        $range = $request->get_param('range');
+        $ticker = is_string($ticker) ? strtoupper(trim($ticker)) : '';
+        if (preg_match('/^[A-Z0-9^][A-Z0-9.^=-]{0,19}$/D', $ticker) !== 1) {
+            return new WP_Error('asc_bad_ticker', 'Ugyldigt aktiesymbol.', ['status' => 400]);
+        }
+        if (!is_string($range) || !isset(self::INTRADAY_RANGES[$range])) {
+            return new WP_Error('asc_bad_range', 'Ugyldig periode.', ['status' => 400]);
+        }
+        $data = self::intraday($ticker, $range);
+        if ($data === null) {
+            return new WP_Error('asc_intraday_unavailable',
+                'Intradagskurser kan ikke hentes lige nu.', ['status' => 503]);
+        }
+        $bars = [];
+        foreach ($data['bars'] as $bar) {
+            $bars[] = [(int)$bar['time'], (float)$bar['open'], (float)$bar['high'], (float)$bar['low'],
+                (float)$bar['close'], (float)$bar['volume']];
+        }
+        $response = rest_ensure_response([
+            'ticker' => $data['ticker'],
+            'range' => $data['range'],
+            'currency' => $data['currency'],
+            'gmtoffset' => $data['gmtoffset'],
+            'previous_close' => $data['previous_close'],
+            'bars' => $bars,
+        ]);
+        $response->header('Cache-Control', 'private, no-store');
+        return $response;
     }
 
     /** Skal kursen hentes nu? Ikke hvis cachen er frisk, eller et forsøg lige er mislykkedes. */
@@ -317,6 +366,78 @@ final class ASC_Market_Quotes {
         ];
         set_transient($key, $history, self::HISTORY_AGE);
         return $history;
+    }
+
+    /**
+     * Intradagsbars til grafens 1 D (5 minutter) og 1 U (15 minutter). Egen cache i 10 minutter og egen cooldown
+     * ved fejl; tæller ikke med i MAX_FETCH_PER_PAGE (kaldes kun fra REST-ruten, aldrig ved sidevisning).
+     * Samme validering som history(). Priser gættes aldrig: null ved enhver fejl.
+     * @return array{ticker: string, range: string, currency: string, bars: array, gmtoffset: int, previous_close: ?float, market_time: int, received_at: int, provider: string}|null
+     */
+    public static function intraday(string $ticker, string $range): ?array {
+        if (!self::enabled()) { return null; }
+        if (!preg_match('/^[A-Z0-9^][A-Z0-9.^=-]{0,19}$/D', $ticker)) { return null; }
+        if (!isset(self::INTRADAY_RANGES[$range])) { return null; }
+
+        $hash = md5($ticker . '|' . $range);
+        $key = 'asc_intra_' . $hash;
+        $cached = get_transient($key);
+        if (is_array($cached) && !empty($cached['bars'])) {
+            return $cached;
+        }
+        $cooldown = 'asc_intra_attempt_' . $hash;
+        if (get_transient($cooldown) !== false) { return null; }
+        set_transient($cooldown, 1, self::INTRADAY_RETRY_AFTER);
+        $url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
+            . rawurlencode($ticker) . '?range=' . $range . '&interval=' . self::INTRADAY_RANGES[$range];
+        $response = wp_safe_remote_get($url, [
+            'timeout' => 6,
+            'redirection' => 0,
+            'limit_response_size' => self::INTRADAY_MAX_RESPONSE,
+            'headers' => [
+                'Accept' => 'application/json',
+                'User-Agent' => 'Mozilla/5.0 (compatible; Hangar18-Stock-Scanner/0.3)',
+            ],
+        ]);
+        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+            return null;
+        }
+        $payload = json_decode((string)wp_remote_retrieve_body($response), true);
+        if (!is_array($payload)) { return null; }
+        $result = $payload['chart']['result'][0] ?? null;
+        if (!is_array($result)) { return null; }
+        $meta = $result['meta'] ?? null;
+        if (!is_array($meta)) { return null; }
+
+        $price = $meta['regularMarketPrice'] ?? null;
+        $currency = strtoupper((string)($meta['currency'] ?? ''));
+        $market_time = $meta['regularMarketTime'] ?? null;
+        if (!is_numeric($price) || !is_finite((float)$price) || (float)$price <= 0
+            || !preg_match('/^[A-Z]{3}$/D', $currency)
+            || !is_numeric($market_time) || (int)$market_time < 1577836800
+            || (int)$market_time > time() + 300) {
+            return null;
+        }
+        $bars = self::parse_history($result, self::INTRADAY_MAX_BARS, self::INTRADAY_MAX_BARS);
+        if (count($bars) < 2) { return null; }
+        // Børsens tidsforskel til UTC (sekunder), så grafen kan vise børsens lokale klokkeslæt.
+        $offset = $meta['gmtoffset'] ?? null;
+        $offset = is_numeric($offset) && abs((float)$offset) <= 50400 ? (int)$offset : 0;
+        $previous = $meta['chartPreviousClose'] ?? null;
+        $previous = is_numeric($previous) && is_finite((float)$previous) && (float)$previous > 0 ? (float)$previous : null;
+        $data = [
+            'ticker' => $ticker,
+            'range' => $range,
+            'currency' => $currency,
+            'bars' => $bars,
+            'gmtoffset' => $offset,
+            'previous_close' => $previous,
+            'market_time' => (int)$market_time,
+            'received_at' => time(),
+            'provider' => 'Yahoo Finance (uofficiel)',
+        ];
+        set_transient($key, $data, self::INTRADAY_AGE);
+        return $data;
     }
 
     /**

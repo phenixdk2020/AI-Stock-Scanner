@@ -258,3 +258,28 @@ a.asc-stock-btn:hover,a.asc-stock-btn:focus-visible{background:#edf4fb}
 .asc-help-terms dt{font-weight:650}
 .asc-help-terms dd{margin:0}
 @media(max-width:650px){.asc-help-terms{grid-template-columns:1fr}.asc-help-terms dd{margin-bottom:.5rem}}
+
+/* Interaktiv aktiegraf (assets/stock-chart.js). Tekstfarven arves fra siden; baggrunden er gennemsigtig. */
+.asc-chart-app{margin:.6rem 0}
+.asc-chart-app[hidden]{display:none}
+.asc-chart-head{min-height:4.6rem;margin:0 0 .4rem}
+.asc-chart-when{font-size:.88rem;opacity:.8}
+.asc-chart-value{font-size:1.5rem;margin-right:.3rem}
+.asc-chart-change{font-size:1rem;overflow-wrap:anywhere}
+.asc-chart-detail{font-size:.88rem;overflow-wrap:anywhere}
+.asc-chart-toolbar{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.5rem .9rem;margin:.4rem 0}
+.asc-chart-periods,.asc-chart-options{display:flex;flex-wrap:wrap;gap:.35rem}
+.asc-stock button.asc-chart-btn{min-height:36px;box-sizing:border-box;padding:.3rem .75rem;border:1px solid rgba(100,116,139,.6);border-radius:999px;background:transparent;color:inherit;font:inherit;font-size:.9rem;font-weight:650;cursor:pointer}
+.asc-stock button.asc-chart-btn:hover,.asc-stock button.asc-chart-btn:focus-visible{background:rgba(100,116,139,.18)}
+.asc-stock button.asc-chart-btn.is-active{background:#093c70;border-color:#093c70;color:#fff}
+.asc-stock button.asc-chart-btn.asc-chart-sma.is-active{background:transparent;color:inherit;border-color:var(--asc-sma,#093c70);box-shadow:inset 0 -3px 0 var(--asc-sma,#093c70)}
+.asc-stock button.asc-chart-btn:disabled{opacity:.4;cursor:default}
+.asc-chart-canvas{position:relative;width:100%;height:380px;touch-action:pan-y}
+.asc-chart-message{margin:.4rem 0;padding:.6rem .8rem;border-left:4px solid #e49a29;background:rgba(228,154,41,.14)}
+.asc-chart-message button.asc-chart-btn{margin-left:.3rem}
+.asc-chart-fallback{margin-top:.6rem}
+.asc-chart-figures{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.6rem;margin:.8rem 0 .3rem}
+.asc-chart-figures>div{padding:.6rem .8rem;border:1px solid rgba(100,116,139,.35);border-radius:10px}
+.asc-chart-figures dt{font-size:.82rem;opacity:.75;margin:0}
+.asc-chart-figures dd{margin:.15rem 0 0;font-weight:700;overflow-wrap:anywhere}
+@media(max-width:600px){.asc-chart-canvas{height:300px}.asc-chart-value{font-size:1.3rem}.asc-chart-figures{grid-template-columns:repeat(2,minmax(0,1fr))}.asc-stock button.asc-chart-btn{flex:none}}
