@@ -382,6 +382,7 @@ final class ASC_Portfolio {
         wp_enqueue_style('hangar18-asc');
         $sections = [
             'overview' => ['Overblik', '⌂'],
+            'find' => ['Find aktier', '★'],
             'portfolio' => ['Min portefølje', '▣'],
             'stocks' => ['Danske aktier', '⌕'],
             'watchlist' => ['Watchlist', '☆'],
@@ -440,12 +441,15 @@ final class ASC_Portfolio {
             echo '<div class="asc-app-stat"><span>Seneste scannerresultater</span><strong>'
                 . esc_html((string)count($rows)) . '</strong><a href="'
                 . esc_url(add_query_arg('asc_view','scanner',$url)) . '">Åbn scanner</a></div></div>';
+            echo ASC_Playbook::top_opportunities(add_query_arg('asc_view', 'find', $url));
             echo '<p class="asc-disclaimer">Beholdninger er private. Scannerdata opdateres, når '
                 . 'den lokale scanner har sendt et snapshot; gamle kurser er ikke livekurser.</p>';
             if (is_array($snapshot) && !empty($snapshot['generated_at'])) {
                 echo '<p>Sidste scanner-synkronisering: '
                     . esc_html((string)$snapshot['generated_at']) . ' UTC</p>';
             }
+        } elseif ($view === 'find') {
+            echo ASC_Playbook::render_find();
         } elseif ($view === 'portfolio') {
             echo self::markup();
         } elseif ($view === 'stocks') {

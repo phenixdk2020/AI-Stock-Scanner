@@ -26,7 +26,8 @@ final class ASC_Help {
 
         echo '<h3>Hvad bruges siderne til?</h3>';
         echo self::terms([
-            ['Overblik', 'Forsiden: antal køb, aktier på watchlisten og scannerresultater, med links videre.'],
+            ['Overblik', 'Forsiden: antal køb, aktier på watchlisten, scannerresultater og de bedste aktier med entry nu.'],
+            ['Find aktier', 'Start her: gode selskaber fra hele universet, der er billige, og som har eller mangler et signal til entry.'],
             ['Min portefølje', 'De aktier, du selv ejer: køb, værdi, gevinst og salgsregler. Privat, kun du ser den.'],
             ['Danske aktier', 'Katalog over aktier på den danske børs. Søg, følg en aktie, eller registrér et køb.'],
             ['Watchlist', 'Aktier, du vil følge uden at eje dem. Kommer med i næste scanning. Privat.'],
@@ -34,7 +35,6 @@ final class ASC_Help {
             ['Aktiescanner', 'Kort liste over aktierne fra mandagslisten med score og signal. Ikke hele markedet.'],
             ['Playbook → Mandagsliste', 'Ugens vigtigste side: fuld analyse af research-listen, dine aktier og universets kandidater (★).'],
             ['Playbook → Screenere', 'Faste søgninger i universet. Triple Green: stærk trend på alle tidsskalaer. TPI-trend: nordisk optrend med et fald. Stock of the Day: stort amerikansk selskab i optrend med et fald.'],
-            ['Playbook → Værdi & entry', 'Start her for at finde aktier: hele universet med svar på, om aktien er billig, og om der er en entry nu.'],
             ['Playbook → Aktie-scores', 'Alle cirka 300 aktier i universet med scores. Globalt eller inden for regionen. Her finder du andre aktier end dem på mandagslisten.'],
             ['Playbook → Papirportefølje', 'Scannerens egen test, fælles for alle brugere: den køber og sælger selv efter reglerne med fiktive penge, så vi kan se, om de virker.'],
             ['Simulator', 'Din egen virtuelle børs: køb aktier for fiktive penge, og følg dem i 30 dage mod RSP. Privat.'],
@@ -130,7 +130,7 @@ final class ASC_Help {
             ['Begrundelse', 'De regler, der afgjorde Handling. Start her, når du undrer dig.'],
         ]);
 
-        echo '<h3>Værdi &amp; entry</h3>';
+        echo '<h3>Find aktier</h3>';
         echo self::terms([
             ['Entry', 'Alle købskrav er opfyldt, altså det samme som KØB-KANDIDAT.'],
             ['Vent: billig, men intet købssignal', 'Aktien er god og billig nok, men StockMap har ikke givet køb. Hold øje med den.'],

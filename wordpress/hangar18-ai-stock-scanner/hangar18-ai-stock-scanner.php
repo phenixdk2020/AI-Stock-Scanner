@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.8.2
+ * Version: 0.8.3
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,7 +14,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.8.2');
+define('ASC_PLUGIN_VERSION', '0.8.3');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
 
 // Must initialize before user-profile / REST authentication determines HTTPS.
@@ -392,6 +392,7 @@ function asc_admin_page(): void {
     echo '<p>Startside: <strong>Personligt login, portefølje og watchlist</strong>. '
         . 'Du kan tilføje køb og manuel aktuel kurs, redigere beholdninger og eksportere egne køb som CSV – helt uden PC-scanneren.</p>';
     echo '<p>Med en aktiveret kurskilde kan du også se candlesticks, gennemsnitlig handelsvolumen og estimeret handelsværdi over 5/21 børsdage.</p>';
+    echo '<p><strong>v0.8.3:</strong> Find aktier i menuen med de bedste muligheder som standard, og top 5 med entry på Overblik.</p>';
     echo '<p><strong>v0.8.2:</strong> Interaktiv aktiegraf (TradingView Lightweight Charts, ligger i pluginet): følg kursen med trådkors, zoom og træk, vælg 1 D, 1 U, 1 M, 3 M, 6 M, ÅTD, 1 Å eller 5 Å, skift mellem linje og candles, volumen, SMA50/SMA200 til og fra og dine køb og salg som markører. Intradagskurser til 1 D og 1 U hentes fra Yahoo (cache 10 minutter, kun for indloggede). Nøgletal under grafen: åbning, høj, lav, volumen, 52 ugers høj/lav, P/E og markedsværdi. Den enkle SVG-graf vises, hvis biblioteket ikke kan indlæses.</p>';
     echo '<p><strong>v0.8.1:</strong> Hjælp-side med alle sider og kolonner, Bear/Base/Bull for hele universet, fanen Værdi &amp; entry, forklaring af kolonner ved mus-over og under tabellerne, og valg af marked på alle aktietabeller. Aktiescanner viser MSS-score, Købskandidat og Salgssignal og alle aktier fra mandagslisten. Automatisk Bear/Base/Bull (kursmål = EPS × P/E, ikke en prognose) i aktiesidens og simulatorens analyse og på Analyse-siden med vælger. Flere brugere: mandagslisten viser kun research-listen, tragtens kandidater og brugerens egne aktier; &quot;(ejet)&quot; og gevinst siden køb vises kun for aktier i brugerens egen portefølje, og papirporteføljen er tydeligt fælles. Alle private sider er uden delt sidecache.</p>';
     echo '<p><strong>v0.8.0:</strong> Samlet aktieside: klik på et aktiesymbol i en hvilken som helst tabel, eller søg en aktie frem (symbol eller navn), også en du ikke følger. Siden viser kurs, candlegraf med volumen og SMA50/SMA200 (1 måned til 5 år), dine køb og salg på grafen, playbook-analyse, regnskab, nyheder og knapper til Følg, Køb i simulator og Registrér køb. Brug <code>[ai_stock_page]</code> eller menupunktet Aktie.</p>';

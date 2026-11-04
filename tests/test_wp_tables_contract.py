@@ -43,7 +43,9 @@ class TablesContractTests(unittest.TestCase):
 
     def test_value_tab_covers_the_universe_and_never_invents_a_verdict(self):
         code = (PLUGIN / "includes/class-asc-playbook.php").read_text(encoding="utf-8")
-        self.assertIn("'value' => 'Værdi & entry'", code)
+        self.assertIn("'value' => 'Find aktier'", code)
+        self.assertIn("'find' => ['Find aktier'", (PLUGIN / "includes/class-asc-portfolio.php").read_text(encoding="utf-8"))
+        self.assertIn("$show = 'best'", code)      # Nej-aktier er skjult som standard
         self.assertIn("self::tab_value($data)", code)
         body = code[code.index("public static function entry_verdict"):code.index("private static function tab_value")]
         self.assertIn("return [0, 'Entry']", body)
