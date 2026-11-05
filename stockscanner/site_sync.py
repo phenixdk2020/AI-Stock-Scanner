@@ -11,6 +11,7 @@ import base64
 from contextlib import closing
 from datetime import datetime, timezone
 import json
+import math
 import os
 from pathlib import Path
 import sqlite3
@@ -24,6 +25,7 @@ from stockscanner.storage import DB_PATH
 
 ENDPOINT = "/wp-json/ai-stock-scanner/v1/snapshot"
 MAX_ROWS = 50
+PAYLOAD_FILE = DB_PATH.parent / "sidste_playbook.json"
 
 
 def build_snapshot(db_path: Path = DB_PATH, demo: bool = False) -> dict:
@@ -112,7 +114,7 @@ def make_endpoint(site_url: str) -> str:
     return site_url + ENDPOINT
 
 
-RETRY_WAITS = (5, 15, 45)   # sekunder; webhotellet afbrød tilfældigt ca. hver 3. forbindelse (03-11-2026)
+RETRY_WAITS = (5, 15, 45, 120)   # sekunder; webhotellet afbrød tilfældigt ca. hver 3. forbindelse (03-11-2026)
 
 
 def _retrying(method):
@@ -214,9 +216,32 @@ def fetch_tickers(site_url: str, username: str, app_password: str) -> list[str]:
     return [str(t) for t in tickers if isinstance(t, str) and t.strip()]
 
 
+def finite(value):
+    """NaN og uendelig bliver None: ét ugyldigt tal må ikke stoppe hele uploaden."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {k: finite(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [finite(v) for v in value]
+    return value
+
+
+def save_payload(payload: dict, path: Path = PAYLOAD_FILE) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def load_payload(path: Path = PAYLOAD_FILE) -> dict:
+    """Seneste playbook med nyt tidsstempel, så hjemmesiden ikke afviser den som gammel."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["generated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return payload
+
+
 def send_playbook(payload: dict, site_url: str, username: str, app_password: str) -> dict:
     """Send playbook-snapshot (schema 2, docs/PLAYBOOK-SNAPSHOT.md) til hjemmesiden."""
-    response = _post_or_get_with_auth(_api(site_url, "/playbook"), username, app_password, payload=payload)
+    response = _post_or_get_with_auth(_api(site_url, "/playbook"), username, app_password, payload=finite(payload))
     if response.status_code != 200:
         raise RuntimeError("WordPress afviste playbook-snapshottet: " + _wordpress_error(response))
     data = response.json()

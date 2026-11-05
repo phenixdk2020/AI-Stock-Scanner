@@ -84,7 +84,7 @@ final class ASC_Watchlist {
         ob_start();
         echo '<section class="asc-portfolio asc-watchlist" id="asc-watchlist">';
         echo '<div class="asc-section-title"><h2>Min overvågningsliste</h2>'
-            . '<p>Følg aktier uden at registrere et køb. Listen er privat.</p></div>';
+            . '<p>Følg aktier uden at registrere et køb. Scanneren analyserer dem ved hver kørsel, og Entry viser, når alle købskrav er opfyldt. Du køber selv. Listen er privat.</p></div>';
         if (isset($messages[$status])) {
             echo '<p role="status" class="asc-notice">' . esc_html($messages[$status]) . '</p>';
         }
@@ -96,7 +96,7 @@ final class ASC_Watchlist {
         echo '<button type="submit">Følg aktie</button></form>';
         if ($symbols) {
             echo '<div class="asc-table-wrap"><table><thead><tr>'
-                . '<th>Aktie</th><th>Seneste kurs</th><th>Valuta</th>'
+                . '<th>Aktie</th><th>Entry</th><th>Seneste kurs</th><th>Valuta</th>'
                 . '<th>Kursdato</th><th>Handling</th></tr></thead><tbody>';
             foreach ($symbols as $ticker) {
                 $quote = ASC_Market_Quotes::get($ticker);
@@ -106,7 +106,13 @@ final class ASC_Watchlist {
                 $date = is_array($quote) && isset($quote['market_time'])
                     ? wp_date('d-m-Y H:i', (int)$quote['market_time']) : 'Ikke tilgængelig';
                 if (is_array($quote) && !empty($quote['stale'])) { $date .= ' (forældet)'; }
+                $verdict = class_exists('ASC_Playbook') ? ASC_Playbook::entry_for((string)$ticker) : null;
+                $entry_now = $verdict !== null && $verdict[0] === 0;
                 echo '<tr><th scope="row">' . ASC_Stock_Page::link((string)$ticker) . '</th>'
+                    . '<td>' . ($verdict === null ? 'Analyseres ved næste kørsel'
+                        : ($entry_now ? '<strong>Entry</strong> <a class="asc-sim-link" href="'
+                            . esc_url(ASC_Simulator::lookup_url((string)$ticker)) . '">Køb i simulator</a>'
+                            : esc_html($verdict[1]))) . '</td>'
                     . '<td>' . esc_html($price) . '</td><td>' . esc_html($currency) . '</td>'
                     . '<td>' . esc_html($date) . '</td><td>';
                 echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
@@ -115,7 +121,7 @@ final class ASC_Watchlist {
                 wp_nonce_field('asc_watch_remove');
                 echo '<button type="submit" class="asc-delete">Fjern</button></form></td></tr>';
                 if (is_array($quote) && !empty($quote['history'])) {
-                    echo '<tr class="asc-chart-row"><td colspan="5"><details><summary>Candlesticks og handelsvolumen – '
+                    echo '<tr class="asc-chart-row"><td colspan="6"><details><summary>Candlesticks og handelsvolumen – '
                         . esc_html($ticker) . '</summary>';
                     echo ASC_Market_Quotes::chart_markup($ticker, $quote);
                     echo '</details></td></tr>';

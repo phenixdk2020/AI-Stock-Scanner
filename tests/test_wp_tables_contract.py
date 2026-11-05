@@ -68,6 +68,29 @@ class TablesContractTests(unittest.TestCase):
         self.assertIn("'cheap' => 'Billig på begge mål", code)
         self.assertIn("$stock['peg'] ?? $row['peg']", code)
 
+    def test_abbreviations_are_explained_on_every_page(self):
+        code = (PLUGIN / "assets/tables.js").read_text(encoding="utf-8")
+        self.assertIn("Forkortelser på denne side", code)
+        self.assertIn("function addTerms()", code)
+        for term in ("'TPI':", "'MTI':", "'PEG':", "'P/E':", "'EPS':", "'RSP':", "'ETF':", "'ATR':"):
+            with self.subTest(term=term):
+                self.assertIn(term, code)
+
+    def test_watchlist_shows_entry_and_nothing_is_bought_automatically(self):
+        watch = (PLUGIN / "includes/class-asc-watchlist.php").read_text(encoding="utf-8")
+        code = (PLUGIN / "includes/class-asc-playbook.php").read_text(encoding="utf-8")
+        self.assertIn("ASC_Playbook::entry_for((string)$ticker)", watch)
+        self.assertIn("colspan=\"6\"", watch)
+        self.assertIn('value="asc_watch_add"', code)
+        self.assertNotIn("asc_sim_buy", code[code.index("public static function entry_for"):code.index("private static function tab_scores")])
+
+    def test_total_score_never_guesses_and_is_not_a_buy_rule(self):
+        code = (PLUGIN / "includes/class-asc-playbook.php").read_text(encoding="utf-8")
+        body = code[code.index("public static function total_score"):code.index("private static function value_rows")]
+        self.assertIn("return null", body)
+        verdict = code[code.index("public static function entry_verdict"):code.index("public static function entry_for")]
+        self.assertNotIn("total", verdict)
+
     def test_sort_buttons_do_not_get_the_dark_button_style(self):
         css = (PLUGIN / "assets/dashboard.css").read_text(encoding="utf-8")
         self.assertIn(".asc-portfolio th button.asc-sort", css)

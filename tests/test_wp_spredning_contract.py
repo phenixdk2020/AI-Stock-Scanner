@@ -26,7 +26,7 @@ class SpreadContractTests(unittest.TestCase):
         self.assertIn("'liquidity' => 20, 'sector' => 40,", php)                      # aktier i snapshottet
         self.assertIn("['region', 'size', 'liquidity', 'sector']", php)                # universets tekstkolonner
         self.assertIn("'paper_score' => self::clean_paper_score(", php)
-        for head in ("['Aktie', 'Sektor', 'Handling',", "['Aktie', 'Sektor', 'Entry',"):
+        for head in ("['Aktie', 'Sektor', 'Handling',", "['Aktie', 'Samlet', 'Sektor', 'Entry',"):
             with self.subTest(head=head):
                 self.assertIn(head, php)
         self.assertIn('<td colspan="20">', php)                                        # mandagslisten har en kolonne mere

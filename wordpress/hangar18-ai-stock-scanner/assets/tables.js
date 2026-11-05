@@ -49,6 +49,7 @@
         'entry': 'Entry: alle købskrav er opfyldt. Vent: god og billig mod sin egen værdi, men intet købssignal. Nej: grunden står ved siden af. "Dyr mod andre aktier" betyder Værdi under 20. En regelbaseret screening, ikke en anbefaling.',
         'bear %': 'Kursmål i Bear-scenariet om 2 år i forhold til kursen. Bruger lavt P/E, men analytikernes estimat, så det er ikke et værste scenarie.',
         'base %': 'Kursmål i Base-scenariet om 2 år i forhold til kursen.',
+        'samlet': 'Samlet score 0-100: gennemsnit af Kvalitet, Moat, Værdi og Kanal. Jo højere, jo bedre og billigere ser selskabet ud. Siger ikke noget om tidspunktet; det gør Entry.',
         'selskab': 'Selskabets navn.',
         'ticker': 'Aktiens symbol hos Yahoo, fx NOVO-B.CO.',
         'sektor': 'Den sektor, selskabet hører til (fra Yahoo, vist på dansk). Ukendt betyder, at scanneren ikke kender den. Bruges til spredning: ligger mange aktier med entry i samme sektor, vises en advarsel.',
@@ -180,11 +181,96 @@
             });
             head.textContent = '';
             head.appendChild(button);
+            if (/^(Nyheder|Begrundelse)$/.test(label)) { head.style.minWidth = '13rem'; }   // lange tekster
         });
         var saved = recall(key);
         if (saved && table.tHead.rows[0].cells[saved.column]) {
             sortBy(table, body, saved.column, saved.direction);
         }
+    }
+
+    // Forkortelser: vises med prikket streg og forklaring, og samlet i en boks nederst på hver side.
+    var TERMS = {
+        'MSS': 'MyStockScanner, den tjeneste metoden er bygget ud fra.',
+        'TPI': 'Turning Point Indicator: viser, om aktien er ved at vende.',
+        'MTI': 'Momentum Trend Indicator: viser, om aktien klarer sig bedre end markedet lige nu.',
+        'PEG': 'Price/Earnings to Growth: P/E delt med væksten.',
+        'P/E': 'Price/Earnings: kursen delt med indtjeningen pr. aktie.',
+        'EPS': 'Earnings Per Share: indtjening pr. aktie.',
+        'RSP': 'Invesco S&P 500 Equal Weight ETF: vores målestok for markedet.',
+        'ETF': 'Exchange Traded Fund: en indeksfond, der handles som en aktie.',
+        'SMA50': 'Gennemsnitskursen over 50 handelsdage (Simple Moving Average).',
+        'SMA200': 'Gennemsnitskursen over 200 handelsdage (Simple Moving Average).',
+        'ATR': 'Average True Range: hvor meget aktien typisk svinger pr. dag.',
+        'ECB': 'Den Europæiske Centralbank. Herfra kommer valutakurserne.',
+        'ISIN': 'Aktiens internationale nummer (International Securities Identification Number).',
+        'StockMap': 'Kort over aktiens styrke mod markedet. Herfra kommer købs- og salgssignalet.',
+        'Moat': 'Voldgrav: det der holder konkurrenterne væk, fx brand eller patenter.',
+        'Bear': 'Det dårlige scenarie for kursen om 2 år. Lavt P/E, men analytikernes estimat.',
+        'Base': 'Det normale scenarie for kursen om 2 år.',
+        'Bull': 'Det gode scenarie for kursen om 2 år.',
+        'Asymmetri': 'Forholdet mellem mulig gevinst og muligt tab.',
+        'Upside': 'Hvor meget kursen kan stige til et kursmål, i procent.',
+        'Likviditet': 'Hvor let aktien kan købes og sælges.',
+        'ÅTD': 'År til dato: fra 1. januar til i dag.'
+    };
+    var TERM_RE = new RegExp('(^|[^A-Za-zÆØÅæøå0-9/])(' + Object.keys(TERMS).map(function (t) {
+        return t.replace('/', '\\/');
+    }).sort(function (a, b) { return b.length - a.length; }).join('|') + ')(?![A-Za-zÆØÅæøå0-9])');
+    var TERM_SKIP = 'a,button,script,style,select,option,textarea,svg,abbr,summary,tbody,details,dl,noscript';
+
+    function markTerms(node, found) {
+        var match = TERM_RE.exec(node.nodeValue);
+        if (!match) { return; }
+        var term = match[2];
+        var start = match.index + match[1].length;
+        var rest = node.splitText(start);
+        rest.nodeValue = rest.nodeValue.slice(term.length);
+        var abbr = document.createElement('abbr');
+        abbr.className = 'asc-abbr';
+        abbr.title = TERMS[term];
+        abbr.textContent = term;
+        node.parentNode.insertBefore(abbr, rest);
+        found[term] = true;
+        markTerms(rest, found);
+    }
+
+    function addTerms() {
+        var root = document.querySelector('.asc-app-content') || document.querySelector('.asc-dashboard, .asc-portfolio');
+        if (!root || document.getElementById('asc-help')) { return; }
+        var nodes = [];
+        var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        while (walker.nextNode()) {
+            var parent = walker.currentNode.parentElement;
+            if (parent && !parent.closest(TERM_SKIP)) { nodes.push(walker.currentNode); }
+        }
+        var found = {};
+        nodes.forEach(function (node) { markTerms(node, found); });
+        // Kolonneoverskrifter og tabelceller får ikke streg, men tæller med i boksen.
+        var all = root.textContent;
+        Object.keys(TERMS).forEach(function (term) {
+            if (new RegExp('(^|[^A-Za-zÆØÅæøå0-9/])' + term.replace('/', '\\/') + '(?![A-Za-zÆØÅæøå0-9])').test(all)) {
+                found[term] = true;
+            }
+        });
+        var names = Object.keys(found);
+        if (!names.length) { return; }
+        var box = document.createElement('details');
+        box.className = 'asc-col-help asc-page-terms';
+        var title = document.createElement('summary');
+        title.textContent = 'Forkortelser på denne side';
+        var list = document.createElement('dl');
+        names.sort(function (a, b) { return a.localeCompare(b, 'da'); }).forEach(function (name) {
+            var term = document.createElement('dt');
+            term.textContent = name;
+            var meaning = document.createElement('dd');
+            meaning.textContent = TERMS[name];
+            list.appendChild(term);
+            list.appendChild(meaning);
+        });
+        box.appendChild(title);
+        box.appendChild(list);
+        root.appendChild(box);
     }
 
     var MARKETS = { CO: 'Danmark', ST: 'Sverige', OL: 'Norge', HE: 'Finland', DE: 'Tyskland', F: 'Tyskland',
@@ -309,15 +395,21 @@
             var page = new URLSearchParams(location.search).get('asc_view') || '';
             var key = 'asc-sort:' + location.pathname + ':' + page + ':' + (seen++);
             if (!groups(body).length) { return; }
+            if (table.tHead.rows[0].cells.length > 7 || table.scrollWidth > wrap.clientWidth) { wrap.classList.add('asc-wide'); }
             addHelp(wrap, table);
             addSorting(table, body, key);
             addSearch(wrap, body, key);
         });
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
+    function start() {
         init();
+        addTerms();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', start);
+    } else {
+        start();
     }
 })();

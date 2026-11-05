@@ -168,6 +168,7 @@ final class ASC_Help {
 
         echo '<h3>Find aktier</h3>';
         echo self::terms([
+            ['Samlet', 'Samlet score 0-100: gennemsnit af Kvalitet, Moat, Værdi og Kanal. Den samler, hvor godt og billigt selskabet ser ud, i ét tal, og listen er sorteret efter den. Modsat MSS-score tæller Værdi med. Den siger intet om tidspunktet, og den er ikke testet historisk.'],
             ['Entry', 'Alle købskrav er opfyldt, altså det samme som KØB-KANDIDAT.'],
             ['Vent: intet købssignal', 'Aktien er god og billig mod sin egen værdi, men StockMap har ikke givet køb. Hold øje med den.'],
             ['Dyr mod andre aktier', 'Værdi under 20. Aktien kan godt have Entry, fordi købsreglen bruger Kanal, altså prisen mod aktiens egen historie og forventede indtjening. Mod andre aktier er den dyr.'],
@@ -248,10 +249,12 @@ final class ASC_Help {
         ]);
 
         echo '<h3>Sådan kan du bruge det</h3><ol>';
-        echo '<li>Mandag: åbn Playbook → Mandagsliste, og sortér på Handling.</li>';
-        echo '<li>Læs Begrundelse for hver KØB-KANDIDAT.</li>';
-        echo '<li>Åbn aktien, og tjek graf, regnskabsdato og nyheder.</li>';
-        echo '<li>Prøv først i Simulatoren, før du bruger rigtige penge.</li></ol>';
+        echo '<li>Åbn Find aktier, og vælg de aktier, du tror på. Klik Følg for at sætte dem på din watchlist.</li>';
+        echo '<li>Scanneren analyserer dem ved næste kørsel, og Watchlist viser Entry, når alle købskrav er opfyldt.</li>';
+        echo '<li>Åbn aktien, og tjek graf, regnskabsdato, nyheder og Begrundelse på mandagslisten.</li>';
+        echo '<li>Køb selv: først i Simulatoren, og med rigtige penge når du stoler på det. Registrér købet under Min portefølje, så salgsreglerne følger det.</li></ol>';
+        echo '<p>Systemet køber aldrig noget selv. Du behøver ikke at vælge, hvilke aktier der skal gennem Playbook: '
+            . 'alle aktier, der kan blive Entry, analyseres automatisk ved hver kørsel.</p>';
 
         echo '<p class="asc-disclaimer">Tallene er forsinkede og kan være forkerte. Ikke investeringsrådgivning.</p>';
         echo '</section>';
