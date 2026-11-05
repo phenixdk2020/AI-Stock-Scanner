@@ -1630,6 +1630,33 @@ final class ASC_Playbook {
         return [1, 'Vent: intet købssignal'];
     }
 
+    /**
+     * Entry-vurdering for én aktie, også uden for universet. Null uden snapshot eller analyse.
+     * @return array{0: int, 1: string}|null
+     */
+    public static function entry_for(string $ticker): ?array {
+        $data = self::snapshot();
+        if ($data === null) { return null; }
+        $stock = is_array($data['stocks'][$ticker] ?? null) ? $data['stocks'][$ticker] : null;
+        $row = self::universe_index($data)[$ticker] ?? null;
+        if ($stock === null && !is_array($row)) { return null; }
+        return self::entry_verdict($stock, is_array($row) ? $row : [], self::scenarios_for($ticker));
+    }
+
+    /**
+     * Samlet score 0-100: gennemsnit af Kvalitet, Moat, Værdi og Kanal (afskåret til 0-100). Siger, hvor godt og
+     * billigt selskabet ser ud, ikke om tidspunktet er rigtigt. Null når et af tallene mangler; der gættes ikke.
+     */
+    public static function total_score(array $row, ?array $stock, ?array $scenarios): ?float {
+        $channel = $stock['channel_score'] ?? $scenarios['channel_score'] ?? null;
+        $parts = [$row['quality'] ?? null, $row['moat'] ?? null, $row['value'] ?? null, $channel];
+        foreach ($parts as $part) {
+            if (!is_numeric($part)) { return null; }
+        }
+        $parts[3] = max(0.0, min(100.0, (float)$channel));
+        return array_sum(array_map('floatval', $parts)) / 4;
+    }
+
     /** Universets aktier med entry-vurdering, bedste først. @return array<int, array<string, mixed>> */
     private static function value_rows(array $data): array {
         $rows = [];
@@ -1638,10 +1665,10 @@ final class ASC_Playbook {
             $stock = is_array($data['stocks'][$ticker] ?? null) ? $data['stocks'][$ticker] : null;
             $scenarios = self::scenarios_for($ticker);
             [$rank, $text] = self::entry_verdict($stock, $row, $scenarios);
-            $upside = $scenarios['upside_pct']['base'] ?? null;
+            $total = self::total_score($row, $stock, $scenarios);
             $rows[] = [
                 'ticker' => $ticker, 'row' => $row, 'stock' => $stock, 'sc' => $scenarios, 'rank' => $rank, 'text' => $text,
-                'sort' => is_numeric($upside) ? (float)$upside : -1.0e9,
+                'total' => $total, 'sort' => $total ?? -1.0,
             ];
         }
         usort($rows, static fn(array $a, array $b): int => [$a['rank'], -$a['sort']] <=> [$b['rank'], -$b['sort']]);
@@ -1692,6 +1719,15 @@ final class ASC_Playbook {
             $html .= '</ul>';
         }
         $html .= self::entry_concentration_html($entry_sectors);
+        $watch_hits = [];
+        foreach (self::user_watch(get_current_user_id()) as $ticker) {
+            $verdict = self::entry_for((string)$ticker);
+            if ($verdict !== null && $verdict[0] === 0) { $watch_hits[] = (string)$ticker; }
+        }
+        if ($watch_hits) {
+            $html .= '<p><strong>På din watchlist har ' . esc_html((string)count($watch_hits)) . ' entry nu:</strong> '
+                . implode(', ', array_map(static fn(string $t): string => ASC_Stock_Page::link($t), $watch_hits)) . '</p>';
+        }
         return $html . '<p>' . esc_html((string)$waiting) . ' billige aktier venter på købssignal. <a href="'
             . esc_url($more_url) . '">Se alle muligheder</a></p>'
             . '<p class="asc-disclaimer">Screening efter faste regler, ikke en købsanbefaling.</p></div>';
@@ -1739,16 +1775,24 @@ final class ASC_Playbook {
             echo '<p class="asc-empty">Ingen aktier opfylder kravene i denne kørsel.</p>';
             return;
         }
+        $can_follow = $show !== 'all';      // Alle aktier er over 1.000 rækker; knapperne står i de korte lister.
+        $nonce = wp_create_nonce('asc_watch_add');
+        $post_url = admin_url('admin-post.php');
+        echo '<p class="asc-subtle">Klik Følg for at sætte en aktie på din watchlist. Så følger scanneren den hver uge, '
+            . 'og Watchlist viser, når der er entry.</p>';
         echo '<div class="asc-table-wrap asc-find-table"><table><thead><tr>';
-        foreach (['Aktie', 'Sektor', 'Entry', 'Kanal', 'Bear %', 'Base %', 'Asymmetri', 'Kvalitet', 'Værdi', 'PEG', 'Størrelse', 'Likviditet'] as $head) {
+        foreach (['Aktie', 'Samlet', 'Sektor', 'Entry', 'Kanal', 'Bear %', 'Base %', 'Asymmetri', 'Kvalitet', 'Værdi', 'PEG', 'Størrelse', 'Likviditet'] as $head) {
             echo '<th scope="col">' . esc_html($head) . '</th>';
         }
+        if ($can_follow) { echo '<th scope="col"></th>'; }
         echo '</tr></thead><tbody>';
         foreach ($rows as $item) {
             $row = $item['row'];
             $sc = is_array($item['sc']) ? $item['sc'] : [];
             $stock = is_array($item['stock']) ? $item['stock'] : [];
-            echo '<tr><th scope="row">' . ASC_Stock_Page::link($item['ticker']) . '</th>';
+            echo '<tr>';
+            echo '<th scope="row">' . ASC_Stock_Page::link($item['ticker']) . '</th>';
+            echo '<td><strong>' . esc_html(self::n($item['total'])) . '</strong></td>';
             echo '<td>' . esc_html(self::sector_of($stock, $row)) . '</td>';
             echo '<td>' . ($item['rank'] === 0 ? '<strong>' . esc_html($item['text']) . '</strong>' : esc_html($item['text']))
                 . ($item['rank'] === 0 ? ' ' . self::earnings_block_badge($stock) : '')
@@ -1763,7 +1807,21 @@ final class ASC_Playbook {
             // Købsreglens PEG (fremadrettet) når aktien er analyseret; ellers Yahoos historiske.
             echo '<td>' . esc_html(self::n($stock['peg'] ?? $row['peg'] ?? null, 1)) . '</td>';
             echo '<td>' . self::s($row['size'] ?? null) . '</td>';
-            echo '<td>' . self::liquidity_badge($row['liquidity'] ?? null) . '</td></tr>';
+            echo '<td>' . self::liquidity_badge($row['liquidity'] ?? null) . '</td>';
+            if ($can_follow) {
+                echo '<td>';
+                if (ASC_Watchlist::is_followed($item['ticker'])) {
+                    echo '<span class="asc-subtle">Følges</span>';
+                } else {
+                    echo '<form method="post" action="' . esc_url($post_url) . '">'
+                        . '<input type="hidden" name="action" value="asc_watch_add">'
+                        . '<input type="hidden" name="asc_watch_ticker" value="' . esc_attr($item['ticker']) . '">'
+                        . '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">'
+                        . '<button type="submit" class="asc-follow">Følg</button></form>';
+                }
+                echo '</td>';
+            }
+            echo '</tr>';
         }
         echo '</tbody></table></div>';
     }

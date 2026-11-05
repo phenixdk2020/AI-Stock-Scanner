@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.8.5
+ * Version: 0.8.6
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,7 +14,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.8.5');
+define('ASC_PLUGIN_VERSION', '0.8.6');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
 
 // Must initialize before user-profile / REST authentication determines HTTPS.
@@ -392,6 +392,7 @@ function asc_admin_page(): void {
     echo '<p>Startside: <strong>Personligt login, portefølje og watchlist</strong>. '
         . 'Du kan tilføje køb og manuel aktuel kurs, redigere beholdninger og eksportere egne køb som CSV – helt uden PC-scanneren.</p>';
     echo '<p>Med en aktiveret kurskilde kan du også se candlesticks, gennemsnitlig handelsvolumen og estimeret handelsværdi over 5/21 børsdage.</p>';
+    echo '<p><strong>v0.8.6:</strong> Fuld bredde, fast første kolonne i brede tabeller, forkortelser forklaret på alle sider, Følg i Find aktier og Entry på Watchlist.</p>';
     echo '<p><strong>v0.8.5:</strong> Find aktier: smallere tabel, Billig på begge mål og mærket dyr mod andre aktier. Forkortelser på Hjælp.</p>';
     echo '<p><strong>v0.8.4:</strong> Sektor pr. aktie og spredningsadvarsel (flere end 3 eller over 40 % af aktierne med entry i samme sektor, og over 40 % af dine egne positioner i simulatoren og porteføljen), og papirporteføljens stilling mod RSP på fanen Papirportefølje og på Overblik. Ingen aktier blokeres.</p>';
     echo '<p><strong>v0.8.3:</strong> Find aktier i menuen med de bedste muligheder som standard, og top 5 med entry på Overblik.</p>';

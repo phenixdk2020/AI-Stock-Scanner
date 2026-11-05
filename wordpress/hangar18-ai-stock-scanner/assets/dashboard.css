@@ -101,7 +101,7 @@
 @media(max-width:660px){.asc-dkk-grid{grid-template-columns:1fr}}
 
 /* v0.5.0 responsive application layout. Scoped to shortcode; no theme-side effects. */
-.asc-app-shell{display:grid;grid-template-columns:225px minmax(0,1fr);gap:0;min-height:70vh;max-width:1500px;margin:1rem auto;border:1px solid #dce3ed;border-radius:16px;overflow:hidden;background:#fff;color:#203248}
+.asc-app-shell{display:grid;grid-template-columns:225px minmax(0,1fr);gap:0;min-height:70vh;max-width:none;margin:1rem;border:1px solid #dce3ed;border-radius:16px;overflow:hidden;background:#fff;color:#203248}
 .asc-app-sidebar{background:#093c70;color:#fff;padding:1.2rem .75rem;display:flex;flex-direction:column;gap:1rem}
 .asc-app-brand{font-size:1.17rem;padding:.7rem .6rem 1rem;border-bottom:1px solid #ffffff32;letter-spacing:-.02em}
 .asc-app-brand strong{font-weight:800}.asc-app-brand small{display:block;letter-spacing:0;color:#d5e4f5;font-size:.73rem;margin-top:.35rem}
@@ -294,3 +294,14 @@ a.asc-stock-btn:hover,a.asc-stock-btn:focus-visible{background:#edf4fb}
 .asc-find-table th button.asc-sort{white-space:normal}
 .asc-find-table th button.asc-sort::after{font-size:.75em}
 .asc-dear{display:block;color:#92400e;font-size:.76rem}
+.asc-table-wrap.asc-wide table{font-size:.86rem;white-space:normal}
+.asc-table-wrap.asc-wide th,.asc-table-wrap.asc-wide td{padding:.5rem .45rem;vertical-align:top}
+.asc-table-wrap.asc-wide th button.asc-sort{white-space:normal}
+.asc-table-wrap.asc-wide tbody th[scope=row],.asc-table-wrap.asc-wide thead th:first-child{position:sticky;left:0;z-index:1;background:#fff;box-shadow:1px 0 0 #e2e8f0}
+.asc-table-wrap.asc-wide thead th:first-child{background:#e9eff5}
+.asc-table-wrap.asc-wide .asc-rule-row td>div{position:sticky;left:.5rem;max-width:min(90vw,60rem)}
+.asc-abbr{text-decoration:underline dotted #7b8ea3;text-underline-offset:2px;cursor:help}
+.asc-page-terms{margin-top:1.5rem;border-top:1px solid #d8e3ef;padding-top:.7rem}
+@media(max-width:720px){.asc-app-shell{margin:.5rem 0}}
+.asc-table-wrap.asc-wide tbody th[scope=row]{white-space:nowrap}
+button.asc-follow,.asc-portfolio button.asc-follow{min-height:30px;padding:.2rem .65rem;font-size:.82rem;border-radius:7px}

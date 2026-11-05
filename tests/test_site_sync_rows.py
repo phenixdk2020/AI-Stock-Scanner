@@ -1,8 +1,10 @@
 """Aktiescanner-siden får rigtige data fra mandagslisten i stedet for demodata."""
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 
-from stockscanner.site_sync import snapshot_from_rows
+from stockscanner.site_sync import finite, load_payload, save_payload, snapshot_from_rows
 
 
 def row(ticker, action, score):
@@ -36,6 +38,20 @@ class SnapshotFromRowsTests(unittest.TestCase):
             snapshot_from_rows([row("NODATE", "hold øje", 50)], {})
         many = [row(f"T{i}", "hold øje", 50) for i in range(60)]
         self.assertEqual(len(snapshot_from_rows(many, {r.ticker: "2026-11-03" for r in many})["rows"]), 50)
+
+
+class PayloadFileTests(unittest.TestCase):
+    def test_invalid_numbers_become_none(self):
+        payload = {"stocks": {"RSP": {"currency": float("nan"), "x": [float("inf"), 1.5]}}, "ok": "tekst"}
+        self.assertEqual(finite(payload), {"stocks": {"RSP": {"currency": None, "x": [None, 1.5]}}, "ok": "tekst"})
+
+    def test_saved_payload_can_be_sent_again_with_a_new_timestamp(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "p.json"
+            save_payload({"generated_at": "2020-01-01T00:00:00Z", "stocks": {"Å": 1}}, path)
+            payload = load_payload(path)
+        self.assertEqual(payload["stocks"], {"Å": 1})
+        self.assertNotEqual(payload["generated_at"], "2020-01-01T00:00:00Z")
 
 
 if __name__ == "__main__":

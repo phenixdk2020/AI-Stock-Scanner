@@ -434,6 +434,7 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
                     candidates=candidates, earnings_risk=risks, universe_scenarios=universe_scenarios.load(), channels=channels,
                     sector_map=load_sector_map(Path(__file__).resolve().parent / "data" / "sector_map.json"),
                     paper_score=stilling)
+                site_sync.save_payload(payload)     # så en afbrudt upload kan sendes igen uden en ny kørsel
                 receipt = site_sync.send_playbook(payload, *site)
                 print(f"Hjemmesiden opdateret: {receipt.get('stocks', len(payload['stocks']))} aktier sendt.")
             except Exception as error:
@@ -479,6 +480,7 @@ def main() -> int:
     parser.add_argument("--nyheder", action="store_true",
                         help="B-20: nyheder for research-listen og porteføljen, vurderet af lokal Ollama")
     parser.add_argument("--uden-nyheder", action="store_true", help="--mandagsliste: spring nyhederne over")
+    parser.add_argument("--send-igen", action="store_true", help="send seneste playbook til hjemmesiden uden ny kørsel")
     parser.add_argument("--region", action="store_true",
                         help="Percentiler kun mod samme region (USA/Norden/Europa), som MSS")
     parser.add_argument("--vaerdi", action="store_true", help="Værdikanal og værdiansættelsesscore")
@@ -491,6 +493,15 @@ def main() -> int:
 
     if arguments.screener:
         return print_screener(arguments.screener, arguments.region)
+    if arguments.send_igen:
+        from stockscanner import site_sync
+
+        site = site_sync.credentials()
+        if not site:
+            print("Hjemmesiden: ikke sat op.", file=sys.stderr)
+            return 1
+        print(f"Hjemmesiden opdateret: {site_sync.send_playbook(site_sync.load_payload(), *site).get('stocks')} aktier sendt.")
+        return 0
     if arguments.nyheder:
         return print_news(parse_tickers(arguments.tickers) if arguments.tickers else None)
     if arguments.sammenlign_mss:
