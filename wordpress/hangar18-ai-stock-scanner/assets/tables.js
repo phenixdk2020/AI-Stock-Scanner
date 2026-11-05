@@ -51,7 +51,7 @@
         'base %': 'Kursmål i Base-scenariet om 2 år i forhold til kursen.',
         'selskab': 'Selskabets navn.',
         'ticker': 'Aktiens symbol hos Yahoo, fx NOVO-B.CO.',
-        'sektor': 'Den branche, selskabet hører til.',
+        'sektor': 'Den sektor, selskabet hører til (fra Yahoo, vist på dansk). Ukendt betyder, at scanneren ikke kender den. Bruges til spredning: ligger mange aktier med entry i samme sektor, vises en advarsel.',
         'status': 'Om aktien er aktiv på børsen ifølge kataloget.',
         'handlinger': 'Knapper til at følge aktien eller registrere et køb.',
         'valuta': 'Den valuta, kursen står i.',

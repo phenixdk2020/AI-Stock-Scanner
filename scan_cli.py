@@ -22,6 +22,7 @@ from stockscanner.quality import score_quality
 from stockscanner.quality_rank import quality_percentiles
 from stockscanner.regimes import REGIMES, regime_backtest
 from stockscanner.scores import momentum_scores, value_scores
+from stockscanner.sector_rs import load_sector_map
 from stockscanner.weekly_list import apply_news, build_rows
 from stockscanner.valuation import fetch_inputs as fetch_value_inputs, value_channel
 from stockscanner.storage import load_or_fetch_fundamentals, load_watchlist, save_scans
@@ -412,6 +413,13 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
         if result["afkast_pct"] is not None:
             print(f"Papirportefølje: {result['handler']} handler, {result['aabne']} åbne, gennemsnit "
                   f"{result['afkast_pct']:+.1f} % pr. handel, vundne {result['vundne_pct']:.0f} %")
+        # Papirporteføljens stilling mod RSP: én linje pr. kørsel i data/papir_stilling.csv (dublet samme dato overskrives)
+        stilling = paper.score(paper_trades, last, bench, date.today())
+        paper.log_score(stilling, date.today())
+        if stilling["forskel_pp"] is not None:
+            print(f"Papir mod RSP: {stilling['sammenlignet']} af {stilling['antal']} handler sammenlignet, "
+                  f"{stilling['afkast_pct']:+.1f} % mod RSP {stilling['rsp_pct']:+.1f} % ({stilling['forskel_pp']:+.1f} %-point)"
+                  + (" – under 3 måneder siger tallene ikke noget" if stilling["for_tidligt"] else ""))
         # B-13: scripts/notify.ps1 viser linjerne som Windows-besked
         (out_dir / "aendringer.txt").write_text("\n".join(changes_seen), encoding="utf-8")
         if site:
@@ -423,7 +431,9 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
                     research=research, breadth=market, benchmark=benchmark, factors=everyone,
                     scores=universe.percentiles(everyone, None), regional=universe.percentiles(everyone, None, by_region=True),
                     trades=paper_trades, last_prices=last, changes=changes_seen, news=news_items,
-                    candidates=candidates, earnings_risk=risks, universe_scenarios=universe_scenarios.load(), channels=channels)
+                    candidates=candidates, earnings_risk=risks, universe_scenarios=universe_scenarios.load(), channels=channels,
+                    sector_map=load_sector_map(Path(__file__).resolve().parent / "data" / "sector_map.json"),
+                    paper_score=stilling)
                 receipt = site_sync.send_playbook(payload, *site)
                 print(f"Hjemmesiden opdateret: {receipt.get('stocks', len(payload['stocks']))} aktier sendt.")
             except Exception as error:

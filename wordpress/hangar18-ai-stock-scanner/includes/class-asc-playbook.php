@@ -23,8 +23,13 @@ final class ASC_Playbook {
     private const UNIVERSE_COLUMNS = [
         'ticker', 'region', 'quality', 'value', 'momentum', 'moat',
         'quality_r', 'value_r', 'momentum_r', 'moat_r', 'upside', 'peg', 'mcap_usd_bn',
-        'size', 'liquidity',
+        'size', 'liquidity', 'sector',
     ];
+    private const SECTOR_UNKNOWN = 'ukendt';
+    private const SECTOR_MAX_ENTRIES = 3;      // flere end 3 aktier med entry i samme sektor giver en advarsel
+    private const SECTOR_SHARE = 0.4;          // ... og det samme gør over 40 % af aktierne (eller positionerne)
+    private const SECTOR_MIN_TOTAL = 4;        // procentreglen kræver mindst så mange aktier eller positioner
+    private const PAPER_EARLY_NOTE = 'Under 3 måneder siger tallene ikke noget.';
     private const EARNINGS_BLOCK_DAYS = 7; // som EARNINGS_BLOCK_DAYS i stockscanner/analyst.py
     private const RISK_LEVELS = ['Lav', 'Middel', 'Høj'];
     private const RISK_DISCLAIMER = 'Risikomål, ikke et salgssignal.';
@@ -202,6 +207,7 @@ final class ASC_Playbook {
             'scenarios' => self::clean_scenario_map($input['scenarios'] ?? null),
             'screeners' => self::clean_screeners($input['screeners'] ?? null),
             'paper' => self::clean_paper($input['paper'] ?? null),
+            'paper_score' => self::clean_paper_score($input['paper_score'] ?? null),
             'changes' => self::clean_changes($input['changes'] ?? null),
         ];
         update_option(self::OPTION, $snapshot, false);
@@ -213,7 +219,7 @@ final class ASC_Playbook {
         $strings = [
             'region' => 40, 'action' => 40, 'reasons' => 400, 'stockmap' => 60,
             'quadrant' => 20, 'tpi' => 60, 'mti' => 60, 'earnings' => 40, 'eps_trend' => 200,
-            'news_summary' => 300, 'size' => 20, 'liquidity' => 20,
+            'news_summary' => 300, 'size' => 20, 'liquidity' => 20, 'sector' => 40,
         ];
         $numbers = [
             'price', 'atr14', 'angle', 'quality', 'moat', 'mss_score', 'value_pct',
@@ -387,7 +393,7 @@ final class ASC_Playbook {
             foreach (self::UNIVERSE_COLUMNS as $name) {
                 $value = isset($index[$name]) ? ($row[$index[$name]] ?? null) : null;
                 if ($name === 'ticker') { $clean[] = $ticker; }
-                elseif (in_array($name, ['region', 'size', 'liquidity'], true)) { $clean[] = self::clean_string($value, 40); }
+                elseif (in_array($name, ['region', 'size', 'liquidity', 'sector'], true)) { $clean[] = self::clean_string($value, 40); }
                 else { $clean[] = self::clean_number($value); }
             }
             $result['rows'][] = $clean;
@@ -405,6 +411,25 @@ final class ASC_Playbook {
                 'regional' => self::clean_ticker_list($item['regional'] ?? null, self::MAX_UNIVERSE),
             ];
         }
+        return $out;
+    }
+
+    /**
+     * Papirporteføljens stilling mod RSP (additivt felt `paper_score`): tal og dato renses, null uden felt.
+     * Intet gættes: manglende tal forbliver null.
+     */
+    private static function clean_paper_score($raw): ?array {
+        if (!is_array($raw) || self::clean_number($raw['antal'] ?? null) === null) { return null; }
+        $out = [];
+        foreach (['antal', 'sammenlignet', 'udeladt', 'dage'] as $key) {
+            $value = self::clean_number($raw[$key] ?? null);
+            $out[$key] = $value === null ? null : (int)$value;
+        }
+        foreach (['afkast_pct', 'rsp_pct', 'forskel_pp', 'vinderandel_pct', 'slaar_rsp_pct'] as $key) {
+            $out[$key] = self::clean_number($raw[$key] ?? null);
+        }
+        $out['start'] = self::clean_date($raw['start'] ?? null);
+        $out['for_tidligt'] = ($raw['for_tidligt'] ?? true) !== false;
         return $out;
     }
 
@@ -643,6 +668,7 @@ final class ASC_Playbook {
                 'EPS-trend' => self::s($stock['eps_trend'] ?? null),
                 'Størrelse' => self::s($stock['size'] ?? null),
                 'Likviditet' => self::liquidity_badge($stock['liquidity'] ?? null),
+                'Sektor' => esc_html(self::sector_of($stock, self::universe_index($data)[$ticker] ?? [])),
             ];
             foreach ($facts as $label => $value) {
                 $html .= '<div><dt>' . esc_html($label) . '</dt><dd>' . $value . '</dd></div>';
@@ -665,6 +691,7 @@ final class ASC_Playbook {
             $html .= '<div><dt>PEG</dt><dd>' . esc_html(self::n($row['peg'] ?? null, 1)) . '</dd></div>';
             $html .= '<div><dt>Størrelse</dt><dd>' . self::s($row['size'] ?? null) . '</dd></div>';
             $html .= '<div><dt>Likviditet</dt><dd>' . self::liquidity_badge($row['liquidity'] ?? null) . '</dd></div>';
+            $html .= '<div><dt>Sektor</dt><dd>' . esc_html(self::sector_label($row['sector'] ?? null)) . '</dd></div>';
             return $html . '</dl>' . self::scenarios_section($ticker) . '</div>';
         }
         return $html . '<p>Ikke analyseret endnu – kommer med ved næste kørsel, hvis du køber aktien i simulatoren '
@@ -894,6 +921,166 @@ final class ASC_Playbook {
         $list = array_map('strval', array_keys($data['stocks']));
         $list = array_merge($list, array_map('strval', array_keys(self::universe_index($data))));
         return array_values(array_unique($list));
+    }
+
+    // ------------------------------------------------- Spredning på sektorer
+
+    /** Sektoren som tekst: den indsendte, ellers "ukendt" (snapshot uden feltet er i orden). */
+    public static function sector_label($value): string {
+        $text = is_string($value) ? trim($value) : '';
+        return $text === '' ? self::SECTOR_UNKNOWN : $text;
+    }
+
+    /** Aktiens sektor fra playbook-aktien, ellers fra universets række, ellers "ukendt". */
+    public static function sector_of(?array $stock, array $row = []): string {
+        $sector = self::sector_label($stock['sector'] ?? null);
+        return $sector !== self::SECTOR_UNKNOWN ? $sector : self::sector_label($row['sector'] ?? null);
+    }
+
+    /**
+     * Antal pr. sektor, største først (ens antal alfabetisk). "ukendt" tælles for sig selv og står aldrig i `counts`.
+     * @param array<int|string, mixed> $sectors
+     * @return array{counts: array<string, int>, unknown: int, total: int}
+     */
+    public static function sector_counts(array $sectors): array {
+        $counts = [];
+        $unknown = 0;
+        foreach ($sectors as $sector) {
+            $label = self::sector_label($sector);
+            if ($label === self::SECTOR_UNKNOWN) { $unknown++; continue; }
+            $counts[$label] = ($counts[$label] ?? 0) + 1;
+        }
+        uksort($counts, static function ($a, $b) use ($counts): int {
+            return [-$counts[$a], (string)$a] <=> [-$counts[$b], (string)$b];
+        });
+        return ['counts' => $counts, 'unknown' => $unknown, 'total' => count($sectors)];
+    }
+
+    /**
+     * Spredningsadvarsel: den største sektor, hvis den har flere end $max_count aktier (kun hvis $max_count er sat)
+     * eller over 40 % af alle, når der er mindst $min_total i alt. Aktier uden sektor tæller med i nævneren, men
+     * giver aldrig selv en advarsel. Blokerer intet.
+     * @param array<int|string, mixed> $sectors
+     * @return array{sector: string, count: int, total: int}|null
+     */
+    public static function concentration_warning(array $sectors, int $min_total, ?int $max_count = null): ?array {
+        $info = self::sector_counts($sectors);
+        if ($info['counts'] === []) { return null; }
+        $sector = (string)array_key_first($info['counts']);
+        $count = $info['counts'][$sector];
+        $total = $info['total'];
+        $many = $max_count !== null && $count > $max_count;
+        $share = $total >= $min_total && $count / $total > self::SECTOR_SHARE;
+        return $many || $share ? ['sector' => $sector, 'count' => $count, 'total' => $total] : null;
+    }
+
+    /** Advarslens tekst (ikke escaped): "Bemærk: 7 af 9 aktier med entry ligger i Teknologi. Falder sektoren, falder de samlet." */
+    public static function concentration_text(array $warning, string $what): string {
+        return 'Bemærk: ' . (int)$warning['count'] . ' af ' . (int)$warning['total'] . ' ' . $what . ' ligger i '
+            . (string)$warning['sector'] . '. Falder sektoren, falder de samlet.';
+    }
+
+    /** "Teknologi 7 · Sundhed 2 · ukendt 1" (escaped HTML); tom streng uden aktier. @param array<int|string, mixed> $sectors */
+    public static function sector_count_line(array $sectors): string {
+        $info = self::sector_counts($sectors);
+        $parts = [];
+        foreach ($info['counts'] as $sector => $count) {
+            $parts[] = esc_html((string)$sector) . ' ' . $count;
+        }
+        if ($info['unknown'] > 0) { $parts[] = esc_html(self::SECTOR_UNKNOWN) . ' ' . $info['unknown']; }
+        return implode(' · ', $parts);
+    }
+
+    /** Spredningsadvarslen som afsnit (escaped HTML); tom streng uden advarsel. @param array<int|string, mixed> $sectors */
+    public static function concentration_html(array $sectors, int $min_total, ?int $max_count, string $what): string {
+        $warning = self::concentration_warning($sectors, $min_total, $max_count);
+        return $warning === null ? ''
+            : '<p class="asc-warning asc-pb-spread" role="status">' . esc_html(self::concentration_text($warning, $what)) . '</p>';
+    }
+
+    /** Advarsel for aktier med entry (Find aktier og Overblik). @param array<int|string, mixed> $sectors */
+    public static function entry_concentration_html(array $sectors): string {
+        return self::concentration_html($sectors, self::SECTOR_MIN_TOTAL, self::SECTOR_MAX_ENTRIES, 'aktier med entry');
+    }
+
+    /**
+     * Advarsel om brugerens egne positioner (portefølje eller simulator): over 40 % i samme sektor, når der er mindst
+     * 4 positioner. Kun sektordata fra snapshottet; mangler sektoren, tælles aktien som ukendt og giver ingen advarsel.
+     * @param array<int, mixed> $tickers
+     */
+    public static function own_sector_warning(array $tickers): string {
+        $data = self::snapshot();
+        if ($data === null) { return ''; }
+        $index = self::universe_index($data);
+        $sectors = [];
+        foreach (array_values(array_unique(array_map('strval', $tickers))) as $ticker) {
+            $stock = is_array($data['stocks'][$ticker] ?? null) ? $data['stocks'][$ticker] : null;
+            $sectors[] = self::sector_of($stock, $index[$ticker] ?? []);
+        }
+        return self::concentration_html($sectors, self::SECTOR_MIN_TOTAL, null, 'positioner i din portefølje');
+    }
+
+    // ------------------------------------------------ Papirporteføljen mod RSP
+
+    /**
+     * Stillingen øverst på fanen Papirportefølje (escaped HTML): antal handler, gennemsnitligt afkast mod RSP i samme
+     * periode, forskel, vinderandel og startdato, med noten om de første 3 måneder. Tom streng uden handler.
+     */
+    public static function paper_score_html(?array $score): string {
+        if ($score === null || (int)($score['antal'] ?? 0) <= 0) { return ''; }
+        $antal = (int)$score['antal'];
+        $compared = (int)($score['sammenlignet'] ?? 0);
+        $left_out = max(0, $antal - $compared);
+        $diff = $score['forskel_pp'] ?? null;
+        $class = !is_numeric($diff) ? '' : ((float)$diff >= 0 ? 'asc-positive' : 'asc-negative');
+        $start = is_string($score['start'] ?? null) ? $score['start'] : null;
+        $html = '<div class="asc-pb-paper-score"><h4>Stilling mod RSP</h4>';
+        $html .= '<div class="asc-metrics asc-portfolio-summary">';
+        $html .= '<div><strong>' . esc_html(self::n($antal)) . '</strong><span>Handler</span></div>';
+        $html .= '<div><strong>' . esc_html(self::signed($score['afkast_pct'] ?? null)) . ' %</strong>'
+            . '<span>Gennemsnitligt afkast</span></div>';
+        $html .= '<div><strong>' . esc_html(self::signed($score['rsp_pct'] ?? null)) . ' %</strong>'
+            . '<span>RSP i samme periode</span></div>';
+        $html .= '<div><strong class="' . esc_attr($class) . '">' . esc_html(self::signed($diff)) . ' %-point</strong>'
+            . '<span>Forskel</span></div>';
+        $html .= '<div><strong>' . esc_html(self::n($score['vinderandel_pct'] ?? null)) . ' %</strong>'
+            . '<span>Vinderandel</span></div>';
+        $html .= '<div><strong>' . esc_html($start === null ? '–' : $start) . '</strong><span>Startdato</span></div>';
+        $html .= '</div>';
+        if (($score['for_tidligt'] ?? true) !== false) {
+            $html .= '<p class="asc-warning" role="status"><strong>' . esc_html(self::PAPER_EARLY_NOTE) . '</strong></p>';
+        }
+        $html .= '<p class="asc-subtle">Lige store beløb pr. handel. Afkast er i aktiens egen valuta og er ikke omregnet. '
+            . 'RSP regnes fra samme købsdato til salgsdato, eller til seneste kursdato for åbne handler. '
+            . esc_html(self::n($compared)) . ' af ' . esc_html(self::n($antal)) . ' handler er med i sammenligningen';
+        $html .= $left_out > 0
+            ? '; ' . esc_html(self::n($left_out)) . ' er udeladt, fordi en kurs mangler (de gættes ikke).'
+            : '.';
+        return $html . '</p></div>';
+    }
+
+    /** Kort stilling til Overblik (escaped HTML) med link til fanen; tom streng uden handler. */
+    public static function paper_brief_html(?array $score, string $url): string {
+        if ($score === null || (int)($score['antal'] ?? 0) <= 0) { return ''; }
+        $antal = (int)$score['antal'];
+        $link = ' <a href="' . esc_url($url) . '">Se papirporteføljen</a>';
+        $html = '<div class="asc-top-picks asc-paper-brief"><h2>Reglerne mod markedet</h2>';
+        if ((int)($score['sammenlignet'] ?? 0) <= 0) {
+            return $html . '<p>' . esc_html(self::n($antal)) . ' papirhandler, men ingen kan sammenlignes med RSP endnu.'
+                . $link . '</p></div>';
+        }
+        $html .= '<p>' . esc_html(self::n($antal)) . ' papirhandler: gennemsnit '
+            . esc_html(self::signed($score['afkast_pct'] ?? null)) . ' % mod RSP '
+            . esc_html(self::signed($score['rsp_pct'] ?? null)) . ' % ('
+            . esc_html(self::signed($score['forskel_pp'] ?? null)) . ' %-point).';
+        if (($score['for_tidligt'] ?? true) !== false) { $html .= ' <strong>' . esc_html(self::PAPER_EARLY_NOTE) . '</strong>'; }
+        return $html . $link . '</p></div>';
+    }
+
+    /** Overblikkets kort over papirporteføljens stilling; tom streng uden snapshot eller handler. */
+    public static function paper_brief(string $url): string {
+        $data = self::snapshot();
+        return $data === null ? '' : self::paper_brief_html(is_array($data['paper_score'] ?? null) ? $data['paper_score'] : null, $url);
     }
 
     // ----------------------------------------------------------------- Sizing
@@ -1231,6 +1418,7 @@ final class ASC_Playbook {
         foreach (is_array($data['candidates'] ?? null) ? $data['candidates'] : [] as $symbol) {
             if (is_string($symbol)) { $from_universe[$symbol] = true; }
         }
+        $universe = self::universe_index($data);
         $rows = [];
         foreach ($data['stocks'] as $ticker => $stock) {
             $ticker = (string)$ticker;
@@ -1271,12 +1459,19 @@ final class ASC_Playbook {
             echo '</ul></div>';
         }
 
+        $buy_sectors = [];
+        foreach ($rows as $ticker => $stock) {
+            if (($stock['action'] ?? null) === 'KØB-KANDIDAT') {
+                $buy_sectors[] = self::sector_of($stock, $universe[$ticker] ?? []);
+            }
+        }
+        echo self::concentration_html($buy_sectors, self::SECTOR_MIN_TOTAL, self::SECTOR_MAX_ENTRIES, 'købskandidater');
         if (!$rows) {
             echo '<p class="asc-empty">Ingen af dine overvågede aktier er med i seneste playbook. '
                 . 'Følg aktier på din overvågningsliste, så sendes de med ved næste kørsel.</p>';
         } else {
             echo '<div class="asc-table-wrap"><table><thead><tr>';
-            foreach (['Aktie', 'Handling', 'StockMap', 'TPI', 'MTI', 'Kvalitet', 'Moat', 'MSS-score',
+            foreach (['Aktie', 'Sektor', 'Handling', 'StockMap', 'TPI', 'MTI', 'Kvalitet', 'Moat', 'MSS-score',
                       'Værdi', 'Momentum', 'Kanal', 'PEG', 'Asymmetri', 'Regnskab', 'Størrelsesklasse', 'Likviditet', 'Størrelse',
                       'Nyheder', 'Begrundelse'] as $head) {
                 echo '<th scope="col">' . esc_html($head) . '</th>';
@@ -1297,6 +1492,7 @@ final class ASC_Playbook {
                     . (isset($from_universe[$ticker]) ? ' <span class="asc-subtle" title="Fundet i hele universet">★</span>' : '')
                     . ($action === 'KØB-KANDIDAT' ? '<div class="asc-subtle">' . self::simulator_link((string)$ticker) . '</div>' : '')
                     . '</th>';
+                echo '<td>' . esc_html(self::sector_of($stock, $universe[$ticker] ?? [])) . '</td>';
                 echo '<td class="' . esc_attr($class) . '">' . self::s($action)
                     . (self::earnings_block_badge($stock) !== '' ? '<div>' . self::earnings_block_badge($stock) . '</div>' : '') . '</td>';
                 echo '<td>' . self::s($stock['stockmap'] ?? null) . '</td>';
@@ -1319,7 +1515,7 @@ final class ASC_Playbook {
                 echo '<td class="asc-subtle">' . self::s($stock['reasons'] ?? null) . '</td></tr>';
                 $risk = self::risk_html($stock);
                 if ($risk !== '') {
-                    echo '<tr class="asc-rule-row"><td colspan="19"><div>' . $risk . '</div></td></tr>';
+                    echo '<tr class="asc-rule-row"><td colspan="20"><div>' . $risk . '</div></td></tr>';
                 }
             }
             echo '</tbody></table></div>';
@@ -1473,6 +1669,10 @@ final class ASC_Playbook {
         $rows = self::value_rows($data);
         $best = array_slice(array_values(array_filter($rows, static fn(array $r): bool => $r['rank'] === 0)), 0, 5);
         $waiting = count(array_filter($rows, static fn(array $r): bool => $r['rank'] === 1));
+        $entry_sectors = [];
+        foreach ($rows as $item) {
+            if ($item['rank'] === 0) { $entry_sectors[] = self::sector_of($item['stock'], $item['row']); }
+        }
         $html = '<div class="asc-top-picks"><h2>Aktier med entry nu</h2>';
         if (!$best) {
             $html .= '<p>Ingen aktier opfylder alle købskrav lige nu.</p>';
@@ -1489,6 +1689,7 @@ final class ASC_Playbook {
             }
             $html .= '</ul>';
         }
+        $html .= self::entry_concentration_html($entry_sectors);
         return $html . '<p>' . esc_html((string)$waiting) . ' billige aktier venter på købssignal. <a href="'
             . esc_url($more_url) . '">Se alle muligheder</a></p>'
             . '<p class="asc-disclaimer">Screening efter faste regler, ikke en købsanbefaling.</p></div>';
@@ -1508,6 +1709,14 @@ final class ASC_Playbook {
         echo '<p class="asc-subtle">Gode selskaber, der er billige i forhold til deres egen værdi, og som har et signal til '
             . 'entry. Entry: alle købskrav er opfyldt. Vent: god og billig, men StockMap har ikke givet købssignal. '
             . 'En regelbaseret screening, ikke en købsanbefaling.</p>';
+        $entry_sectors = [];
+        foreach ($all as $item) {
+            if ($item['rank'] === 0) { $entry_sectors[] = self::sector_of($item['stock'], $item['row']); }
+        }
+        echo self::entry_concentration_html($entry_sectors);
+        if ($entry_sectors) {
+            echo '<p class="asc-subtle asc-pb-sector-line">Entry pr. sektor: ' . self::sector_count_line($entry_sectors) . '</p>';
+        }
         echo '<nav class="asc-pb-tabs" aria-label="Vis aktier">';
         foreach ([
             'best' => 'Bedste muligheder (' . ($entries + $waiting) . ')',
@@ -1524,7 +1733,7 @@ final class ASC_Playbook {
             return;
         }
         echo '<div class="asc-table-wrap"><table><thead><tr>';
-        foreach (['Aktie', 'Entry', 'Kanal', 'Bear %', 'Base %', 'Asymmetri', 'Kvalitet', 'Værdi', 'PEG', 'Størrelse', 'Likviditet'] as $head) {
+        foreach (['Aktie', 'Sektor', 'Entry', 'Kanal', 'Bear %', 'Base %', 'Asymmetri', 'Kvalitet', 'Værdi', 'PEG', 'Størrelse', 'Likviditet'] as $head) {
             echo '<th scope="col">' . esc_html($head) . '</th>';
         }
         echo '</tr></thead><tbody>';
@@ -1533,6 +1742,7 @@ final class ASC_Playbook {
             $sc = is_array($item['sc']) ? $item['sc'] : [];
             $stock = is_array($item['stock']) ? $item['stock'] : [];
             echo '<tr><th scope="row">' . ASC_Stock_Page::link($item['ticker']) . '</th>';
+            echo '<td>' . esc_html(self::sector_of($stock, $row)) . '</td>';
             echo '<td>' . ($item['rank'] === 0 ? '<strong>' . esc_html($item['text']) . '</strong>' : esc_html($item['text']))
                 . ($item['rank'] === 0 ? ' ' . self::earnings_block_badge($stock) : '') . '</td>';
             echo '<td>' . esc_html(self::n($stock['channel_score'] ?? $sc['channel_score'] ?? null)) . '</td>';
@@ -1608,6 +1818,7 @@ final class ASC_Playbook {
         echo '<h3>Papirportefølje</h3>';
         echo '<p class="asc-subtle">Scannerens egen papirportefølje, fælles for alle brugere. '
             . 'Den er ikke din portefølje og ændres kun af scanneren.</p>';
+        echo self::paper_score_html(is_array($data['paper_score'] ?? null) ? $data['paper_score'] : null);
         echo '<div class="asc-metrics asc-portfolio-summary">';
         echo '<div><strong>' . esc_html(self::n($summary['handler'] ?? null)) . '</strong><span>Handler</span></div>';
         echo '<div><strong>' . esc_html(self::n($summary['aabne'] ?? null)) . '</strong><span>Åbne positioner</span></div>';

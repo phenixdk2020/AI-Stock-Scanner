@@ -29,7 +29,7 @@ PC'en henter først `/tickers`, så mandagslisten også dækker aktier, brugerne
       "region": "USA", "currency": "USD", "price": 520.17, "atr14": 11.76,
       "action": "pil ned", "reasons": "StockMap-salg denne uge (ikke ejet)",
       "stockmap": "salg 2026-10-30", "quadrant": "gul", "angle": 212.0,
-      "tpi": "grøn/neutral", "mti": "uge grøn", "size": "Mega", "liquidity": "Høj",
+      "tpi": "grøn/neutral", "mti": "uge grøn", "size": "Mega", "liquidity": "Høj", "sector": "Teknologi",
       "quality": 82, "moat": 95, "mss_score": 92, "value_pct": 13, "momentum": 51,
       "channel_score": 115, "peg": 1.0, "asymmetry": null, "asymmetry_inf": true,
       "earnings": "2027-01-27", "eps_trend": null,
@@ -43,8 +43,8 @@ PC'en henter først `/tickers`, så mandagslisten også dækker aktier, brugerne
   },
   "universe": {
     "columns": ["ticker", "region", "quality", "value", "momentum", "moat",
-                "quality_r", "value_r", "momentum_r", "moat_r", "upside", "peg", "mcap_usd_bn", "size", "liquidity"],
-    "rows": [["MSFT", "USA", 82, 13, 51, 95, 80, 20, 55, 93, 12.5, 2.1, 3870, "Mega", "Høj"]]
+                "quality_r", "value_r", "momentum_r", "moat_r", "upside", "peg", "mcap_usd_bn", "size", "liquidity", "sector"],
+    "rows": [["MSFT", "USA", 82, 13, 51, 95, 80, 20, 55, 93, 12.5, 2.1, 3870, "Mega", "Høj", "Teknologi"]]
   },
   "screeners": {
     "triple-green": {"label": "...", "global": ["INVE-B.ST"], "regional": ["INVE-B.ST"]},
@@ -56,6 +56,8 @@ PC'en henter først `/tickers`, så mandagslisten også dækker aktier, brugerne
     "trades": [{"ticker": "X", "koebsdato": "2026-11-02", "koebskurs": 10.0, "salgsdato": null,
                 "salgskurs": null, "salgsgrund": null, "seneste": 10.4}]
   },
+  "paper_score": {"antal": 6, "sammenlignet": 5, "udeladt": 1, "afkast_pct": 4.2, "rsp_pct": 2.9, "forskel_pp": 1.3,
+                  "vinderandel_pct": 60.0, "slaar_rsp_pct": 40.0, "start": "2026-11-02", "dage": 41, "for_tidligt": true},
   "changes": ["MSFT: handling: hold øje → pil ned"]
 }
 ```
@@ -66,6 +68,20 @@ PC'en henter først `/tickers`, så mandagslisten også dækker aktier, brugerne
   uden handel) eller "ukendt". Aktier med `Lav` bliver aldrig køb-kandidater (begrundelse "for lidt handel"); ejede aktier rammes ikke.
   Begge felter er additive (skema stadig 2): et ældre plugin ignorerer ukendte stock-felter og universkolonner, og en ældre
   scanner uden dem får "–" i det nye plugin.
+- `sector` (plugin ≥ 0.8.4, additivt; skema stadig 2): aktiens sektor på dansk (Teknologi, Finans, Sundhed, Cyklisk forbrug, Defensivt forbrug,
+  Energi, Industri, Råvarer, Forsyning, Ejendomme, Kommunikation; ukendte Yahoo-navne uændret, manglende som "ukendt"). Kilde: `x_sector`
+  (yfinance `info['sector']`) i universet, så den kommer med ved næste kørsel af `scripts/build_universe.py`; for aktier hvor kolonnen mangler er
+  fallback `data/sector_map.json` (`sector_rs.sector_name`). Både `stocks[..].sector` og sidste kolonne i `universe`. Et ældre snapshot uden
+  feltet tåles: pluginet viser "ukendt". **Spredningsadvarslen** (kun en advarsel, ændrer aldrig `action` eller KØB-KANDIDAT-reglerne) beregnes i
+  pluginet ud fra feltet: aktier med entry (Find aktier og Overblik) og købskandidater på mandagslisten, hvis flere end 3 eller over 40 % (mindst 4 i alt)
+  ligger i samme sektor; brugerens egne positioner i simulatoren og porteføljen, hvis over 40 % (mindst 4 positioner) gør det. "ukendt" tæller med i
+  nævneren, men giver aldrig selv en advarsel.
+- `paper_score` (plugin ≥ 0.8.4, additivt; `null` uden beregning): papirporteføljens stilling mod RSP, beregnet af `paper.score` ud fra handlerne (lige store
+  beløb pr. handel, afkast i aktiens egen valuta, ikke omregnet). Pr. handel: gevinst i % (lukkede til salgskurs, åbne til seneste kurs) og RSP fra købsdato til
+  salgsdato (åbne: RSP's seneste kursdato). En handel uden kurs eller uden RSP-kurs (højst 7 dage før datoen) udelades af sammenligningen og tælles i
+  `udeladt`; gennemsnit (`afkast_pct`, `rsp_pct`, `forskel_pp` i %-point) og `vinderandel_pct` gælder kun de `sammenlignet` handler, `slaar_rsp_pct` er andelen
+  der slog RSP. `start` er første købsdato, `dage` dage siden, `for_tidligt` er sand under 90 dage (pluginet skriver "Under 3 måneder siger tallene ikke noget.").
+  Hver kørsel gemmer også én linje i `data/papir_stilling.csv` (`dato;antal;gns_afkast;gns_rsp;forskel`; samme dato overskrives).
 - `earnings_risk` (plugin ≥ 0.7.1, additivt; kun med når regnskabet er højst 14 dage væk): `level` Lav/Middel/Høj
   (0 point = Lav, 1 = Middel, 2-3 = Høj), `points`, `reasons` (inkl. "ingen data" for manglende estimater, nyheder eller kurser),
   `avg_move_pct` (gennemsnitlig absolut kursbevægelse over de seneste op til 8 regnskaber), `down_share_pct` (andel fald), `count`

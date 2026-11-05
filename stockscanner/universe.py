@@ -108,7 +108,7 @@ def trend_flags(history: pd.DataFrame) -> dict:
 
 
 def info_extras(info: dict, fx_to_usd=None) -> dict:
-    """Markedsværdi (også i USD), analytiker-upside og PEG fra yfinance `info` (x_-kolonner)."""
+    """Markedsværdi (også i USD), analytiker-upside, PEG og sektor fra yfinance `info` (x_-kolonner)."""
     fx_to_usd = fx_to_usd or (lambda currency: FX_TO_USD.get(currency))
     row = {}
     cap, currency = info.get("marketCap"), info.get("currency")
@@ -123,6 +123,9 @@ def info_extras(info: dict, fx_to_usd=None) -> dict:
     peg = info.get("trailingPegRatio")
     if peg is not None and peg == peg and peg > 0:
         row["x_peg"] = float(peg)
+    sector = info.get("sector")
+    if isinstance(sector, str) and sector.strip():
+        row["x_sector"] = sector.strip()    # Yahoos engelske navn; oversættes først i playbook (sector_rs.sector_da)
     return row
 
 

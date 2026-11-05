@@ -52,6 +52,35 @@ EU_INDUSTRY_HINTS = {
 }
 
 
+# Yahoos sektornavne på dansk til hjemmesiden; ukendte navne vises uændret, manglende som "ukendt".
+SECTOR_DA = {
+    "Technology": "Teknologi", "Financial Services": "Finans", "Healthcare": "Sundhed",
+    "Consumer Cyclical": "Cyklisk forbrug", "Consumer Defensive": "Defensivt forbrug", "Energy": "Energi",
+    "Industrials": "Industri", "Basic Materials": "Råvarer", "Utilities": "Forsyning",
+    "Real Estate": "Ejendomme", "Communication Services": "Kommunikation",
+}
+SECTOR_UNKNOWN = "ukendt"
+
+
+def sector_da(name) -> str:
+    """Sektoren på dansk: oversat hvis kendt, ellers uændret; None, tom eller NaN giver "ukendt"."""
+    if not isinstance(name, str) or not name.strip():
+        return SECTOR_UNKNOWN
+    name = name.strip()
+    return SECTOR_DA.get(name, name)
+
+
+def sector_name(ticker: str, factors: pd.DataFrame | None = None, sector_map: dict | None = None) -> str:
+    """Aktiens sektor på dansk: universets kolonne `x_sector` først, ellers `sector_map` (data/sector_map.json),
+    ellers "ukendt". Tåler et univers uden kolonnen (gammel cache)."""
+    if factors is not None and "x_sector" in factors.columns and ticker in factors.index:
+        value = factors.loc[ticker, "x_sector"]
+        if isinstance(value, str) and value.strip():
+            return sector_da(value)
+    entry = (sector_map or {}).get(ticker)
+    return sector_da(entry.get("sector") if isinstance(entry, dict) else None)
+
+
 def is_european(ticker: str) -> bool:
     """Alt med kendt børssuffiks (.CO, .ST, .DE …) er europæisk; ellers USA-agtig."""
     return home_index(ticker) != DEFAULT_INDEX
