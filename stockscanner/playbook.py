@@ -103,6 +103,27 @@ def earnings_risk_entry(risk: dict) -> dict:
             "avg_move_pct": _num(risk.get("avg_abs_pct"), 1), "down_share_pct": _num(risk.get("down_share_pct"), 0),
             "count": int(risk.get("count") or 0), "note": risk.get("note")}
 
+
+def analyst_entry(info) -> dict:
+    """Anslået regnskabsdato og stigende estimater. Kun til visning; ændrer aldrig `action`."""
+    guess = getattr(info, "earnings_estimate", None)
+    return {"earnings_estimate": None if guess is None else str(guess), "eps_rising": getattr(info, "rising", None)}
+
+
+def insiders_entry(facts: dict) -> dict:
+    """Insiderkøb (insiders.fetch) til payloaden. Kun til visning; ændrer aldrig `action`."""
+    return {"buyers": int(facts.get("buyers") or 0), "buys": int(facts.get("buys") or 0),
+            "sells": int(facts.get("sells") or 0), "value_usd": _num(facts.get("value_usd"), 0),
+            "last_buy": facts.get("last_buy"), "days": int(facts.get("days") or 90)}
+
+
+def why_cheap_entry(answer: dict) -> dict:
+    """Lokal AI's forklaring (why_cheap.build) til payloaden. Kun til visning; ændrer aldrig `action`."""
+    return {"hvorfor_billig": str(answer.get("hvorfor_billig") or "")[:400],
+            "risici": [str(r)[:160] for r in list(answer.get("risici") or ())[:3]],
+            "vaerdifaelde": str(answer.get("vaerdifaelde") or "ukendt"), "dato": str(answer.get("dato") or "")[:10]}
+
+
 UNIVERSE_COLUMNS = ["ticker", "region", "quality", "value", "momentum", "moat",
                     "quality_r", "value_r", "momentum_r", "moat_r", "upside", "peg", "mcap_usd_bn",
                     "size", "liquidity", "sector"]
@@ -168,7 +189,7 @@ def build_payload(*, rows, histories, currencies, regions, atrs, research, bread
                   factors, scores, regional, trades, last_prices, changes, news=None, candidates=(),
                   earnings_risk=None, channels=None, horizon: float = DEFAULT_HORIZON,
                   universe_scenarios=None, sector_map: dict | None = None, paper_score: dict | None = None,
-                  now: datetime | None = None) -> dict:
+                  analyst=None, insiders=None, why_cheap=None, now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     market_date = max((pd.Timestamp(h.index[-1]).date() for h in histories.values() if len(h)), default=None)
     stocks = {r.ticker: stock_entry(r, histories[r.ticker], currencies.get(r.ticker), regions.get(r.ticker, ""),
@@ -181,6 +202,15 @@ def build_payload(*, rows, histories, currencies, regions, atrs, research, bread
         scenarios = scenarios_entry(channel, currencies.get(ticker), horizon) if ticker in stocks else None
         if scenarios is not None:
             stocks[ticker]["scenarios"] = scenarios     # aktier uden kanal får intet felt
+    for ticker, info in (analyst or {}).items():
+        if ticker in stocks:
+            stocks[ticker].update(analyst_entry(info))
+    for ticker, facts in (insiders or {}).items():
+        if ticker in stocks:
+            stocks[ticker]["insiders"] = insiders_entry(facts)
+    for ticker, answer in (why_cheap or {}).items():
+        if ticker in stocks:
+            stocks[ticker]["why_cheap"] = why_cheap_entry(answer)
     for ticker, items in (news or {}).items():
         if ticker in stocks:
             stocks[ticker]["news_summary"] = next((r.news for r in rows if r.ticker == ticker), None)

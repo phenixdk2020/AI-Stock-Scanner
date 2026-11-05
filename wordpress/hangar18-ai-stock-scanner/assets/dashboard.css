@@ -305,3 +305,9 @@ a.asc-stock-btn:hover,a.asc-stock-btn:focus-visible{background:#edf4fb}
 @media(max-width:720px){.asc-app-shell{margin:.5rem 0}}
 .asc-table-wrap.asc-wide tbody th[scope=row]{white-space:nowrap}
 button.asc-follow,.asc-portfolio button.asc-follow{min-height:30px;padding:.2rem .65rem;font-size:.82rem;border-radius:7px}
+.asc-entry-check h5{margin:.8rem 0 .3rem}
+.asc-check-list{list-style:none;margin:.3rem 0;padding:0}
+.asc-check-list li{margin:.15rem 0}
+.asc-check-ok span:first-child,.asc-check-plus span:first-child{color:#17643a;font-weight:700}
+.asc-check-no span:first-child,.asc-check-minus span:first-child{color:#a3262a;font-weight:700}
+.asc-check-unknown span:first-child{color:#8a5b00;font-weight:700}

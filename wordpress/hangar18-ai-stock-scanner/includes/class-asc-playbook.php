@@ -18,6 +18,8 @@ final class ASC_Playbook {
     private const DATE_RE = '/^\d{4}-\d\d-\d\d$/D';
     private const MAX_BODY = 3145728;
     private const MAX_STOCKS = 600;
+    private const TOP_COUNT = 10;       // Find aktier: antal aktier i top-listen.
+    private const TOP_PER_SECTOR = 3;   // Højst så mange fra samme sektor i top-listen.
     private const CHEAP_VALUE = 50.0;   // Værdi fra hertil: billig også mod de andre aktier.
     private const DEAR_VALUE = 20.0;    // Værdi under hertil: dyr mod de andre aktier.
     private const MAX_UNIVERSE = 2000;
@@ -221,7 +223,7 @@ final class ASC_Playbook {
         $strings = [
             'region' => 40, 'action' => 40, 'reasons' => 400, 'stockmap' => 60,
             'quadrant' => 20, 'tpi' => 60, 'mti' => 60, 'earnings' => 40, 'eps_trend' => 200,
-            'news_summary' => 300, 'size' => 20, 'liquidity' => 20, 'sector' => 40,
+            'news_summary' => 300, 'size' => 20, 'liquidity' => 20, 'sector' => 40, 'eps_rising' => 200,
         ];
         $numbers = [
             'price', 'atr14', 'angle', 'quality', 'moat', 'mss_score', 'value_pct',
@@ -255,7 +257,38 @@ final class ASC_Playbook {
         $out['news'] = self::clean_news($raw['news'] ?? null);
         $out['earnings_risk'] = self::clean_earnings_risk($raw['earnings_risk'] ?? null);
         $out['scenarios'] = self::clean_scenarios($raw['scenarios'] ?? null);
+        $out['earnings_estimate'] = self::clean_date($raw['earnings_estimate'] ?? null);
+        $out['insiders'] = self::clean_insiders($raw['insiders'] ?? null);
+        $out['why_cheap'] = self::clean_why_cheap($raw['why_cheap'] ?? null);
         return $out;
+    }
+
+    private static function clean_insiders($raw): ?array {
+        if (!is_array($raw)) { return null; }
+        $count = static fn($value): int => is_int($value) ? max(0, min(1000, $value)) : 0;
+        $value = self::clean_number($raw['value_usd'] ?? null);
+        return [
+            'buyers' => $count($raw['buyers'] ?? null), 'buys' => $count($raw['buys'] ?? null),
+            'sells' => $count($raw['sells'] ?? null), 'value_usd' => $value === null ? 0.0 : max(0.0, (float)$value),
+            'last_buy' => self::clean_date($raw['last_buy'] ?? null), 'days' => $count($raw['days'] ?? null),
+        ];
+    }
+
+    private static function clean_why_cheap($raw): ?array {
+        if (!is_array($raw)) { return null; }
+        $text = self::clean_string($raw['hvorfor_billig'] ?? null, 400);
+        if ($text === null) { return null; }
+        $risks = [];
+        foreach (array_slice(is_array($raw['risici'] ?? null) ? array_values($raw['risici']) : [], 0, 3) as $risk) {
+            $risk = self::clean_string($risk, 160);
+            if ($risk !== null) { $risks[] = $risk; }
+        }
+        $level = $raw['vaerdifaelde'] ?? null;
+        return [
+            'hvorfor_billig' => $text, 'risici' => $risks,
+            'vaerdifaelde' => in_array($level, ['lav', 'middel', 'hoej', 'ukendt'], true) ? $level : 'ukendt',
+            'dato' => self::clean_date($raw['dato'] ?? null) ?? '',
+        ];
     }
 
     /**
@@ -862,7 +895,8 @@ final class ASC_Playbook {
             return '<div class="asc-sim-analysis"><h4>Playbook-analyse</h4>'
                 . '<p>Ikke analyseret endnu. Følg aktien, så kommer den med ved næste kørsel.</p></div>';
         }
-        $html = self::analysis_panel($ticker);
+        $html = ASC_Entry_Check::render($ticker, $stock, self::scenarios_for($ticker),
+            is_array($data['breadth'] ?? null) ? $data['breadth'] : []) . self::analysis_panel($ticker);
         if ($stock === null) { return $html; }
         $rules = '';
         foreach (array_slice($owned, 0, 6) as $item) {
@@ -1225,7 +1259,7 @@ final class ASC_Playbook {
     // ------------------------------------------------------- Regnskab og risiko
 
     /** Dage fra i dag (site-tid, beregnes ved hver sidevisning) til datoen; negativ = afholdt, null = ukendt. */
-    private static function earnings_days($iso): ?int {
+    public static function earnings_days($iso): ?int {
         $clean = self::clean_date($iso);
         if ($clean === null) { return null; }
         $utc = new DateTimeZone('UTC');
@@ -1237,7 +1271,7 @@ final class ASC_Playbook {
         return (int)$today->diff($target)->format('%r%a');
     }
 
-    private static function earnings_soon(?int $days): bool {
+    public static function earnings_soon(?int $days): bool {
         return $days !== null && $days >= 0 && $days <= self::EARNINGS_BLOCK_DAYS;
     }
 
@@ -1675,6 +1709,29 @@ final class ASC_Playbook {
         return $rows;
     }
 
+    /**
+     * Top-listen: rækker med Entry i rækkefølge efter Samlet, uden regnskabsspærrede og med højst
+     * TOP_PER_SECTOR pr. kendt sektor. Ændrer ikke købsreglerne; det er kun et udvalg af Entry-aktierne.
+     * @param array<int, array<string, mixed>> $rows Fra value_rows, bedste først.
+     * @return array<int, array<string, mixed>>
+     */
+    public static function top_candidates(array $rows, int $limit = self::TOP_COUNT): array {
+        $picked = [];
+        $sectors = [];
+        foreach ($rows as $item) {
+            if ($item['rank'] !== 0) { continue; }
+            $stock = is_array($item['stock']) ? $item['stock'] : [];
+            if (self::earnings_soon(self::earnings_days($stock['earnings'] ?? null))
+                || self::earnings_soon(self::earnings_days($stock['earnings_estimate'] ?? null))) { continue; }
+            $sector = self::sector_of($stock, is_array($item['row']) ? $item['row'] : []);
+            if ($sector !== 'ukendt' && ($sectors[$sector] ?? 0) >= self::TOP_PER_SECTOR) { continue; }
+            $sectors[$sector] = ($sectors[$sector] ?? 0) + 1;
+            $picked[] = $item;
+            if (count($picked) >= $limit) { break; }
+        }
+        return $picked;
+    }
+
     /** Siden Find aktier: de bedste muligheder fra hele universet. */
     public static function render_find(): string {
         wp_enqueue_style('hangar18-asc');
@@ -1696,7 +1753,7 @@ final class ASC_Playbook {
         $data = self::snapshot();
         if ($data === null) { return ''; }
         $rows = self::value_rows($data);
-        $best = array_slice(array_values(array_filter($rows, static fn(array $r): bool => $r['rank'] === 0)), 0, 5);
+        $best = self::top_candidates($rows, 5);
         $waiting = count(array_filter($rows, static fn(array $r): bool => $r['rank'] === 1));
         $entry_sectors = [];
         foreach ($rows as $item) {
@@ -1740,11 +1797,12 @@ final class ASC_Playbook {
         $entries = $count(0);
         $waiting = $count(1);
         $show = sanitize_key(self::query_text('asc_show'));
-        if (!in_array($show, ['best', 'cheap', 'entry', 'all'], true)) { $show = 'best'; }
+        if (!in_array($show, ['top', 'best', 'cheap', 'entry', 'all'], true)) { $show = 'top'; }
         // Billig på begge mål: Kanal (mod egen værdi) er allerede med i rang 0-1; her skal Værdi (mod andre aktier) også være høj.
         $cheap = static fn(array $r): bool => $r['rank'] <= 1 && is_numeric($r['row']['value'] ?? null)
             && (float)$r['row']['value'] >= self::CHEAP_VALUE;
-        $rows = array_values(array_filter($all, static fn(array $r): bool => $show === 'all'
+        $top = self::top_candidates($all);
+        $rows = $show === 'top' ? $top : array_values(array_filter($all, static fn(array $r): bool => $show === 'all'
             || ($show === 'cheap' && $cheap($r)) || ($show === 'entry' && $r['rank'] === 0)
             || ($show === 'best' && $r['rank'] <= 1)));
         echo '<h2>Find aktier</h2>';
@@ -1761,6 +1819,7 @@ final class ASC_Playbook {
         }
         echo '<nav class="asc-pb-tabs" aria-label="Vis aktier">';
         foreach ([
+            'top' => 'Top ' . count($top),
             'best' => 'Bedste muligheder (' . ($entries + $waiting) . ')',
             'cheap' => 'Billig på begge mål (' . count(array_filter($all, $cheap)) . ')',
             'entry' => 'Kun entry nu (' . $entries . ')',
@@ -1774,6 +1833,14 @@ final class ASC_Playbook {
         if (!$rows) {
             echo '<p class="asc-empty">Ingen aktier opfylder kravene i denne kørsel.</p>';
             return;
+        }
+        if ($entries > 0 && ASC_Entry_Check::market_weak(is_array($data['breadth'] ?? null) ? $data['breadth'] : [])) {
+            echo '<p class="asc-warning" role="alert">Markedet er svagt: højst halvdelen af aktierne ligger over deres '
+                . '50-dages gennemsnit. Entry gælder stadig, men overvej mindre positioner.</p>';
+        }
+        if ($show === 'top') {
+            echo '<p class="asc-subtle"><strong>Start her.</strong> De højeste Samlet med Entry, uden aktier med regnskab '
+                . 'inden for 7 dage og med højst ' . esc_html((string)self::TOP_PER_SECTOR) . ' fra samme sektor.</p>';
         }
         $can_follow = $show !== 'all';      // Alle aktier er over 1.000 rækker; knapperne står i de korte lister.
         $nonce = wp_create_nonce('asc_watch_add');
@@ -1794,7 +1861,11 @@ final class ASC_Playbook {
             echo '<th scope="row">' . ASC_Stock_Page::link($item['ticker']) . '</th>';
             echo '<td><strong>' . esc_html(self::n($item['total'])) . '</strong></td>';
             echo '<td>' . esc_html(self::sector_of($stock, $row)) . '</td>';
+            $plus = [];
+            if (is_string($stock['eps_rising'] ?? null) && $stock['eps_rising'] !== '') { $plus[] = 'stigende estimater'; }
+            if ((int)($stock['insiders']['buyers'] ?? 0) > 0) { $plus[] = 'insiderkøb'; }
             echo '<td>' . ($item['rank'] === 0 ? '<strong>' . esc_html($item['text']) . '</strong>' : esc_html($item['text']))
+                . ($plus ? '<div class="asc-subtle">' . esc_html(implode(', ', $plus)) . '</div>' : '')
                 . ($item['rank'] === 0 ? ' ' . self::earnings_block_badge($stock) : '')
                 . (is_numeric($row['value'] ?? null) && (float)$row['value'] < self::DEAR_VALUE && $item['rank'] <= 1
                     ? '<small class="asc-dear">dyr mod andre aktier</small>' : '') . '</td>';

@@ -1,18 +1,25 @@
-"""Analytiker-data til køb-filtrene: næste regnskabsdato (B-01) og faldende EPS-estimater (B-02, value trap).
+"""Analytiker-data til køb-filtrene: næste regnskabsdato (B-01) og EPS-estimater (B-02, value trap).
 
 MSS: køb ikke lige før et regnskab, og pas på aktier hvor analytikerne skærer i estimaterne
-("Value Traps"). Data fra yfinance (`calendar`, `eps_trend`); alt der mangler giver None og blokerer ikke.
+("Value Traps"). Data fra yfinance (`calendar`, `get_earnings_dates`, `eps_trend`); alt der mangler giver
+None og blokerer ikke. `calendar` viser ofte det seneste regnskab, så næste dato hentes fra regnskabslisten.
+En dato, vi selv regner ud fra de tidligere regnskaber, står i `earnings_estimate`: den er en advarsel og
+spærrer aldrig. Stigende estimater er kun et plus til visning og ændrer ikke købsreglerne.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 
 EARNINGS_BLOCK_DAYS = 7      # intet køb når regnskabet kommer inden for så mange dage
 TRAP_DROP_30D_PCT = 2.0      # value trap: estimatet er faldet mindst så meget på 30 dage …
 TRAP_DROP_90D_PCT = 5.0      # … eller så meget på 90 dage
+RISE_30D_PCT = 2.0           # stigende estimater: samme grænser som value trap, bare opad
+RISE_90D_PCT = 5.0
+ESTIMATE_MAX_AGE_DAYS = 200  # seneste regnskab må højst være så gammelt, før vi anslår det næste
+ESTIMATE_MIN_DATES = 3
 TREND_PERIODS = ("0y", "+1y")
 
 
@@ -21,6 +28,8 @@ class AnalystInfo:
     earnings_date: date | None = None
     revisions: dict | None = None      # {"+1y": {"30d": -1.2, "90d": -4.0}, …} i procent
     trap: str | None = None            # tekst når estimaterne falder, ellers None
+    earnings_estimate: date | None = None   # anslået ud fra tidligere regnskaber; spærrer ikke
+    rising: str | None = None          # tekst når estimaterne stiger, ellers None
 
 
 def next_earnings(calendar, today: date) -> date | None:
@@ -36,6 +45,28 @@ def next_earnings(calendar, today: date) -> date | None:
     dates = sorted(pd.Timestamp(v).date() for v in values if v is not None and not pd.isna(v))
     upcoming = [d for d in dates if d >= today]
     return upcoming[0] if upcoming else None
+
+
+def next_from_dates(dates, today: date) -> date | None:
+    """Første dato i dag eller senere i en liste af regnskabsdatoer."""
+    upcoming = sorted(d for d in dates if d >= today)
+    return upcoming[0] if upcoming else None
+
+
+def estimate_next(dates, today: date) -> date | None:
+    """Anslået næste regnskab: seneste regnskab + typisk afstand. None når historikken er for kort eller gammel."""
+    past = sorted(d for d in set(dates) if d < today)
+    if len(past) < ESTIMATE_MIN_DATES or (today - past[-1]).days > ESTIMATE_MAX_AGE_DAYS:
+        return None
+    recent = past[-5:]
+    gaps = sorted((b - a).days for a, b in zip(recent, recent[1:]))
+    gap = gaps[len(gaps) // 2]
+    if gap <= 0:
+        return None
+    guess = past[-1]
+    while guess < today:
+        guess += timedelta(days=gap)
+    return guess
 
 
 def days_to_earnings(earnings: date | None, today: date) -> int | None:
@@ -80,6 +111,26 @@ def value_trap(changes: dict) -> str | None:
     return "value trap: " + ", ".join(hits) if hits else None
 
 
+def rising_estimates(changes: dict) -> str | None:
+    """Tekst når et af årenes estimater stiger tydeligt og intet år falder for meget; ellers None."""
+    if value_trap(changes):
+        return None
+    hits = []
+    for period, change in changes.items():
+        if change.get("30d") is not None and change["30d"] >= RISE_30D_PCT:
+            hits.append(f"EPS {period} {change['30d']:+.1f} % på 30 d")
+        elif change.get("90d") is not None and change["90d"] >= RISE_90D_PCT:
+            hits.append(f"EPS {period} {change['90d']:+.1f} % på 90 d")
+    return "stigende estimater: " + ", ".join(hits) if hits else None
+
+
+def _earnings_list(handle) -> list[date]:
+    frame = handle.get_earnings_dates(limit=12)
+    if frame is None or getattr(frame, "empty", True):
+        return []
+    return [pd.Timestamp(value).date() for value in frame.index]
+
+
 def fetch_analyst(ticker: str, today: date | None = None) -> AnalystInfo:
     import yfinance as yf
 
@@ -93,4 +144,12 @@ def fetch_analyst(ticker: str, today: date | None = None) -> AnalystInfo:
         changes = revisions(handle.eps_trend)
     except Exception:
         changes = {}
-    return AnalystInfo(earnings, changes or None, value_trap(changes))
+    guess = None
+    if earnings is None:
+        try:
+            dates = _earnings_list(handle)
+            earnings = next_from_dates(dates, today)
+            guess = None if earnings is not None else estimate_next(dates, today)
+        except Exception:
+            pass
+    return AnalystInfo(earnings, changes or None, value_trap(changes), guess, rising_estimates(changes))
