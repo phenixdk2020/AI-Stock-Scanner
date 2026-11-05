@@ -53,6 +53,21 @@ class TablesContractTests(unittest.TestCase):
         self.assertIn("'KØB-KANDIDAT'", body)
         self.assertIn("Ingen vurdering", body)
 
+    def test_abbreviations_are_explained(self):
+        guide = (PLUGIN / "includes/class-asc-help.php").read_text(encoding="utf-8")
+        self.assertIn("Forkortelser og fagord", guide)
+        for term in ("'MSS'", "'TPI'", "'MTI'", "'P/E'", "'EPS'", "'PEG'", "'RSP'", "'ETF'", "'ATR'", "'ECB'", "'ISIN'"):
+            with self.subTest(term=term):
+                self.assertIn(term, guide)
+
+    def test_cheap_filter_does_not_change_the_entry_rule(self):
+        code = (PLUGIN / "includes/class-asc-playbook.php").read_text(encoding="utf-8")
+        body = code[code.index("public static function entry_verdict"):code.index("private static function value_rows")]
+        self.assertNotIn("CHEAP_VALUE", body)
+        self.assertNotIn("DEAR_VALUE", body)
+        self.assertIn("'cheap' => 'Billig på begge mål", code)
+        self.assertIn("$stock['peg'] ?? $row['peg']", code)
+
     def test_sort_buttons_do_not_get_the_dark_button_style(self):
         css = (PLUGIN / "assets/dashboard.css").read_text(encoding="utf-8")
         self.assertIn(".asc-portfolio th button.asc-sort", css)

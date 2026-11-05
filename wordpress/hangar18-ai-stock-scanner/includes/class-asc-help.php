@@ -43,6 +43,40 @@ final class ASC_Help {
             ['Indstillinger', 'Oplysninger om, hvor kurser og valutakurser kommer fra. Administratoren finder også links til datakilder og opdatering af pluginet.'],
         ]);
 
+        echo '<h3>Forkortelser og fagord</h3>';
+        echo self::terms([
+            ['MSS', 'MyStockScanner, den tjeneste vores metode er bygget ud fra. MSS-score er vores udgave af deres samlede score.'],
+            ['TPI', 'Turning Point Indicator. Viser om aktien er ved at vende. Vores udgave er forenklet: lang trend plus de seneste 4 uger mod aktiens egen historie.'],
+            ['MTI', 'Momentum Trend Indicator. Viser, om aktien lige nu klarer sig bedre end markedet, på uge og dag.'],
+            ['StockMap', 'Kort over aktiens styrke og fart mod markedet. Herfra kommer købs- og salgssignalet.'],
+            ['Moat', 'Voldgrav: det der holder konkurrenterne væk, fx brand eller patenter.'],
+            ['P/E', 'Price/Earnings: kursen delt med indtjeningen pr. aktie. Hvor mange år af nuværende indtjening du betaler for.'],
+            ['EPS', 'Earnings Per Share: indtjening pr. aktie.'],
+            ['PEG', 'Price/Earnings to Growth: P/E delt med væksten. Bruges til at se, om en høj P/E er rimelig.'],
+            ['Bear / Base / Bull', 'Det dårlige, det normale og det gode scenarie for kursen om 2 år. Se afsnittet nedenfor.'],
+            ['Asymmetri', 'Forholdet mellem mulig gevinst og muligt tab.'],
+            ['Upside', 'Hvor meget kursen kan stige til et kursmål, i procent.'],
+            ['RSP', 'Invesco S&P 500 Equal Weight ETF: 500 store amerikanske aktier med lige vægt. Vores målestok for markedet.'],
+            ['ETF', 'Exchange Traded Fund: en indeksfond, der handles som en aktie.'],
+            ['SMA50 / SMA200', 'Simple Moving Average: gennemsnitskursen over 50 eller 200 handelsdage. Viser kort og lang trend.'],
+            ['EMA', 'Exponential Moving Average: gennemsnitskurs, der vægter de seneste dage højest.'],
+            ['ATR', 'Average True Range: hvor meget aktien typisk svinger pr. dag. Bruges til at sætte stop.'],
+            ['Stop', 'Den kurs, hvor du sælger for at begrænse tabet.'],
+            ['Supertrend', 'Trendregel ud fra ATR. Vores vigtigste salgsregel.'],
+            ['Entry', 'Tidspunktet, du køber. Et salg kaldes exit.'],
+            ['Value trap', 'Værdifælde: aktien ser billig ud, men indtjeningen falder.'],
+            ['Percentil', 'Placering fra 0 til 100 mod de andre aktier.'],
+            ['Candles', 'Lys i grafen, der viser åbning, højeste, laveste og lukkekurs for en periode.'],
+            ['Volumen', 'Antal aktier handlet.'],
+            ['Likviditet', 'Hvor let aktien kan købes og sælges.'],
+            ['K / V / S', 'Markører på grafen: køb i portefølje, køb i simulator og salg i simulator.'],
+            ['ÅTD', 'År til dato: fra 1. januar til i dag.'],
+            ['ECB', 'Den Europæiske Centralbank. Herfra kommer valutakurserne.'],
+            ['ISIN', 'International Securities Identification Number: aktiens internationale nummer.'],
+            ['Ticker', 'Aktiens børssymbol, fx NOVO-B.CO. Tillægget viser børsen: .CO København, .ST Stockholm, .OL Oslo, .HE Helsinki, .DE Tyskland, .PA Paris, .AS Amsterdam, .MC Madrid.'],
+            ['mia.', 'Milliarder.'],
+        ]);
+
         echo '<h3>De tre spørgsmål</h3><ol>';
         echo '<li><strong>Er det et godt selskab?</strong> Se Kvalitet og Moat.</li>';
         echo '<li><strong>Er prisen fornuftig?</strong> Se Kanal, PEG, Asymmetri og Værdi.</li>';
@@ -135,7 +169,9 @@ final class ASC_Help {
         echo '<h3>Find aktier</h3>';
         echo self::terms([
             ['Entry', 'Alle købskrav er opfyldt, altså det samme som KØB-KANDIDAT.'],
-            ['Vent: billig, men intet købssignal', 'Aktien er god og billig nok, men StockMap har ikke givet køb. Hold øje med den.'],
+            ['Vent: intet købssignal', 'Aktien er god og billig mod sin egen værdi, men StockMap har ikke givet køb. Hold øje med den.'],
+            ['Dyr mod andre aktier', 'Værdi under 20. Aktien kan godt have Entry, fordi købsreglen bruger Kanal, altså prisen mod aktiens egen historie og forventede indtjening. Mod andre aktier er den dyr.'],
+            ['Billig på begge mål', 'Billig mod sin egen værdi (Kanal mindst 50) og også mod andre aktier (Værdi mindst 50). Det tætteste på klassiske værdiaktier.'],
             ['Nej', 'Aktien falder fra af den grund, der står: salgssignal, for lidt handel, svag kvalitet eller ikke billig.'],
             ['Ingen vurdering', 'Der mangler estimater eller P/E-historik, så scanneren gætter ikke.'],
             ['Bear % og Base %', 'Kursmålet i de to scenarier om 2 år i forhold til kursen. Se Bear / Base / Bull.'],

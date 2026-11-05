@@ -18,6 +18,8 @@ final class ASC_Playbook {
     private const DATE_RE = '/^\d{4}-\d\d-\d\d$/D';
     private const MAX_BODY = 3145728;
     private const MAX_STOCKS = 600;
+    private const CHEAP_VALUE = 50.0;   // Værdi fra hertil: billig også mod de andre aktier.
+    private const DEAR_VALUE = 20.0;    // Værdi under hertil: dyr mod de andre aktier.
     private const MAX_UNIVERSE = 2000;
     private const MAX_TRADES = 1000;
     private const UNIVERSE_COLUMNS = [
@@ -1625,7 +1627,7 @@ final class ASC_Playbook {
         $channel = $stock['channel_score'] ?? $scenarios['channel_score'] ?? null;
         if (!is_numeric($channel)) { return [3, 'Ingen vurdering: mangler tal']; }
         if ((float)$channel < 50) { return [2, 'Nej: ikke billig']; }
-        return [1, 'Vent: billig, men intet købssignal'];
+        return [1, 'Vent: intet købssignal'];
     }
 
     /** Universets aktier med entry-vurdering, bedste først. @return array<int, array<string, mixed>> */
@@ -1702,9 +1704,13 @@ final class ASC_Playbook {
         $entries = $count(0);
         $waiting = $count(1);
         $show = sanitize_key(self::query_text('asc_show'));
-        if (!in_array($show, ['best', 'entry', 'all'], true)) { $show = 'best'; }
-        $rows = array_values(array_filter($all, static fn(array $r): bool =>
-            $show === 'all' || $r['rank'] === 0 || ($show === 'best' && $r['rank'] === 1)));
+        if (!in_array($show, ['best', 'cheap', 'entry', 'all'], true)) { $show = 'best'; }
+        // Billig på begge mål: Kanal (mod egen værdi) er allerede med i rang 0-1; her skal Værdi (mod andre aktier) også være høj.
+        $cheap = static fn(array $r): bool => $r['rank'] <= 1 && is_numeric($r['row']['value'] ?? null)
+            && (float)$r['row']['value'] >= self::CHEAP_VALUE;
+        $rows = array_values(array_filter($all, static fn(array $r): bool => $show === 'all'
+            || ($show === 'cheap' && $cheap($r)) || ($show === 'entry' && $r['rank'] === 0)
+            || ($show === 'best' && $r['rank'] <= 1)));
         echo '<h2>Find aktier</h2>';
         echo '<p class="asc-subtle">Gode selskaber, der er billige i forhold til deres egen værdi, og som har et signal til '
             . 'entry. Entry: alle købskrav er opfyldt. Vent: god og billig, men StockMap har ikke givet købssignal. '
@@ -1720,6 +1726,7 @@ final class ASC_Playbook {
         echo '<nav class="asc-pb-tabs" aria-label="Vis aktier">';
         foreach ([
             'best' => 'Bedste muligheder (' . ($entries + $waiting) . ')',
+            'cheap' => 'Billig på begge mål (' . count(array_filter($all, $cheap)) . ')',
             'entry' => 'Kun entry nu (' . $entries . ')',
             'all' => 'Alle aktier (' . count($all) . ')',
         ] as $key => $label) {
@@ -1732,7 +1739,7 @@ final class ASC_Playbook {
             echo '<p class="asc-empty">Ingen aktier opfylder kravene i denne kørsel.</p>';
             return;
         }
-        echo '<div class="asc-table-wrap"><table><thead><tr>';
+        echo '<div class="asc-table-wrap asc-find-table"><table><thead><tr>';
         foreach (['Aktie', 'Sektor', 'Entry', 'Kanal', 'Bear %', 'Base %', 'Asymmetri', 'Kvalitet', 'Værdi', 'PEG', 'Størrelse', 'Likviditet'] as $head) {
             echo '<th scope="col">' . esc_html($head) . '</th>';
         }
@@ -1744,14 +1751,17 @@ final class ASC_Playbook {
             echo '<tr><th scope="row">' . ASC_Stock_Page::link($item['ticker']) . '</th>';
             echo '<td>' . esc_html(self::sector_of($stock, $row)) . '</td>';
             echo '<td>' . ($item['rank'] === 0 ? '<strong>' . esc_html($item['text']) . '</strong>' : esc_html($item['text']))
-                . ($item['rank'] === 0 ? ' ' . self::earnings_block_badge($stock) : '') . '</td>';
+                . ($item['rank'] === 0 ? ' ' . self::earnings_block_badge($stock) : '')
+                . (is_numeric($row['value'] ?? null) && (float)$row['value'] < self::DEAR_VALUE && $item['rank'] <= 1
+                    ? '<small class="asc-dear">dyr mod andre aktier</small>' : '') . '</td>';
             echo '<td>' . esc_html(self::n($stock['channel_score'] ?? $sc['channel_score'] ?? null)) . '</td>';
             echo '<td>' . esc_html(self::n($sc['upside_pct']['bear'] ?? null, 1)) . '</td>';
             echo '<td>' . esc_html(self::n($sc['upside_pct']['base'] ?? null, 1)) . '</td>';
             echo '<td>' . (!empty($sc['asymmetry_inf']) ? '∞' : esc_html(self::n($sc['asymmetry'] ?? null, 1))) . '</td>';
             echo '<td>' . esc_html(self::n($row['quality'] ?? null)) . '</td>';
             echo '<td>' . esc_html(self::n($row['value'] ?? null)) . '</td>';
-            echo '<td>' . esc_html(self::n($row['peg'] ?? null, 1)) . '</td>';
+            // Købsreglens PEG (fremadrettet) når aktien er analyseret; ellers Yahoos historiske.
+            echo '<td>' . esc_html(self::n($stock['peg'] ?? $row['peg'] ?? null, 1)) . '</td>';
             echo '<td>' . self::s($row['size'] ?? null) . '</td>';
             echo '<td>' . self::liquidity_badge($row['liquidity'] ?? null) . '</td></tr>';
         }
