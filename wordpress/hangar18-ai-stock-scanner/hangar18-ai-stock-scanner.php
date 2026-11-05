@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.8.4
+ * Version: 0.8.5
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,7 +14,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.8.4');
+define('ASC_PLUGIN_VERSION', '0.8.5');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
 
 // Must initialize before user-profile / REST authentication determines HTTPS.
@@ -392,6 +392,7 @@ function asc_admin_page(): void {
     echo '<p>Startside: <strong>Personligt login, portefølje og watchlist</strong>. '
         . 'Du kan tilføje køb og manuel aktuel kurs, redigere beholdninger og eksportere egne køb som CSV – helt uden PC-scanneren.</p>';
     echo '<p>Med en aktiveret kurskilde kan du også se candlesticks, gennemsnitlig handelsvolumen og estimeret handelsværdi over 5/21 børsdage.</p>';
+    echo '<p><strong>v0.8.5:</strong> Find aktier: smallere tabel, Billig på begge mål og mærket dyr mod andre aktier. Forkortelser på Hjælp.</p>';
     echo '<p><strong>v0.8.4:</strong> Sektor pr. aktie og spredningsadvarsel (flere end 3 eller over 40 % af aktierne med entry i samme sektor, og over 40 % af dine egne positioner i simulatoren og porteføljen), og papirporteføljens stilling mod RSP på fanen Papirportefølje og på Overblik. Ingen aktier blokeres.</p>';
     echo '<p><strong>v0.8.3:</strong> Find aktier i menuen med de bedste muligheder som standard, og top 5 med entry på Overblik.</p>';
     echo '<p><strong>v0.8.2:</strong> Interaktiv aktiegraf (TradingView Lightweight Charts, ligger i pluginet): følg kursen med trådkors, zoom og træk, vælg 1 D, 1 U, 1 M, 3 M, 6 M, ÅTD, 1 Å eller 5 Å, skift mellem linje og candles, volumen, SMA50/SMA200 til og fra og dine køb og salg som markører. Intradagskurser til 1 D og 1 U hentes fra Yahoo (cache 10 minutter, kun for indloggede). Nøgletal under grafen: åbning, høj, lav, volumen, 52 ugers høj/lav, P/E og markedsværdi. Den enkle SVG-graf vises, hvis biblioteket ikke kan indlæses.</p>';

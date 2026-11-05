@@ -288,3 +288,9 @@ a.asc-stock-btn:hover,a.asc-stock-btn:focus-visible{background:#edf4fb}
 .asc-top-picks ul{list-style:none;margin:0 0 .6rem;padding:0}
 .asc-top-picks li{padding:.4rem 0;border-bottom:1px solid #d8e3ef}
 .asc-top-picks li span{color:#42566b;font-size:.88rem;margin-left:.4rem}
+.asc-find-table table{font-size:.86rem;white-space:normal}
+.asc-find-table th,.asc-find-table td{padding:.5rem .45rem;vertical-align:top}
+.asc-find-table tbody td:nth-child(3){min-width:8.5rem}
+.asc-find-table th button.asc-sort{white-space:normal}
+.asc-find-table th button.asc-sort::after{font-size:.75em}
+.asc-dear{display:block;color:#92400e;font-size:.76rem}
