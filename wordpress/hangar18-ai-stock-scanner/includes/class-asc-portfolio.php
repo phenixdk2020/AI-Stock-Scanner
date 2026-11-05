@@ -442,6 +442,7 @@ final class ASC_Portfolio {
                 . esc_html((string)count($rows)) . '</strong><a href="'
                 . esc_url(add_query_arg('asc_view','scanner',$url)) . '">Åbn scanner</a></div></div>';
             echo ASC_Playbook::top_opportunities(add_query_arg('asc_view', 'find', $url));
+            echo ASC_Playbook::paper_brief(add_query_arg(['asc_view' => 'playbook', 'asc_tab' => 'papir'], $url));
             echo '<p class="asc-disclaimer">Beholdninger er private. Scannerdata opdateres, når '
                 . 'den lokale scanner har sendt et snapshot; gamle kurser er ikke livekurser.</p>';
             if (is_array($snapshot) && !empty($snapshot['generated_at'])) {
@@ -569,6 +570,7 @@ final class ASC_Portfolio {
         }
         echo '<p class="asc-saved-count">Gemte aktiekøb: <strong>' . esc_html((string)count($positions))
             . '</strong> af ' . esc_html((string)self::MAX_POSITIONS) . '</p>';
+        echo ASC_Playbook::own_sector_warning(array_map(static fn(array $p): string => (string)($p['ticker'] ?? ''), $positions));
         echo '<div class="asc-portfolio-actions"><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="asc_portfolio_export">';
         wp_nonce_field('asc_portfolio_export');

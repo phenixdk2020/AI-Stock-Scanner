@@ -50,3 +50,5 @@ jobs:
         run: php tests/wp_portfolio_three_purchases.php
       - name: Multi-user playbook visibility and Bear/Base/Bull regression
         run: php tests/wp_playbook_visibility.php
+      - name: Sector spread warning, sector cleaning and paper score versus RSP
+        run: php tests/wp_sector_spread.php

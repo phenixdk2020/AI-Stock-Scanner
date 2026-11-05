@@ -673,6 +673,7 @@ final class ASC_Simulator {
             echo '<p class="asc-empty">Ingen positioner endnu. Slå en aktie op ovenfor, og køb den.</p>';
             return;
         }
+        echo ASC_Playbook::own_sector_warning(array_map(static fn(array $r): string => (string)($r['ticker'] ?? ''), $valuation['rows']));
         echo '<div class="asc-table-wrap asc-sim-table"><table><thead><tr>';
         foreach (['Aktie', 'Antal', 'Købskurs', 'Seneste kurs', 'Værdi (kr.)', 'Gevinst (kr.)', ''] as $head) {
             echo '<th scope="col">' . esc_html($head) . '</th>';

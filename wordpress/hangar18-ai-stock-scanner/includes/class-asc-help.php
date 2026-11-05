@@ -128,6 +128,8 @@ final class ASC_Help {
             ['Størrelse', 'På mandagslisten: foreslået antal aktier ud fra din risiko, som du sætter i boksen Positionsstørrelse på mandagslisten, med stop ved kurs minus 3 gange ATR.'],
             ['Nyheder', 'Positive og negative overskrifter de seneste 7 dage, vurderet af den lokale AI. Kun et hint.'],
             ['Begrundelse', 'De regler, der afgjorde Handling. Start her, når du undrer dig.'],
+            ['Sektor', 'Den sektor selskabet hører til (fx Teknologi eller Sundhed). Bruges til spredning, ikke til at afvise aktier.'],
+            ['Spredningsadvarsel', 'Vises, hvis flere end 3 eller over 40 % af aktierne med entry ligger i samme sektor, og i simulatoren og porteføljen, hvis over 40 % af dine positioner (mindst 4) gør det. Falder sektoren, falder de samlet. Advarslen blokerer ingen aktier.'],
         ]);
 
         echo '<h3>Find aktier</h3>';
@@ -145,6 +147,7 @@ final class ASC_Help {
             ['Upside %', 'Analytikernes gennemsnitlige kursmål i forhold til kursen nu.'],
             ['Mkt.værdi (mia. USD)', 'Selskabets samlede markedsværdi i milliarder USD.'],
             ['Størrelse', 'Her: selskabets størrelsesklasse, Mega til Micro.'],
+            ['Sektor', 'Den sektor selskabet hører til, fra Yahoo og vist på dansk. Står der ukendt, kender scanneren den ikke.'],
         ]);
 
         echo '<h3>Aktiesidens graf og nøgletal</h3>';
@@ -190,6 +193,7 @@ final class ASC_Help {
             ['Salgsdato og Salgskurs', 'Hvornår og til hvilken kurs den solgte, eller seneste kurs hvis den stadig ejer aktien.'],
             ['Afkast', 'Gevinst eller tab i procent.'],
             ['Salgsgrund', 'Den salgsregel, der lukkede handlen.'],
+            ['Stilling mod RSP', 'Øverst: antal handler, gennemsnitligt afkast, hvad RSP gav i samme perioder, forskellen i procentpoint og andelen af vindere. Lige store beløb pr. handel, og afkast er i aktiens egen valuta. Handler, hvor en RSP-kurs mangler, er udeladt og talt med. Under 3 måneder siger tallene ikke noget.'],
         ]);
 
         echo '<h3>Danske aktier</h3>';

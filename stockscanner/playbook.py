@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 
 from stockscanner.exits import exit_signals, supertrend
+from stockscanner.sector_rs import sector_name
 from stockscanner.universe import liquidity_class, size_class
 from stockscanner.valuation import DEFAULT_HORIZON
 
@@ -43,7 +44,8 @@ def exit_facts(prices: pd.DataFrame, stockmap_sell: bool, days: int = 365) -> di
             "sma50_breaks": dates("SMA50"), "stockmap_sell": bool(stockmap_sell)}
 
 
-def stock_entry(row, prices: pd.DataFrame, currency: str | None, region: str, atr_value) -> dict:
+def stock_entry(row, prices: pd.DataFrame, currency: str | None, region: str, atr_value,
+                sector: str | None = None) -> dict:
     close = pd.to_numeric(prices["Close"], errors="coerce").dropna()
     infinite = row.asymmetry is not None and math.isinf(row.asymmetry)
     return {
@@ -55,6 +57,7 @@ def stock_entry(row, prices: pd.DataFrame, currency: str | None, region: str, at
         "momentum": _num(row.momentum, 0), "channel_score": _num(row.channel_score, 0), "peg": _num(row.peg, 2),
         "asymmetry": None if infinite else _num(row.asymmetry, 2), "asymmetry_inf": infinite,
         "earnings": row.earnings, "eps_trend": row.eps_trend, "size": row.size, "liquidity": row.liquidity,
+        "sector": sector or "ukendt",
         "exit": exit_facts(prices, "StockMap-salg denne uge" in row.reasons),
     }
 
@@ -102,11 +105,11 @@ def earnings_risk_entry(risk: dict) -> dict:
 
 UNIVERSE_COLUMNS = ["ticker", "region", "quality", "value", "momentum", "moat",
                     "quality_r", "value_r", "momentum_r", "moat_r", "upside", "peg", "mcap_usd_bn",
-                    "size", "liquidity"]
+                    "size", "liquidity", "sector"]
 
 
 def universe_section(factors: pd.DataFrame | None, scores: pd.DataFrame | None,
-                     regional: pd.DataFrame | None) -> dict:
+                     regional: pd.DataFrame | None, sector_map: dict | None = None) -> dict:
     if factors is None or scores is None:
         return {"columns": UNIVERSE_COLUMNS, "rows": []}
     regional = regional if regional is not None else scores
@@ -118,7 +121,8 @@ def universe_section(factors: pd.DataFrame | None, scores: pd.DataFrame | None,
                      *(_num(r.get(k), 0) for k in ("quality", "value", "momentum", "moat")),
                      _num(f.get("x_upside"), 1), _num(f.get("x_peg"), 2),
                      None if _num(cap) is None else _num(float(cap) / 1e9, 1),
-                     size_class(cap), liquidity_class(f.get("x_adv_usd"), f.get("x_idle_days"))])
+                     size_class(cap), liquidity_class(f.get("x_adv_usd"), f.get("x_idle_days")),
+                     sector_name(ticker, factors, sector_map)])
     return {"columns": UNIVERSE_COLUMNS, "rows": rows}
 
 
@@ -147,14 +151,29 @@ def paper_section(trades: pd.DataFrame, last_prices: dict[str, float]) -> dict:
     return {"summary": result, "trades": rows}
 
 
+def paper_score_section(score: dict | None) -> dict | None:
+    """Papirporteføljens stilling mod RSP (paper.score) til payloaden; None uden beregning. Tal rundes, NaN bliver None."""
+    if not score:
+        return None
+    counts = ("antal", "sammenlignet", "udeladt", "dage")
+    out = {k: (None if score.get(k) is None else int(score[k])) for k in counts}
+    for key in ("afkast_pct", "rsp_pct", "forskel_pp", "vinderandel_pct", "slaar_rsp_pct"):
+        out[key] = _num(score.get(key), 2)
+    out["start"] = score.get("start")
+    out["for_tidligt"] = bool(score.get("for_tidligt", True))
+    return out
+
+
 def build_payload(*, rows, histories, currencies, regions, atrs, research, breadth, benchmark,
                   factors, scores, regional, trades, last_prices, changes, news=None, candidates=(),
                   earnings_risk=None, channels=None, horizon: float = DEFAULT_HORIZON,
-                  universe_scenarios=None, now: datetime | None = None) -> dict:
+                  universe_scenarios=None, sector_map: dict | None = None, paper_score: dict | None = None,
+                  now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     market_date = max((pd.Timestamp(h.index[-1]).date() for h in histories.values() if len(h)), default=None)
     stocks = {r.ticker: stock_entry(r, histories[r.ticker], currencies.get(r.ticker), regions.get(r.ticker, ""),
-                                    atrs.get(r.ticker)) for r in rows if r.ticker in histories}
+                                    atrs.get(r.ticker), sector_name(r.ticker, factors, sector_map))
+              for r in rows if r.ticker in histories}
     for ticker, risk in (earnings_risk or {}).items():
         if ticker in stocks:
             stocks[ticker]["earnings_risk"] = earnings_risk_entry(risk)
@@ -177,10 +196,11 @@ def build_payload(*, rows, histories, currencies, regions, atrs, research, bread
         "research": list(research),
         "candidates": [t for t in candidates if t in stocks],  # tragtens fund i hele universet
         "stocks": stocks,
-        "universe": universe_section(factors, scores, regional),
+        "universe": universe_section(factors, scores, regional, sector_map),
         # Bear/Base/Bull for universets aktier uden fuld analyse; mandagslistens egne ligger i stocks
         "scenarios": {t: s for t, s in (universe_scenarios or {}).items() if t not in stocks},
         "screeners": screener_section(factors, scores, regional),
         "paper": paper_section(trades, last_prices),
+        "paper_score": paper_score_section(paper_score),
         "changes": list(changes),
     }
