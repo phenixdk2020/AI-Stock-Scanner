@@ -263,9 +263,9 @@ class ChartBehaviourContractTests(unittest.TestCase):
 
     def test_plugin_version_is_0_8_2(self):
         main = read(MAIN)
-        self.assertIn("* Version: 0.8.6", main)
-        self.assertIn("define('ASC_PLUGIN_VERSION', '0.8.6')", main)
-        self.assertIn("<strong>v0.8.6:</strong>", main)
+        self.assertIn("* Version: 0.8.8", main)
+        self.assertIn("define('ASC_PLUGIN_VERSION', '0.8.8')", main)
+        self.assertIn("<strong>v0.8.8:</strong>", main)
 
 
 if __name__ == "__main__":

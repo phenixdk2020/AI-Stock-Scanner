@@ -4,7 +4,8 @@ from datetime import date
 
 import pandas as pd
 
-from stockscanner.analyst import earnings_blocks, next_earnings, revisions, value_trap
+from stockscanner.analyst import (estimate_next, earnings_blocks, next_earnings, next_from_dates, revisions,
+                                  rising_estimates, value_trap)
 
 
 def trend(now, d30, d90):
@@ -18,6 +19,23 @@ class EarningsTests(unittest.TestCase):
         self.assertEqual(next_earnings(calendar, date(2026, 11, 2)), date(2026, 11, 4))
         self.assertIsNone(next_earnings({}, date(2026, 11, 2)))
         self.assertIsNone(next_earnings(None, date(2026, 11, 2)))
+
+    def test_next_date_comes_from_the_list_when_calendar_only_has_the_last_report(self):
+        dates = [date(2026, 7, 27), date(2026, 10, 26), date(2027, 2, 18)]
+        self.assertEqual(next_from_dates(dates, date(2026, 11, 5)), date(2027, 2, 18))
+        self.assertIsNone(next_from_dates(dates[:2], date(2026, 11, 5)))
+
+    def test_estimate_uses_typical_gap_and_refuses_old_or_short_history(self):
+        dates = [date(2026, 1, 27), date(2026, 4, 28), date(2026, 7, 28), date(2026, 10, 27)]
+        self.assertEqual(estimate_next(dates, date(2026, 11, 5)), date(2027, 1, 26))
+        self.assertIsNone(estimate_next(dates[:2], date(2026, 11, 5)))
+        self.assertIsNone(estimate_next([date(2015, 3, 1), date(2015, 6, 1), date(2015, 9, 1)], date(2026, 11, 5)))
+
+    def test_rising_estimates_never_hides_a_value_trap(self):
+        self.assertIn("EPS +1y", rising_estimates({"+1y": {"30d": 2.5, "90d": 1.0}}))
+        self.assertIn("90 d", rising_estimates({"0y": {"30d": 0.1, "90d": 6.0}}))
+        self.assertIsNone(rising_estimates({"+1y": {"30d": 1.0, "90d": 2.0}}))
+        self.assertIsNone(rising_estimates({"0y": {"30d": 3.0}, "+1y": {"30d": -3.0}}))
 
     def test_block_window(self):
         today = date(2026, 11, 2)

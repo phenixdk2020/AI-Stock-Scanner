@@ -45,7 +45,7 @@ class TablesContractTests(unittest.TestCase):
         code = (PLUGIN / "includes/class-asc-playbook.php").read_text(encoding="utf-8")
         self.assertIn("'value' => 'Find aktier'", code)
         self.assertIn("'find' => ['Find aktier'", (PLUGIN / "includes/class-asc-portfolio.php").read_text(encoding="utf-8"))
-        self.assertIn("$show = 'best'", code)      # Nej-aktier er skjult som standard
+        self.assertIn("$show = 'top'", code)       # Find aktier åbner på den korte liste
         self.assertIn("self::tab_value($data)", code)
         body = code[code.index("public static function entry_verdict"):code.index("private static function tab_value")]
         self.assertIn("return [0, 'Entry']", body)
@@ -90,6 +90,14 @@ class TablesContractTests(unittest.TestCase):
         self.assertIn("return null", body)
         verdict = code[code.index("public static function entry_verdict"):code.index("public static function entry_for")]
         self.assertNotIn("total", verdict)
+
+    def test_top_list_only_picks_from_entry_and_skips_earnings(self):
+        code = (PLUGIN / "includes/class-asc-playbook.php").read_text(encoding="utf-8")
+        body = code[code.index("public static function top_candidates"):code.index("public static function render_find")]
+        self.assertIn("if ($item['rank'] !== 0) { continue; }", body)
+        self.assertIn("self::earnings_soon", body)
+        self.assertIn("self::TOP_PER_SECTOR", body)
+        self.assertIn("private const TOP_COUNT = 10", code)
 
     def test_sort_buttons_do_not_get_the_dark_button_style(self):
         css = (PLUGIN / "assets/dashboard.css").read_text(encoding="utf-8")

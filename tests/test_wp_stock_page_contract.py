@@ -265,8 +265,8 @@ class StockLinksInTablesTests(unittest.TestCase):
 class VersionTests(unittest.TestCase):
     def test_plugin_version_is_0_8_0(self):
         main = read(MAIN)
-        self.assertIn("* Version: 0.8.6", main)
-        self.assertIn("define('ASC_PLUGIN_VERSION', '0.8.6')", main)
+        self.assertIn("* Version: 0.8.8", main)
+        self.assertIn("define('ASC_PLUGIN_VERSION', '0.8.8')", main)
         self.assertIn("<strong>v0.8.0:</strong>", main)
 
     def test_php_braces_and_parens_balance(self):

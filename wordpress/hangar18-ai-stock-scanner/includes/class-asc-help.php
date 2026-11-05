@@ -113,6 +113,16 @@ final class ASC_Help {
             . 'rette EPS og P/E i den manuelle beregner. "Ikke beregnet endnu" betyder, at aktien mangler positive EPS-estimater eller '
             . 'P/E-historik; følg aktien, så kommer den med ved næste kørsel.</p>';
 
+        echo '<h3>Entry-tjeklisten på aktiesiden</h3>';
+        echo '<p>Tjeklisten viser hvert købskrav med flueben, så du kan se præcis, hvad der mangler. Plus og minus er '
+            . 'tegn, du selv vejer: marked, MTI, TPI, stigende estimater, insiderkøb og regnskabsrisiko. De giver og '
+            . 'fjerner aldrig Entry.</p>';
+        echo '<p>Planen viser stop, kursmål og hvad du taber, hvis stoppet rammes. Skriv dit eget beløb. Kursmålene '
+            . 'er regnestykker, ikke prognoser, og kursgab kan gøre tabet større end vist.</p>';
+        echo '<p><strong>Insiderkøb</strong> er ledelsens egne køb på markedet de seneste 90 dage. Tallene kommer fra '
+            . 'SEC og findes kun for USA. <strong>Hvorfor er den billig?</strong> er skrevet af lokal AI ud fra '
+            . 'regnskabstal og nyheder og kan tage fejl. <strong>Anslået regnskab</strong> er regnet ud fra tidligere '
+            . 'regnskaber. Den advarer, men spærrer ikke, og aktien holdes ude af Top 10.</p>';
         echo '<h3>Krav til en KØB-KANDIDAT</h3><ul>';
         foreach ([
             'StockMap-køb inden for de seneste 2 uger',
@@ -169,6 +179,7 @@ final class ASC_Help {
         echo '<h3>Find aktier</h3>';
         echo self::terms([
             ['Samlet', 'Samlet score 0-100: gennemsnit af Kvalitet, Moat, Værdi og Kanal. Den samler, hvor godt og billigt selskabet ser ud, i ét tal, og listen er sorteret efter den. Modsat MSS-score tæller Værdi med. Den siger intet om tidspunktet, og den er ikke testet historisk.'],
+            ['Top', 'Den korte liste: højeste Samlet med Entry, uden regnskab inden for 7 dage og højst 3 fra samme sektor. Start her.'],
             ['Entry', 'Alle købskrav er opfyldt, altså det samme som KØB-KANDIDAT.'],
             ['Vent: intet købssignal', 'Aktien er god og billig mod sin egen værdi, men StockMap har ikke givet køb. Hold øje med den.'],
             ['Dyr mod andre aktier', 'Værdi under 20. Aktien kan godt have Entry, fordi købsreglen bruger Kanal, altså prisen mod aktiens egen historie og forventede indtjening. Mod andre aktier er den dyr.'],

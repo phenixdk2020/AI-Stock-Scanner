@@ -263,6 +263,22 @@ def print_news(tickers: list[str] | None) -> int:
     return 0
 
 
+def why_cheap_input(rows, channels) -> tuple[list[str], dict]:
+    """Aktier der skal forklares (Entry først, så billige gode aktier) og tallene til den lokale AI."""
+    picked = [r for r in rows if r.action == "KØB-KANDIDAT"]
+    picked += [r for r in rows if r.action != "KØB-KANDIDAT" and (r.channel_score or 0) >= 50 and (r.quality or 0) >= 60]
+    facts = {}
+    for r in picked:
+        keep = {k: getattr(r, k) for k in ("quality", "moat", "value_pct", "channel_score", "peg", "asymmetry")}
+        channel = channels.get(r.ticker)
+        if channel is not None:
+            keep["pe_base"] = channel.pe_base
+            if channel.eps_today and channel.eps_today > 0:
+                keep["pe_nu"] = round(channel.price / channel.eps_today, 1)
+        facts[r.ticker] = keep
+    return [r.ticker for r in picked], facts
+
+
 def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, by_region: bool = False,
                       upload: bool = True, with_news: bool = True) -> int:
     """Mandagsliste: StockMap-signal + Quality/Value/Momentum-percentiler + værdikanal og PEG."""
@@ -270,7 +286,7 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
 
     import yfinance as yf
 
-    from stockscanner import earnings_risk, news, paper, playbook, site_sync, universe_scenarios
+    from stockscanner import earnings_risk, insiders, news, paper, playbook, site_sync, universe_scenarios, why_cheap
     from stockscanner.sizing import atr, fx_rate, load_settings, position_size
 
     from stockscanner import universe
@@ -424,6 +440,14 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
         (out_dir / "aendringer.txt").write_text("\n".join(changes_seen), encoding="utf-8")
         if site:
             try:
+                insider_facts = insiders.build(list(histories), date.today())
+                print(f"Insiderkøb: {sum(f['buyers'] > 0 for f in insider_facts.values())} af "
+                      f"{len(insider_facts)} amerikanske aktier har køb de seneste 90 dage.")
+                explained = {}
+                if with_news:
+                    explained = why_cheap.build(*why_cheap_input(rows, channels), analyst=analyst,
+                                                news_items=news_items, today=date.today())
+                    print(f"Hvorfor billig: {len(explained)} forklaringer klar.")
                 everyone = reference if reference is not None else targets
                 payload = playbook.build_payload(
                     rows=rows, histories=histories, currencies=currencies,
@@ -433,7 +457,7 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
                     trades=paper_trades, last_prices=last, changes=changes_seen, news=news_items,
                     candidates=candidates, earnings_risk=risks, universe_scenarios=universe_scenarios.load(), channels=channels,
                     sector_map=load_sector_map(Path(__file__).resolve().parent / "data" / "sector_map.json"),
-                    paper_score=stilling)
+                    paper_score=stilling, analyst=analyst, insiders=insider_facts, why_cheap=explained)
                 site_sync.save_payload(payload)     # så en afbrudt upload kan sendes igen uden en ny kørsel
                 receipt = site_sync.send_playbook(payload, *site)
                 print(f"Hjemmesiden opdateret: {receipt.get('stocks', len(payload['stocks']))} aktier sendt.")

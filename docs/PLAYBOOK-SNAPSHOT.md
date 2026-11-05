@@ -117,3 +117,7 @@ PC'en henter først `/tickers`, så mandagslisten også dækker aktier, brugerne
 - `news` (plugin ≥ 0.6.1): højst 5 overskrifter fra Google News (kun til personlig brug), vurderet af lokal Ollama.
   `impact` 1–3; en stor negativ nyhed de seneste 3 dage blokerer køb, når de negative overskrifter er flest.
 - Screening, ikke købs- eller salgsanbefalinger – det skal stå på siden.
+
+## Tilføjet i plugin 0.8.8 (kun til visning, ændrer aldrig `action`)
+
+Under `stocks.<ticker>`: `earnings_estimate` (anslået dato, spærrer ikke), `eps_rising` (tekst), `insiders` (`buyers`, `buys`, `sells`, `value_usd`, `last_buy`, `days`; kun USA), `why_cheap` (`hvorfor_billig`, `risici`, `vaerdifaelde`, `dato`).
