@@ -201,6 +201,7 @@ final class ASC_Playbook {
         $snapshot = [
             'schema_version' => 2,
             'generated_at' => $generated,
+            'analysis_at' => self::clean_string($input['analysis_at'] ?? null, 25),
             'market_date' => self::clean_date($input['market_date'] ?? null),
             'benchmark' => self::clean_string($input['benchmark'] ?? null, 20),
             'breadth' => self::clean_breadth($input['breadth'] ?? null),
@@ -223,7 +224,7 @@ final class ASC_Playbook {
         $strings = [
             'region' => 40, 'action' => 40, 'reasons' => 400, 'stockmap' => 60,
             'quadrant' => 20, 'tpi' => 60, 'mti' => 60, 'earnings' => 40, 'eps_trend' => 200,
-            'news_summary' => 300, 'size' => 20, 'liquidity' => 20, 'sector' => 40, 'eps_rising' => 200,
+            'news_summary' => 300, 'candle' => 120, 'entry_checked' => 10, 'size' => 20, 'liquidity' => 20, 'sector' => 40, 'eps_rising' => 200,
         ];
         $numbers = [
             'price', 'atr14', 'angle', 'quality', 'moat', 'mss_score', 'value_pct',
@@ -699,6 +700,7 @@ final class ASC_Playbook {
                 'PEG' => esc_html(self::n($stock['peg'] ?? null, 1)),
                 'Asymmetri' => !empty($stock['asymmetry_inf']) ? '∞'
                     : esc_html(self::n($stock['asymmetry'] ?? null, 1)),
+                'Candle' => self::s($stock['candle'] ?? null),
                 'Regnskab' => self::earnings_html($stock['earnings'] ?? null),
                 'EPS-trend' => self::s($stock['eps_trend'] ?? null),
                 'Størrelse' => self::s($stock['size'] ?? null),
@@ -710,7 +712,8 @@ final class ASC_Playbook {
             }
             $html .= '</dl>' . self::scenarios_section($ticker);
             $html .= '<p class="asc-subtle">Nyheder: ' . self::s($stock['news_summary'] ?? null) . '</p>';
-            $html .= '<p class="asc-subtle">Analyse fra ' . esc_html(self::when((string)$data['generated_at'])) . '.</p>';
+            $html .= '<p class="asc-subtle">Analyse fra ' . esc_html(self::when((string)($data['analysis_at'] ?? $data['generated_at'])))
+                . (is_string($stock['entry_checked'] ?? null) ? '. Entry tjekket ' . esc_html($stock['entry_checked']) : '') . '.</p>';
             return $html . '</div>';
         }
         $row = $data !== null ? (self::universe_index($data)[$ticker] ?? null) : null;
@@ -1507,7 +1510,7 @@ final class ASC_Playbook {
                 . 'Følg aktier på din overvågningsliste, så sendes de med ved næste kørsel.</p>';
         } else {
             echo '<div class="asc-table-wrap"><table><thead><tr>';
-            foreach (['Aktie', 'Sektor', 'Handling', 'StockMap', 'TPI', 'MTI', 'Kvalitet', 'Moat', 'MSS-score',
+            foreach (['Aktie', 'Sektor', 'Handling', 'StockMap', 'TPI', 'MTI', 'Candle', 'Kvalitet', 'Moat', 'MSS-score',
                       'Værdi', 'Momentum', 'Kanal', 'PEG', 'Asymmetri', 'Regnskab', 'Størrelsesklasse', 'Likviditet', 'Størrelse',
                       'Nyheder', 'Begrundelse'] as $head) {
                 echo '<th scope="col">' . esc_html($head) . '</th>';
@@ -1534,6 +1537,7 @@ final class ASC_Playbook {
                 echo '<td>' . self::s($stock['stockmap'] ?? null) . '</td>';
                 echo '<td>' . self::s($stock['tpi'] ?? null) . '</td>';
                 echo '<td>' . self::s($stock['mti'] ?? null) . '</td>';
+                echo '<td>' . self::s($stock['candle'] ?? null) . '</td>';
                 echo '<td>' . esc_html(self::n($stock['quality'] ?? null)) . '</td>';
                 echo '<td>' . esc_html(self::n($stock['moat'] ?? null)) . '</td>';
                 echo '<td>' . esc_html(self::n($stock['mss_score'] ?? null)) . '</td>';
@@ -1551,7 +1555,7 @@ final class ASC_Playbook {
                 echo '<td class="asc-subtle">' . self::s($stock['reasons'] ?? null) . '</td></tr>';
                 $risk = self::risk_html($stock);
                 if ($risk !== '') {
-                    echo '<tr class="asc-rule-row"><td colspan="20"><div>' . $risk . '</div></td></tr>';
+                    echo '<tr class="asc-rule-row"><td colspan="21"><div>' . $risk . '</div></td></tr>';
                 }
             }
             echo '</tbody></table></div>';
@@ -1675,6 +1679,12 @@ final class ASC_Playbook {
         $row = self::universe_index($data)[$ticker] ?? null;
         if ($stock === null && !is_array($row)) { return null; }
         return self::entry_verdict($stock, is_array($row) ? $row : [], self::scenarios_for($ticker));
+    }
+
+    /** Datoen for det seneste daglige entry-tjek af aktien; null når vurderingen er fra mandagslisten. */
+    public static function entry_checked(string $ticker): ?string {
+        $value = self::snapshot()['stocks'][$ticker]['entry_checked'] ?? null;
+        return is_string($value) ? $value : null;
     }
 
     /**

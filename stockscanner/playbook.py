@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
+from stockscanner import candles
 from stockscanner.exits import exit_signals, supertrend
 from stockscanner.sector_rs import sector_name
 from stockscanner.universe import liquidity_class, size_class
@@ -57,7 +58,7 @@ def stock_entry(row, prices: pd.DataFrame, currency: str | None, region: str, at
         "momentum": _num(row.momentum, 0), "channel_score": _num(row.channel_score, 0), "peg": _num(row.peg, 2),
         "asymmetry": None if infinite else _num(row.asymmetry, 2), "asymmetry_inf": infinite,
         "earnings": row.earnings, "eps_trend": row.eps_trend, "size": row.size, "liquidity": row.liquidity,
-        "sector": sector or "ukendt",
+        "sector": sector or "ukendt", "candle": candles.latest_text(prices),
         "exit": exit_facts(prices, "StockMap-salg denne uge" in row.reasons),
     }
 
@@ -217,9 +218,11 @@ def build_payload(*, rows, histories, currencies, regions, atrs, research, bread
             stocks[ticker]["news"] = [{"title": i.title[:200], "source": i.source[:80], "url": i.url[:500],
                                        "published": i.published, "sentiment": i.sentiment, "impact": i.impact,
                                        "reason": i.reason[:160]} for i in items[:MAX_NEWS]]
+    generated = now.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     return {
         "schema_version": 2,
-        "generated_at": now.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "generated_at": generated,
+        "analysis_at": generated,   # entry-tjekket flytter generated_at, men analysen er fra denne kørsel
         "market_date": None if market_date is None else str(market_date),
         "benchmark": benchmark,
         "breadth": {str(k): _num(v, 1) for k, v in breadth.items()},

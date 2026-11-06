@@ -51,6 +51,10 @@
 - yfinance er uofficiel og har ca. 4 års årsregnskaber.
 - MyStockScanner-research: `docs/Dropbox/` (emnelog T01–T66, restliste, datakatalog).
 
+## 06-11-2026: entry-tjek og candles (plugin 0.8.10)
+- [x] `scan_cli.py --entry-tjek`: opdaterer Entry for fulgte, ikke-ejede aktier i seneste playbook. StockMap følger afsluttede uger, så tjekket fanger kun kurs, værdikanal, regnskab og estimater. Ingen GPU, nyheder eller papirhandler. Candle-mønstre vises kun som oplysning.
+- [ ] Windows-opgaven til `scripts/entry_tjek.cmd` (tirsdag-lørdag, indhenter når PC'en tændes) oprettes efter fletning.
+
 ## 06-11-2026: Aktiescanner ud af menuen (plugin 0.8.9)
 - [x] Siden var en kort udgave af Playbook → Mandagsliste. Fjernet fra menu, Overblik og Hjælp; shortcoden `[ai_stock_scanner]` og snapshot-data er bevaret (Overblik og Analyse bruger dem). Allan valgte det 06-11-2026.
 

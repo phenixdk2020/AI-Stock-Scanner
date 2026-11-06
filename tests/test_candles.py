@@ -1,9 +1,11 @@
 """Offline tests af candle-detektoren med håndbyggede kurser; kræver ingen internetadgang."""
 import unittest
+from unittest import mock
 
 import numpy as np
 import pandas as pd
 
+from stockscanner import candles
 from stockscanner.candles import (
     PATTERNS, backtest, detect_patterns, eligible_signals, forward_returns, simulate_trade, trade_backtest,
     trend_context,
@@ -186,6 +188,18 @@ class TradeSimulationTests(unittest.TestCase):
         rows = trade_backtest({"TEST": frame}, hold_days=(1, 5))
         self.assertEqual(len(rows), len(PATTERNS) * 2)
         self.assertTrue(any(row.trades for row in rows))
+
+
+class LatestTextTests(unittest.TestCase):
+    def test_shows_only_the_last_days(self):
+        days = pd.bdate_range(end="2026-11-05", periods=10)
+        frame = pd.DataFrame(False, index=days, columns=list(candles.PATTERNS))
+        frame.loc[days[-2], "hammer"] = True
+        frame.loc[days[0], "morning_star"] = True
+        with mock.patch.object(candles, "eligible_signals", return_value=frame):
+            self.assertEqual(candles.latest_text(None), "Hammer 2026-11-04")
+        with mock.patch.object(candles, "eligible_signals", return_value=frame.iloc[:3]):
+            self.assertEqual(candles.latest_text(None, days=1), None)
 
 
 if __name__ == "__main__":

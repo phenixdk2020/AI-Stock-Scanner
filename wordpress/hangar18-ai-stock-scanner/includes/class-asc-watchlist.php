@@ -108,11 +108,13 @@ final class ASC_Watchlist {
                 if (is_array($quote) && !empty($quote['stale'])) { $date .= ' (forældet)'; }
                 $verdict = class_exists('ASC_Playbook') ? ASC_Playbook::entry_for((string)$ticker) : null;
                 $entry_now = $verdict !== null && $verdict[0] === 0;
+                $checked = $verdict !== null ? ASC_Playbook::entry_checked((string)$ticker) : null;
                 echo '<tr><th scope="row">' . ASC_Stock_Page::link((string)$ticker) . '</th>'
                     . '<td>' . ($verdict === null ? 'Analyseres ved næste kørsel'
                         : ($entry_now ? '<strong>Entry</strong> <a class="asc-sim-link" href="'
                             . esc_url(ASC_Simulator::lookup_url((string)$ticker)) . '">Køb i simulator</a>'
-                            : esc_html($verdict[1]))) . '</td>'
+                            : esc_html($verdict[1])))
+                    . ($checked !== null ? '<div class="asc-subtle">Tjekket ' . esc_html($checked) . '</div>' : '') . '</td>'
                     . '<td>' . esc_html($price) . '</td><td>' . esc_html($currency) . '</td>'
                     . '<td>' . esc_html($date) . '</td><td>';
                 echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
