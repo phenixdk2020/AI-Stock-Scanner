@@ -436,6 +436,7 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
             print(f"Papir mod RSP: {stilling['sammenlignet']} af {stilling['antal']} handler sammenlignet, "
                   f"{stilling['afkast_pct']:+.1f} % mod RSP {stilling['rsp_pct']:+.1f} % ({stilling['forskel_pp']:+.1f} %-point)"
                   + (" – under 3 måneder siger tallene ikke noget" if stilling["for_tidligt"] else ""))
+        maaling = measure_lists(history_path, histories, bench)
         # B-13: scripts/notify.ps1 viser linjerne som Windows-besked
         (out_dir / "aendringer.txt").write_text("\n".join(changes_seen), encoding="utf-8")
         if site:
@@ -457,7 +458,8 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
                     trades=paper_trades, last_prices=last, changes=changes_seen, news=news_items,
                     candidates=candidates, earnings_risk=risks, universe_scenarios=universe_scenarios.load(), channels=channels,
                     sector_map=load_sector_map(Path(__file__).resolve().parent / "data" / "sector_map.json"),
-                    paper_score=stilling, analyst=analyst, insiders=insider_facts, why_cheap=explained)
+                    paper_score=stilling, measurement=maaling, analyst=analyst, insiders=insider_facts,
+                    why_cheap=explained)
                 site_sync.save_payload(payload)     # så en afbrudt upload kan sendes igen uden en ny kørsel
                 receipt = site_sync.send_playbook(payload, *site)
                 print(f"Hjemmesiden opdateret: {receipt.get('stocks', len(payload['stocks']))} aktier sendt.")
@@ -472,6 +474,46 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
         else:
             print("Hjemmesiden: ikke sat op (ASC_WP_SITE_URL, ASC_WP_USER, ASC_WP_APP_PASSWORD mangler) – springer over.")
     print("Screening efter egne regler inspireret af MSS – ikke en købsanbefaling.")
+    return 0
+
+
+def measure_lists(history_path: Path, histories: dict, bench: pd.DataFrame) -> dict | None:
+    """Fremadrettet måling af listerne. En fejl her må aldrig stoppe mandagslisten."""
+    from stockscanner import forward
+
+    try:
+        result = forward.run(history_path, histories, bench, lambda ticker: fetch_history(ticker, period="3y")[0])
+    except Exception as error:
+        print(f"Måling sprunget over – {error}", file=sys.stderr)
+        return None
+    print("\n".join(forward.report(result)))
+    return result
+
+
+def print_measurement(upload: bool = True) -> int:
+    """Mål listerne nu og læg tallene på siden. Rører hverken købsregler, papirportefølje eller kurser på listen."""
+    from stockscanner import site_sync
+
+    history_path = Path(__file__).resolve().parent / "data" / "mandagsliste_historik.csv"
+    if not history_path.exists():
+        print("Måling: ingen mandagsliste endnu.", file=sys.stderr)
+        return 1
+    bench = fetch_history("RSP", period="3y")[0]
+    result = measure_lists(history_path, {"RSP": bench}, bench)
+    if result is None:
+        return 1
+    if not upload or not site_sync.PAYLOAD_FILE.exists():
+        return 0
+    stamp = site_sync.PAYLOAD_FILE.stat().st_mtime
+    payload = site_sync.load_payload()
+    payload["measurement"] = result
+    if site_sync.PAYLOAD_FILE.stat().st_mtime != stamp:
+        print("Måling: en anden kørsel har skrevet imens, så den får lov at stå.")
+        return 0
+    site_sync.save_payload(payload)
+    site = site_sync.credentials()
+    if site:
+        print(f"Hjemmesiden opdateret: {site_sync.send_playbook(payload, *site).get('stocks')} aktier sendt.")
     return 0
 
 
@@ -554,6 +596,8 @@ def main() -> int:
                         help="B-04–B-06: screener over det cachede univers")
     parser.add_argument("--entry-tjek", action="store_true",
                         help="Opdatér Entry for de fulgte aktier i seneste playbook (uden nyheder og GPU)")
+    parser.add_argument("--maaling", action="store_true",
+                        help="Mål mandagslisterne fremad mod RSP og læg tallene på hjemmesiden.")
     parser.add_argument("--ingen-upload", action="store_true",
                         help="--mandagsliste: send ikke resultatet til hjemmesiden")
     parser.add_argument("--nyheder", action="store_true",
@@ -596,6 +640,8 @@ def main() -> int:
         return print_quality(selected)
     if arguments.vaerdi:
         return print_value_channels(selected, arguments.horisont)
+    if arguments.maaling:
+        return print_measurement(not arguments.ingen_upload)
     if arguments.entry_tjek:
         return print_entry_check(not arguments.ingen_upload)
     if arguments.mandagsliste:

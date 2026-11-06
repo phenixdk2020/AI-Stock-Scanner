@@ -35,7 +35,6 @@ class SimulatorContractTests(unittest.TestCase):
             "get_user_meta($user_id, self::META, true)",
             "update_user_meta($user_id, self::META",
             "START_CASH = 1000000.0",
-            "ROUND_DAYS = 30",
             "TARGET_POSITIONS = 10",
             "MAX_POSITIONS = 20",
             "FEE_RATE = 0.001",
@@ -80,7 +79,7 @@ class SimulatorContractTests(unittest.TestCase):
             "$cost * self::FEE_RATE",
             "redirect('no_quote'", "redirect('no_fx'", "redirect('no_cash'",
             "redirect('qty_zero'", "redirect('max_positions'", "redirect('already_held'",
-            "redirect('invalid_ticker')", "redirect('round_over')",
+            "redirect('invalid_ticker')",
             "preg_match(self::TICKER_RE, $ticker) !== 1",
             "[A-Z0-9^][A-Z0-9.^=-]{0,19}",
         ):
@@ -101,8 +100,7 @@ class SimulatorContractTests(unittest.TestCase):
     def test_round_end_and_history(self):
         sim = SIM.read_text(encoding="utf-8")
         for expected in (
-            "Runden er slut", "Afslut og start ny runde",
-            "elapsed_days((string)$round['started']) < self::ROUND_DAYS",
+            "Stop runden", "Stop og gem runden", "onsubmit=\"return confirm(",
             "array_unshift($state['history']",
             "$state['round'] = null",
             "Tidligere runder", "Lukkede handler", "Mine positioner",
@@ -111,6 +109,14 @@ class SimulatorContractTests(unittest.TestCase):
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, sim)
+
+    def test_rounds_run_until_the_user_stops_them(self):
+        sim = SIM.read_text(encoding="utf-8")
+        for forbidden in ("ROUND_DAYS", "round_over", "round_not_over", "$finished", "30 dage"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, sim)
+        self.assertIn("til du selv stopper", sim)
+        self.assertNotIn("30 dage", (PLUGIN / "includes" / "class-asc-help.php").read_text(encoding="utf-8"))
 
     def test_notices_footer_and_quote_handling(self):
         sim = SIM.read_text(encoding="utf-8")

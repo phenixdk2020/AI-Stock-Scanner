@@ -5,7 +5,7 @@ if (!defined('ABSPATH')) { exit; }
 /**
  * Per-user virtual trading simulator ("børs og portefølje"): the user looks up
  * stocks, reads the Playbook analysis, buys them virtually, follows prices for
- * a round of 30 days and sees the result against the RSP benchmark.
+ * a round until the user stops it and sees the result against the RSP benchmark.
  *
  * Prices are ALWAYS taken server-side from ASC_Market_Quotes (never from a form)
  * and are never invented. Virtual trades only; not investment advice.
@@ -17,7 +17,6 @@ final class ASC_Simulator {
     private const START_CASH = 1000000.0;
     private const MIN_CASH = 10000.0;
     private const MAX_CASH = 1000000000.0;
-    private const ROUND_DAYS = 30;
     private const TARGET_POSITIONS = 10;
     private const MAX_POSITIONS = 20;
     private const MAX_HISTORY = 50;
@@ -353,7 +352,6 @@ final class ASC_Simulator {
         $state = self::load($user_id);
         $round = $state['round'];
         if ($round === null) { self::redirect('no_round'); }
-        if (self::elapsed_days((string)$round['started']) >= self::ROUND_DAYS) { self::redirect('round_over'); }
         if (count($round['positions']) >= self::MAX_POSITIONS) { self::redirect('max_positions', $ticker); }
         foreach ($round['positions'] as $position) {
             if (($position['ticker'] ?? '') === $ticker) { self::redirect('already_held', $ticker); }
@@ -391,7 +389,6 @@ final class ASC_Simulator {
         $state = self::load($user_id);
         $round = $state['round'];
         if ($round === null) { self::redirect('no_round'); }
-        if (self::elapsed_days((string)$round['started']) >= self::ROUND_DAYS) { self::redirect('round_over'); }
         $index = null;
         foreach ($round['positions'] as $i => $position) {
             if ($id !== '' && (string)($position['id'] ?? '') === $id) { $index = $i; break; }
@@ -435,13 +432,12 @@ final class ASC_Simulator {
         self::redirect('sold');
     }
 
-    /** Finish the round after day 30: store the summary in history, then a new round can start. */
+    /** Stop the round when the user wants to: store the summary in history, then a new round can start. */
     public static function end_round(): void {
         $user_id = self::guard('asc_sim_end');
         $state = self::load($user_id);
         $round = $state['round'];
         if ($round === null) { self::redirect('no_round'); }
-        if (self::elapsed_days((string)$round['started']) < self::ROUND_DAYS) { self::redirect('round_not_over'); }
         $valuation = self::valuation($round);
         $benchmark = self::benchmark($round);
         array_unshift($state['history'], [
@@ -473,7 +469,7 @@ final class ASC_Simulator {
         ob_start();
         echo '<section class="asc-dashboard"><div class="asc-portfolio asc-simulator" id="asc-simulator">';
         echo '<div class="asc-section-title"><h2>Simulator</h2>'
-            . '<p>Find aktier, læs Playbook-analysen, køb dem virtuelt og følg kurserne i 30 dage.</p></div>';
+            . '<p>Find aktier, læs Playbook-analysen, køb dem virtuelt og følg kurserne, til du selv stopper runden.</p></div>';
         self::render_flash();
         if (!ASC_Market_Quotes::enabled()) {
             echo '<div class="asc-warning" role="alert">Kurser mangler: Yahoo-kurser skal aktiveres af administratoren '
@@ -485,15 +481,11 @@ final class ASC_Simulator {
             $valuation = self::valuation($round);
             $benchmark = self::benchmark($round);
             $day = self::elapsed_days((string)$round['started']);
-            $finished = $day >= self::ROUND_DAYS;
             self::render_overview($round, $valuation, $benchmark, $day);
-            if ($finished) {
-                self::render_end_block($valuation, $benchmark);
-            } else {
-                self::render_lookup($round);
-            }
-            self::render_positions($valuation, $finished);
+            self::render_lookup($round);
+            self::render_positions($valuation);
             self::render_closed($round);
+            self::render_end_block($valuation, $benchmark);
         }
         self::render_history($state['history']);
         echo '<p class="asc-disclaimer">Virtuelle handler med forsinkede kurser. Ikke investeringsrådgivning.</p>';
@@ -510,12 +502,10 @@ final class ASC_Simulator {
             'started' => 'Ny runde er startet.',
             'bought' => 'Aktien er købt virtuelt til seneste kurs.',
             'sold' => 'Aktien er solgt virtuelt til seneste kurs.',
-            'ended' => 'Runden er afsluttet og gemt i historikken. Du kan starte en ny runde.',
+            'ended' => 'Runden er stoppet og gemt i historikken. Du kan starte en ny runde.',
             'invalid_amount' => 'Startbeløbet skal være mellem 10.000 og 1.000.000.000 kr.',
             'round_exists' => 'Der kører allerede en runde.',
             'no_round' => 'Der er ingen aktiv runde. Start en runde først.',
-            'round_over' => 'Runden er slut. Afslut den, og start en ny for at handle videre.',
-            'round_not_over' => 'Runden er ikke slut endnu.',
             'invalid_ticker' => 'Aktiesymbolet er ugyldigt. Brug fx NOVO-B.CO, SAP.DE eller MSFT (uden mellemrum).',
             'invalid_buy_amount' => 'Beløbet skal være et positivt tal i kr., fx 100.000.',
             'max_positions' => 'Du har nået det højeste antal positioner (20). Sælg en aktie først.',
@@ -535,7 +525,7 @@ final class ASC_Simulator {
 
     private static function render_start_form(): void {
         echo '<div class="asc-add-position asc-sim-start"><h3>Start en runde</h3>';
-        echo '<p class="asc-subtle">En runde varer ' . esc_html((string)self::ROUND_DAYS) . ' dage. Mål: '
+        echo '<p class="asc-subtle">En runde kører, til du selv stopper den. Mål: '
             . esc_html((string)self::TARGET_POSITIONS) . ' aktier (højst ' . esc_html((string)self::MAX_POSITIONS)
             . '). Handelsomkostning: ' . esc_html(self::fmt(self::FEE_RATE * 100, 1))
             . ' % af beløbet ved hvert køb og salg. Afkastet sammenlignes med RSP (S&amp;P 500 equal weight).</p>';
@@ -569,8 +559,7 @@ final class ASC_Simulator {
             . '</div>';
         echo '<div><span>Forskel mod RSP</span><strong>'
             . ($rsp === null ? '–' : esc_html(self::signed($pct - (float)$rsp) . ' %-point')) . '</strong></div>';
-        echo '<div><span>Dag</span><strong>' . esc_html((string)min($day, self::ROUND_DAYS)) . ' af '
-            . esc_html((string)self::ROUND_DAYS) . '</strong><small>Startet ' . esc_html((string)$round['started']) . '</small></div>';
+        echo '<div><span>Dag</span><strong>' . esc_html((string)$day) . '</strong><small>Startet ' . esc_html((string)$round['started']) . '</small></div>';
         echo '<div><span>Positioner</span><strong>' . esc_html((string)$count) . ' af '
             . esc_html((string)self::TARGET_POSITIONS) . '</strong><small>Højst '
             . esc_html((string)self::MAX_POSITIONS) . '</small></div>';
@@ -586,15 +575,17 @@ final class ASC_Simulator {
     private static function render_end_block(array $valuation, array $benchmark): void {
         $rsp = $benchmark['return'];
         $class = (float)$valuation['gain'] >= 0 ? 'asc-positive' : 'asc-negative';
-        echo '<div class="asc-notice asc-sim-over" role="status"><h3>Runden er slut</h3>';
-        echo '<p>Slutværdi <strong>' . esc_html(self::fmt((float)$valuation['total'])) . ' kr.</strong> – <strong class="'
+        echo '<div class="asc-notice asc-sim-over"><h3>Stop runden</h3>';
+        echo '<p>Værdi nu <strong>' . esc_html(self::fmt((float)$valuation['total'])) . ' kr.</strong> – <strong class="'
             . esc_attr($class) . '">' . esc_html(self::signed((float)$valuation['gain']) . ' kr. ('
             . self::signed((float)$valuation['pct']) . ' %)') . '</strong>. RSP i samme periode: '
             . ($rsp === null ? '–' : esc_html(self::signed((float)$rsp) . ' %')) . '.</p>';
-        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        echo '<p>Runden gemmes i historikken til disse tal, og åbne positioner lukkes. Det kan ikke fortrydes.</p>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"'
+            . ' onsubmit="return confirm(\'Stop runden og gem den i historikken?\');">';
         echo '<input type="hidden" name="action" value="asc_sim_end">';
         wp_nonce_field('asc_sim_end');
-        echo '<button type="submit">Afslut og start ny runde</button></form></div>';
+        echo '<button type="submit">Stop og gem runden</button></form></div>';
     }
 
     private static function render_lookup(array $round): void {
@@ -667,7 +658,7 @@ final class ASC_Simulator {
             . esc_html(self::fmt(self::FEE_RATE * 100, 1)) . ' % i omkostning.</p>';
     }
 
-    private static function render_positions(array $valuation, bool $finished): void {
+    private static function render_positions(array $valuation): void {
         echo '<h3>Mine positioner</h3>';
         if (!$valuation['rows']) {
             echo '<p class="asc-empty">Ingen positioner endnu. Slå en aktie op ovenfor, og køb den.</p>';
@@ -696,7 +687,7 @@ final class ASC_Simulator {
             echo '<td class="' . esc_attr($class) . '">' . esc_html(self::signed($row['gain']))
                 . '<div>' . esc_html(self::signed($row['pct']) . ' %') . '</div></td>';
             echo '<td>';
-            if (!$finished && $row['price'] !== null) {
+            if ($row['price'] !== null) {
                 echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
                 echo '<input type="hidden" name="action" value="asc_sim_sell">';
                 echo '<input type="hidden" name="asc_sim_position_id" value="' . esc_attr($row['id']) . '">';
