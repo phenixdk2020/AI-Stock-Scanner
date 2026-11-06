@@ -29,7 +29,7 @@ class SpreadContractTests(unittest.TestCase):
         for head in ("['Aktie', 'Sektor', 'Handling',", "['Aktie', 'Samlet', 'Sektor', 'Entry',"):
             with self.subTest(head=head):
                 self.assertIn(head, php)
-        self.assertIn('<td colspan="20">', php)                                        # mandagslisten har en kolonne mere
+        self.assertIn('<td colspan="21">', php)                                        # mandagslisten har en kolonne mere
 
     def test_warning_is_wired_into_every_page(self):
         php = read("includes/class-asc-playbook.php")

@@ -463,15 +463,68 @@ def print_weekly_list(tickers: list[str], benchmark: str, out_dir: Path | None, 
                 print(f"Hjemmesiden opdateret: {receipt.get('stocks', len(payload['stocks']))} aktier sendt.")
             except Exception as error:
                 print(f"Hjemmesiden blev IKKE opdateret: {error}", file=sys.stderr)
-            try:    # den ældre Aktiescanner-side får sine data ad en anden vej end Playbook
+            try:    # Overblik og Analyse får deres tal ad en anden vej end Playbook
                 dates = {t: h.index[-1].date() for t, h in histories.items() if len(h)}
                 site_sync.send_snapshot(site_sync.snapshot_from_rows(rows, dates), *site)
-                print("Aktiescanner-siden opdateret.")
+                print("Scanner-snapshot opdateret.")
             except Exception as error:
-                print(f"Aktiescanner-siden blev IKKE opdateret: {error}", file=sys.stderr)
+                print(f"Scanner-snapshot blev IKKE opdateret: {error}", file=sys.stderr)
         else:
             print("Hjemmesiden: ikke sat op (ASC_WP_SITE_URL, ASC_WP_USER, ASC_WP_APP_PASSWORD mangler) – springer over.")
     print("Screening efter egne regler inspireret af MSS – ikke en købsanbefaling.")
+    return 0
+
+
+def print_entry_check(upload: bool = True) -> int:
+    """Opdatér Entry for de fulgte aktier i seneste playbook. Bruger ikke GPU, nyheder eller papirporteføljen."""
+    from datetime import datetime, timezone
+
+    from stockscanner import entry_check, site_sync
+    from stockscanner.analyst import fetch_analyst
+    from stockscanner.portfolio import load_portfolio
+
+    data_dir = Path(__file__).resolve().parent / "data"
+    history_path = data_dir / "mandagsliste_historik.csv"
+    if not site_sync.PAYLOAD_FILE.exists() or not history_path.exists():
+        print("Entry-tjek: ingen mandagsliste endnu. Kør --mandagsliste først.", file=sys.stderr)
+        return 1
+    stamp = site_sync.PAYLOAD_FILE.stat().st_mtime
+    payload = site_sync.load_payload()
+    site = site_sync.credentials()
+    wanted = site_sync.fetch_tickers(*site) if site else list(payload["stocks"])
+    owned = set(load_portfolio())
+    factors = entry_check.latest_factors(history_path)
+    tickers = [t for t in entry_check.followed(payload, wanted) if t not in owned and t in factors.index]
+    bench = fetch_history(payload.get("benchmark") or "RSP", period="3y")[0]
+    histories, channels, analyst = {}, {}, {}
+    for ticker in tickers:
+        try:    # en aktie uden friske tal beholder sin vurdering, så et datahul aldrig ligner et Entry
+            prices = fetch_history(ticker, period="3y")[0]
+            channel = value_channel(fetch_value_inputs(ticker))
+            info = fetch_analyst(ticker)
+        except Exception as error:
+            print(f"{ticker}: sprunget over – {error}", file=sys.stderr)
+            continue
+        histories[ticker], channels[ticker], analyst[ticker] = prices, channel, info
+    column = lambda name: factors[name].dropna().to_dict() if name in factors else {}
+    rows = build_rows(list(histories), histories, bench, column("quality"), column("value_pct"), column("momentum"),
+                      channels, moat_pct=column("moat"), analyst=analyst, sizes=column("size"),
+                      liquidity=column("liquidity"))
+    rows = apply_news(rows, {t: payload["stocks"][t].get("news_summary") for t in histories})
+    changes = entry_check.apply(payload, rows, histories, datetime.now(timezone.utc))
+    print(f"Entry-tjek {date.today()}: {len(rows)} af {len(tickers)} fulgte aktier tjekket, "
+          f"{sum(r.action == 'KØB-KANDIDAT' for r in rows)} med Entry. StockMap er fra sidste afsluttede uge.")
+    for change in changes:
+        print("  " + change)
+    if not upload:
+        return 0
+    if site_sync.PAYLOAD_FILE.stat().st_mtime != stamp:
+        print("Entry-tjek: mandagslisten er kørt imens, så den nye playbook får lov at stå.")
+        return 0
+    site_sync.save_payload(payload)
+    (data_dir / "aendringer.txt").write_text("\n".join(changes), encoding="utf-8")
+    if site:
+        print(f"Hjemmesiden opdateret: {site_sync.send_playbook(payload, *site).get('stocks')} aktier sendt.")
     return 0
 
 
@@ -499,6 +552,8 @@ def main() -> int:
                         help="Ugentlig liste: køb-kandidater/salg ud fra StockMap, Quality, Value og PEG")
     parser.add_argument("--screener", choices=["triple-green", "tpi-trend", "stock-of-the-day", "alle"],
                         help="B-04–B-06: screener over det cachede univers")
+    parser.add_argument("--entry-tjek", action="store_true",
+                        help="Opdatér Entry for de fulgte aktier i seneste playbook (uden nyheder og GPU)")
     parser.add_argument("--ingen-upload", action="store_true",
                         help="--mandagsliste: send ikke resultatet til hjemmesiden")
     parser.add_argument("--nyheder", action="store_true",
@@ -541,6 +596,8 @@ def main() -> int:
         return print_quality(selected)
     if arguments.vaerdi:
         return print_value_channels(selected, arguments.horisont)
+    if arguments.entry_tjek:
+        return print_entry_check(not arguments.ingen_upload)
     if arguments.mandagsliste:
         research = Path(__file__).resolve().parent / "data" / "research_watchlist.txt"
         if not arguments.tickers and research.exists():

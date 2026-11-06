@@ -116,6 +116,14 @@ def eligible_signals(prices: pd.DataFrame, require_pullback: bool = True) -> pd.
     return patterns.mul(ok, axis=0).astype(bool)
 
 
+def latest_text(prices: pd.DataFrame, days: int = 5) -> str | None:
+    """Mønstre de seneste `days` handelsdage som tekst. Kun oplysning: det ændrer aldrig en købsvurdering."""
+    hits = []
+    for day, row in eligible_signals(prices).tail(days).iterrows():
+        hits += [f"{label} {pd.Timestamp(day).date()}" for name, label in PATTERNS.items() if row[name]]
+    return ", ".join(hits[-3:]) or None
+
+
 def forward_returns(prices: pd.DataFrame, horizons=DEFAULT_HORIZONS, cost_pct: float = DEFAULT_COST_PCT) -> pd.DataFrame:
     """Afkast i % for signal ved lukning dag t: køb åbning t+1, sælg lukning t+h.
 

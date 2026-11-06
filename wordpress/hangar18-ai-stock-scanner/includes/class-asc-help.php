@@ -160,6 +160,7 @@ final class ASC_Help {
             ['TPI', 'To dele: "grøn" eller "rød" er den lange trend (over en stigende 40-ugers linje), og "oversolgt", "neutral" eller "overkøbt" er de seneste 4 uger mod aktiens egen historie. Grøn/oversolgt er et fald i en optrend.'],
             ['MTI', 'Kortere trend: rød, uge grøn, dag grøn eller dobbelt grøn (både uge og dag).'],
             ['Momentum', 'Kursudviklingen mod de andre aktier. Højere er stærkere.'],
+            ['Candle', 'Købsmønster de seneste 5 handelsdage, når aktien er i optrend efter et fald. Kun en oplysning: det ændrer ikke Entry. Kun hammer har klaret sig lidt bedre end normalt i vores første test på 20 aktier.'],
             ['Regnskab', 'Dato og nedtælling. Inden for 7 dage spærres for køb, og fra 14 dage før vises regnskabsrisiko.'],
             ['Regnskabsrisiko', 'Lav, Middel eller Høj ud fra lavere estimater, negative nyheder og stor kursstigning. Et risikomål, ikke et salgssignal.'],
         ]);
