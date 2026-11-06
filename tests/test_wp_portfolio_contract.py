@@ -168,8 +168,12 @@ class PortfolioContractTests(unittest.TestCase):
         analysis = ANALYSIS.read_text(encoding="utf-8")
         css = (PLUGIN / "assets/dashboard.css").read_text(encoding="utf-8")
         for value in ("asc-app-sidebar", "asc-app-mobile-menu", "asc_view", "overview",
-                      "portfolio", "watchlist", "scanner", "analysis", "settings"):
+                      "portfolio", "watchlist", "analysis", "settings"):
             self.assertIn(value, portfolio)
+        self.assertNotIn("Aktiescanner", portfolio)
+        self.assertNotIn("'asc_view','scanner'", portfolio)
+        self.assertIn("'asc_tab' => 'mandag'", portfolio)
+        self.assertIn("add_shortcode('ai_stock_scanner'", main)
         self.assertIn("asc_instrument_type", portfolio)
         self.assertIn("instrument_type", main)
         self.assertIn("asc_market", main)

@@ -387,7 +387,6 @@ final class ASC_Portfolio {
             'stocks' => ['Danske aktier', '⌕'],
             'watchlist' => ['Watchlist', '☆'],
             'stock' => ['Aktie', '◎'],
-            'scanner' => ['Aktiescanner', '▤'],
             'playbook' => ['Playbook', '◆'],
             'simulator' => ['Simulator', '◈'],
             'analysis' => ['Analyse', '◷'],
@@ -440,7 +439,8 @@ final class ASC_Portfolio {
                 . '">Se watchlist</a></div>';
             echo '<div class="asc-app-stat"><span>Seneste scannerresultater</span><strong>'
                 . esc_html((string)count($rows)) . '</strong><a href="'
-                . esc_url(add_query_arg('asc_view','scanner',$url)) . '">Åbn scanner</a></div></div>';
+                . esc_url(add_query_arg(['asc_view' => 'playbook', 'asc_tab' => 'mandag'], $url))
+                . '">Se mandagslisten</a></div></div>';
             echo ASC_Playbook::top_opportunities(add_query_arg('asc_view', 'find', $url));
             echo ASC_Playbook::paper_brief(add_query_arg(['asc_view' => 'playbook', 'asc_tab' => 'papir'], $url));
             echo '<p class="asc-disclaimer">Beholdninger er private. Scannerdata opdateres, når '
@@ -459,8 +459,6 @@ final class ASC_Portfolio {
             echo ASC_Watchlist::render();
         } elseif ($view === 'stock') {
             echo ASC_Stock_Page::render();
-        } elseif ($view === 'scanner') {
-            echo '<div id="asc-research">' . do_shortcode('[ai_stock_scanner]') . '</div>';
         } elseif ($view === 'playbook') {
             echo ASC_Playbook::render();
         } elseif ($view === 'simulator') {

@@ -32,7 +32,6 @@ final class ASC_Help {
             ['Danske aktier', 'Katalog over aktier på den danske børs. Søg, følg en aktie, eller registrér et køb.'],
             ['Watchlist', 'Aktier, du vil følge uden at eje dem. Kommer med i næste scanning. Privat.'],
             ['Aktie', 'Alt om én aktie: graf, Playbook-analyse, Bear/Base/Bull, regnskab og nyheder. Søg, eller klik på et symbol i en tabel.'],
-            ['Aktiescanner', 'Kort liste over aktierne fra mandagslisten med score og signal. Ikke hele markedet.'],
             ['Playbook → Mandagsliste', 'Ugens vigtigste side: fuld analyse af research-listen, dine aktier og universets kandidater (★).'],
             ['Playbook → Screenere', 'Faste søgninger i universet. Triple Green: stærk trend på alle tidsskalaer. TPI-trend: nordisk optrend med et fald. Stock of the Day: stort amerikansk selskab i optrend med et fald.'],
             ['Playbook → Aktie-scores', 'Alle cirka 300 aktier i universet med scores. Globalt eller inden for regionen. Her finder du andre aktier end dem på mandagslisten.'],
@@ -210,14 +209,6 @@ final class ASC_Help {
             ['52 ugers høj / lav', 'Højeste og laveste kurs det seneste år, beregnet ud fra kurshistorikken. Vises kun med mindst et års historik.'],
             ['P/E', 'Kurs delt med forventet EPS i dag fra Playbook-analysen. "–" hvis aktien ikke er analyseret eller EPS ikke er positiv.'],
             ['Markedsværdi', 'Selskabets samlede værdi på børsen i mia. USD fra Playbook-universet. "–" hvis den ikke findes.'],
-        ]);
-
-        echo '<h3>Aktiescanner</h3>';
-        echo self::terms([
-            ['Type', 'Aktie eller ETF (indeksfond).'],
-            ['Marked', 'Det land, aktien handles i. "Andet" er øvrige børser.'],
-            ['Handelsdato', 'Dagen for seneste kurs, som scanningen bygger på.'],
-            ['Signal', 'Købskandidat, Hold øje, Salgssignal eller Afvent. Samme vurdering som Handling.'],
         ]);
 
         echo '<h3>Portefølje, watchlist og simulator</h3>';
