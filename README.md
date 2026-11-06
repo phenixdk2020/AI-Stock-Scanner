@@ -23,7 +23,7 @@ Privat dansk WordPress-portefølje + lokal Python/Streamlit-scanner. Ingen ekstr
 
 ## WordPress v0.5.0 (tidligere release)
 
-- **Venstremenu** på desktop og sammenfoldelig navigation på mobil med Overblik, Portefølje, Watchlist, Aktiescanner, Analyse og Indstillinger.
+- **Venstremenu** på desktop og sammenfoldelig navigation på mobil med Overblik, Portefølje, Watchlist, Analyse og Indstillinger.
 - Privat **aktie- og ETF-portefølje** med heltalsantal, flere køb af samme papir, redigering, manuel aktuel kurs og CSV-eksport.
 - **Investeret, aktuel værdi og gevinst/tab** i både værdipapirets handelsvaluta og DKK. Mulighed for at angive **Betalt i alt (DKK)**, så købets effektive omregningskurs og faktiske anskaffelsessum anvendes. ECB-referencekurs bruges til vejledende dagsomregning. Manglende kurser markeres som skøn eller ukendte.
 - Privat watchlist og valgfrie Yahoo Finance-candlesticks (eksperimentel kilde; **slået fra som standard**).

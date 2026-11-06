@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.8.8
+ * Version: 0.8.9
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,7 +14,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.8.8');
+define('ASC_PLUGIN_VERSION', '0.8.9');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
 
 // Must initialize before user-profile / REST authentication determines HTTPS.
@@ -292,9 +292,6 @@ function asc_render_dashboard(): string {
     echo '<section class="asc-dashboard" aria-label="AI-Stock-Scanner">';
     echo '<div class="asc-heading"><h2>AI Stock Scanner</h2><p>Aktier og ETF-instrumenter fra ni markeder</p></div>';
     echo '<form class="asc-filter-form" method="get">';
-    if (isset($_GET['asc_view']) && $_GET['asc_view'] === 'scanner') {
-        echo '<input type="hidden" name="asc_view" value="scanner">';
-    }
     echo '<label>Marked<select name="asc_market"><option value="">Alle markeder</option>';
     foreach ($markets as $market) {
         echo '<option value="' . esc_attr($market) . '" '
@@ -393,6 +390,7 @@ function asc_admin_page(): void {
     echo '<p>Startside: <strong>Personligt login, portefølje og watchlist</strong>. '
         . 'Du kan tilføje køb og manuel aktuel kurs, redigere beholdninger og eksportere egne køb som CSV – helt uden PC-scanneren.</p>';
     echo '<p>Med en aktiveret kurskilde kan du også se candlesticks, gennemsnitlig handelsvolumen og estimeret handelsværdi over 5/21 børsdage.</p>';
+    echo '<p><strong>v0.8.9:</strong> Aktiescanner er fjernet fra menuen, fordi Playbook → Mandagsliste viser de samme aktier med flere oplysninger. Overblikket linker nu til mandagslisten. Koden <code>[ai_stock_scanner]</code> virker stadig.</p>';
     echo '<p><strong>v0.8.8:</strong> Entry-tjekliste med stop, kursmål og tab på aktiesiden, advarsel ved svagt marked, stigende estimater, insiderkøb og Hvorfor er den billig.</p>';
     echo '<p><strong>v0.8.7:</strong> Find aktier åbner på Top 10: bedste aktier med entry, uden regnskabsspærrede og med spredning.</p>';
     echo '<p><strong>v0.8.6:</strong> Fuld bredde, fast første kolonne i brede tabeller, forkortelser forklaret på alle sider, Følg i Find aktier og Entry på Watchlist.</p>';

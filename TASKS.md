@@ -51,6 +51,9 @@
 - yfinance er uofficiel og har ca. 4 års årsregnskaber.
 - MyStockScanner-research: `docs/Dropbox/` (emnelog T01–T66, restliste, datakatalog).
 
+## 06-11-2026: Aktiescanner ud af menuen (plugin 0.8.9)
+- [x] Siden var en kort udgave af Playbook → Mandagsliste. Fjernet fra menu, Overblik og Hjælp; shortcoden `[ai_stock_scanner]` og snapshot-data er bevaret (Overblik og Analyse bruger dem). Allan valgte det 06-11-2026.
+
 ## 05-11-2026: støtte til analyse og entry (plugin 0.8.8, ikke committet ved skrivning)
 - [x] Entry-tjekliste og plan på aktiesiden, advarsel ved svagt marked, regnskabsdatoer fra regnskabslisten, anslået dato som advarsel, stigende estimater, insiderkøb (Yahoo, kun USA), Hvorfor er den billig (lokal AI). Ingen af dem ændrer købsreglerne.
 - [x] B-17 backtest: `docs/B17-ENTRY-BACKTEST.md`. Kvalitet og værdi oven på StockMap gav lavere afkast; simulate() vælger alfabetisk, så rangering efter score er ikke testet.
