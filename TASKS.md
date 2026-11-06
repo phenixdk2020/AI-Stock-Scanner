@@ -51,6 +51,11 @@
 - yfinance er uofficiel og har ca. 4 års årsregnskaber.
 - MyStockScanner-research: `docs/Dropbox/` (emnelog T01–T66, restliste, datakatalog).
 
+## 06-11-2026: måling af listerne og simulator uden tidsgrænse (plugin 0.8.11)
+- [x] `stockscanner/forward.py`, `scan_cli.py --maaling` og hver mandagsliste: Entry, Hold øje og Pil ned målt mod RSP indtil nu og efter 4, 13 og 26 uger. Rækkerne ligger i `data/maaling.csv`, tabellen under Playbook -> Papirportefølje.
+- [ ] Vurdér målingen, når der er mindst 30 afsluttede Entry-signaler. Købsreglerne ændres ikke før det.
+- [x] Simulatorens runder kører, til brugeren stopper dem. Køb og salg lukker ikke længere efter 30 dage.
+
 ## 06-11-2026: entry-tjek og candles (plugin 0.8.10)
 - [x] `scan_cli.py --entry-tjek`: opdaterer Entry for fulgte, ikke-ejede aktier i seneste playbook. StockMap følger afsluttede uger, så tjekket fanger kun kurs, værdikanal, regnskab og estimater. Ingen GPU, nyheder eller papirhandler. Candle-mønstre vises kun som oplysning.
 - [ ] Windows-opgaven til `scripts/entry_tjek.cmd` (tirsdag-lørdag, indhenter når PC'en tændes) oprettes efter fletning.

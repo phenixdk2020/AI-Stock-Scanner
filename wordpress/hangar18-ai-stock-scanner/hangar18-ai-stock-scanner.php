@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hangar18 AI Stock Scanner
  * Description: Loginbeskyttet dashboard til validerede forskningsresultater fra lokal Python-scanner.
- * Version: 0.8.10
+ * Version: 0.8.11
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Hangar18
@@ -14,7 +14,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) {
     exit;
 }
-define('ASC_PLUGIN_VERSION', '0.8.10');
+define('ASC_PLUGIN_VERSION', '0.8.11');
 define('ASC_OPTION_SNAPSHOT', 'asc_latest_snapshot_v1');
 
 // Must initialize before user-profile / REST authentication determines HTTPS.
@@ -390,6 +390,7 @@ function asc_admin_page(): void {
     echo '<p>Startside: <strong>Personligt login, portefølje og watchlist</strong>. '
         . 'Du kan tilføje køb og manuel aktuel kurs, redigere beholdninger og eksportere egne køb som CSV – helt uden PC-scanneren.</p>';
     echo '<p>Med en aktiveret kurskilde kan du også se candlesticks, gennemsnitlig handelsvolumen og estimeret handelsværdi over 5/21 børsdage.</p>';
+    echo '<p><strong>v0.8.11:</strong> Simulatorens runder kører nu, til du selv stopper dem. Papirportefølje viser "Virker listen?": mandagslisternes grupper målt fremad mod RSP.</p>';
     echo '<p><strong>v0.8.10:</strong> Candle-mønstre som ren oplysning på Mandagslisten og aktiesiden. Entry kan opdateres mellem mandagslisterne, når PC&#39;en er tændt, og Watchlist viser datoen for tjekket. StockMap følger stadig afsluttede uger.</p>';
     echo '<p><strong>v0.8.9:</strong> Aktiescanner er fjernet fra menuen, fordi Playbook → Mandagsliste viser de samme aktier med flere oplysninger. Overblikket linker nu til mandagslisten. Koden <code>[ai_stock_scanner]</code> virker stadig.</p>';
     echo '<p><strong>v0.8.8:</strong> Entry-tjekliste med stop, kursmål og tab på aktiesiden, advarsel ved svagt marked, stigende estimater, insiderkøb og Hvorfor er den billig.</p>';

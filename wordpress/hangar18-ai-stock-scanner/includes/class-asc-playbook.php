@@ -34,6 +34,7 @@ final class ASC_Playbook {
     private const SECTOR_SHARE = 0.4;          // ... og det samme gør over 40 % af aktierne (eller positionerne)
     private const SECTOR_MIN_TOTAL = 4;        // procentreglen kræver mindst så mange aktier eller positioner
     private const PAPER_EARLY_NOTE = 'Under 3 måneder siger tallene ikke noget.';
+    private const MEASURE_EARLY_NOTE = 'Under 30 afsluttede Entry-signaler siger tallene ikke noget.';
     private const EARNINGS_BLOCK_DAYS = 7; // som EARNINGS_BLOCK_DAYS i stockscanner/analyst.py
     private const RISK_LEVELS = ['Lav', 'Middel', 'Høj'];
     private const RISK_DISCLAIMER = 'Risikomål, ikke et salgssignal.';
@@ -213,6 +214,7 @@ final class ASC_Playbook {
             'screeners' => self::clean_screeners($input['screeners'] ?? null),
             'paper' => self::clean_paper($input['paper'] ?? null),
             'paper_score' => self::clean_paper_score($input['paper_score'] ?? null),
+            'measurement' => self::clean_measurement($input['measurement'] ?? null),
             'changes' => self::clean_changes($input['changes'] ?? null),
         ];
         update_option(self::OPTION, $snapshot, false);
@@ -467,6 +469,35 @@ final class ASC_Playbook {
         $out['start'] = self::clean_date($raw['start'] ?? null);
         $out['for_tidligt'] = ($raw['for_tidligt'] ?? true) !== false;
         return $out;
+    }
+
+    /** Fremadrettet måling af listerne (additivt felt `measurement`). Kun kendte grupper og horisonter; null uden felt. */
+    private static function clean_measurement($raw): ?array {
+        if (!is_array($raw) || !is_array($raw['grupper'] ?? null)) { return null; }
+        $groups = [];
+        foreach ($raw['grupper'] as $group) {
+            $name = is_array($group) ? ($group['gruppe'] ?? null) : null;
+            if (!in_array($name, ['Entry', 'Hold øje', 'Pil ned'], true) || !is_array($group['perioder'] ?? null)) { continue; }
+            $cells = [];
+            foreach ($group['perioder'] as $cell) {
+                $weeks = is_array($cell) ? ($cell['uger'] ?? null) : null;
+                if (!in_array($weeks, [0, 4, 13, 26], true)) { continue; }
+                $cells[$weeks] = [
+                    'antal' => max(0, (int)(self::clean_number($cell['antal'] ?? null) ?? 0)),
+                    'mangler' => max(0, (int)(self::clean_number($cell['mangler'] ?? null) ?? 0)),
+                    'forskel_pp' => self::clean_number($cell['forskel_pp'] ?? null),
+                    'median_pp' => self::clean_number($cell['median_pp'] ?? null),
+                    'slaar_rsp_pct' => self::clean_number($cell['slaar_rsp_pct'] ?? null),
+                ];
+            }
+            $groups[] = ['gruppe' => $name, 'signaler' => max(0, (int)(self::clean_number($group['signaler'] ?? null) ?? 0)), 'perioder' => $cells];
+        }
+        return [
+            'start' => self::clean_date($raw['start'] ?? null),
+            'lister' => max(0, (int)(self::clean_number($raw['lister'] ?? null) ?? 0)),
+            'grupper' => $groups,
+            'for_tidligt' => ($raw['for_tidligt'] ?? true) !== false,
+        ];
     }
 
     private static function clean_paper($raw): array {
@@ -1057,6 +1088,45 @@ final class ASC_Playbook {
             $sectors[] = self::sector_of($stock, $index[$ticker] ?? []);
         }
         return self::concentration_html($sectors, self::SECTOR_MIN_TOTAL, null, 'positioner i din portefølje');
+    }
+
+    // ------------------------------------------------ Listerne målt fremad
+
+    /** Tabellen "Virker listen?" (escaped HTML): forskel mod RSP pr. gruppe og periode. Tom streng uden måling. */
+    public static function measurement_html(?array $data): string {
+        if ($data === null || !$data['grupper']) { return ''; }
+        $html = '<div class="asc-pb-measurement"><h4>Virker listen?</h4>';
+        $html .= '<p class="asc-subtle">Forskel mod RSP, efter aktierne kom i gruppen. Køb regnes til åbningen dagen efter listen. '
+            . 'Tal siden ' . esc_html((string)($data['start'] ?? '–')) . ', ' . esc_html(self::n($data['lister'])) . ' ugelister.</p>';
+        $html .= '<div class="asc-table-wrap"><table><thead><tr><th>Gruppe</th><th>Signaler</th><th>Indtil nu</th>'
+            . '<th>4 uger</th><th>13 uger</th><th>26 uger</th></tr></thead><tbody>';
+        foreach ($data['grupper'] as $group) {
+            $html .= '<tr><td>' . esc_html((string)$group['gruppe']) . '</td><td>' . esc_html(self::n($group['signaler'])) . '</td>';
+            foreach ([0, 4, 13, 26] as $weeks) {
+                $html .= '<td>' . self::measurement_cell($group['perioder'][$weeks] ?? null) . '</td>';
+            }
+            $html .= '</tr>';
+        }
+        $html .= '</tbody></table></div>';
+        if (($data['for_tidligt'] ?? true) !== false) {
+            $html .= '<p class="asc-warning" role="status"><strong>' . esc_html(self::MEASURE_EARLY_NOTE) . '</strong></p>';
+        }
+        return $html . '<p class="asc-subtle">Afkast i aktiens egen valuta uden handelsomkostninger. En aktie tæller, når den '
+            . 'skifter gruppe. Mangler en kurs, tæller aktien ikke med, og den gættes aldrig.</p></div>';
+    }
+
+    private static function measurement_cell(?array $cell): string {
+        if ($cell === null || (int)$cell['antal'] <= 0) {
+            return $cell !== null && (int)$cell['mangler'] > 0
+                ? '– <div class="asc-subtle">' . esc_html(self::n($cell['mangler'])) . ' mangler kurs</div>' : '–';
+        }
+        $diff = $cell['forskel_pp'];
+        $class = !is_numeric($diff) ? '' : ((float)$diff >= 0 ? 'asc-positive' : 'asc-negative');
+        $note = self::n($cell['antal']) . ' signaler · ' . self::n($cell['slaar_rsp_pct']) . ' % slog RSP · median '
+            . self::signed($cell['median_pp']);
+        if ((int)$cell['mangler'] > 0) { $note .= ' · ' . self::n($cell['mangler']) . ' mangler kurs'; }
+        return '<strong class="' . esc_attr($class) . '">' . esc_html(self::signed($diff)) . ' %-point</strong>'
+            . '<div class="asc-subtle">' . esc_html($note) . '</div>';
     }
 
     // ------------------------------------------------ Papirporteføljen mod RSP
@@ -1968,6 +2038,7 @@ final class ASC_Playbook {
         echo '<p class="asc-subtle">Scannerens egen papirportefølje, fælles for alle brugere. '
             . 'Den er ikke din portefølje og ændres kun af scanneren.</p>';
         echo self::paper_score_html(is_array($data['paper_score'] ?? null) ? $data['paper_score'] : null);
+        echo self::measurement_html(is_array($data['measurement'] ?? null) ? $data['measurement'] : null);
         echo '<div class="asc-metrics asc-portfolio-summary">';
         echo '<div><strong>' . esc_html(self::n($summary['handler'] ?? null)) . '</strong><span>Handler</span></div>';
         echo '<div><strong>' . esc_html(self::n($summary['aabne'] ?? null)) . '</strong><span>Åbne positioner</span></div>';

@@ -190,6 +190,7 @@ def build_payload(*, rows, histories, currencies, regions, atrs, research, bread
                   factors, scores, regional, trades, last_prices, changes, news=None, candidates=(),
                   earnings_risk=None, channels=None, horizon: float = DEFAULT_HORIZON,
                   universe_scenarios=None, sector_map: dict | None = None, paper_score: dict | None = None,
+                  measurement: dict | None = None,
                   analyst=None, insiders=None, why_cheap=None, now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     market_date = max((pd.Timestamp(h.index[-1]).date() for h in histories.values() if len(h)), default=None)
@@ -235,5 +236,6 @@ def build_payload(*, rows, histories, currencies, regions, atrs, research, bread
         "screeners": screener_section(factors, scores, regional),
         "paper": paper_section(trades, last_prices),
         "paper_score": paper_score_section(paper_score),
+        "measurement": measurement,
         "changes": list(changes),
     }

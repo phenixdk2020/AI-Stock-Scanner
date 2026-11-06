@@ -36,7 +36,7 @@ final class ASC_Help {
             ['Playbook → Screenere', 'Faste søgninger i universet. Triple Green: stærk trend på alle tidsskalaer. TPI-trend: nordisk optrend med et fald. Stock of the Day: stort amerikansk selskab i optrend med et fald.'],
             ['Playbook → Aktie-scores', 'Alle cirka 300 aktier i universet med scores. Globalt eller inden for regionen. Her finder du andre aktier end dem på mandagslisten.'],
             ['Playbook → Papirportefølje', 'Scannerens egen test, fælles for alle brugere: den køber og sælger selv efter reglerne med fiktive penge, så vi kan se, om de virker.'],
-            ['Simulator', 'Din egen virtuelle børs: køb aktier for fiktive penge, og følg dem i 30 dage mod RSP. Privat.'],
+            ['Simulator', 'Din egen virtuelle børs: køb aktier for fiktive penge, og følg dem mod RSP, til du selv stopper runden. Privat.'],
             ['Analyse', 'Bear/Base/Bull for en valgt aktie, en beregner hvor du selv kan ændre tallene, og signalfordelingen.'],
             ['Hjælp', 'Denne side.'],
             ['Indstillinger', 'Oplysninger om, hvor kurser og valutakurser kommer fra. Administratoren finder også links til datakilder og opdatering af pluginet.'],
@@ -233,6 +233,7 @@ final class ASC_Help {
             ['Salgsdato og Salgskurs', 'Hvornår og til hvilken kurs den solgte, eller seneste kurs hvis den stadig ejer aktien.'],
             ['Afkast', 'Gevinst eller tab i procent.'],
             ['Salgsgrund', 'Den salgsregel, der lukkede handlen.'],
+            ['Virker listen?', 'Hvad aktierne gjorde mod RSP, efter de kom i gruppen Entry, Hold øje eller Pil ned, indtil nu og efter 4, 13 og 26 uger. Målt med de tal, listen faktisk viste den dag. Det ændrer ikke købsreglerne.'],
             ['Stilling mod RSP', 'Øverst: antal handler, gennemsnitligt afkast, hvad RSP gav i samme perioder, forskellen i procentpoint og andelen af vindere. Lige store beløb pr. handel, og afkast er i aktiens egen valuta. Handler, hvor en RSP-kurs mangler, er udeladt og talt med. Under 3 måneder siger tallene ikke noget.'],
         ]);
 
