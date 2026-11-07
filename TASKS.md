@@ -58,7 +58,9 @@
 
 ## 06-11-2026: entry-tjek og candles (plugin 0.8.10)
 - [x] `scan_cli.py --entry-tjek`: opdaterer Entry for fulgte, ikke-ejede aktier i seneste playbook. StockMap følger afsluttede uger, så tjekket fanger kun kurs, værdikanal, regnskab og estimater. Ingen GPU, nyheder eller papirhandler. Candle-mønstre vises kun som oplysning.
-- [ ] Windows-opgaven til `scripts/entry_tjek.cmd` (tirsdag-lørdag, indhenter når PC'en tændes) oprettes efter fletning.
+- [x] Windows-opgaven "AI-Stock-Scanner entry-tjek" kører `scripts/entry_tjek.cmd` tirsdag-lørdag kl. 9 og indhenter, når PC'en tændes (oprettet og prøvekørt 06-11-2026: 3 af 4 tjekket, 71 aktier sendt til siden).
+- [x] Knækket linje i `scripts/entry_tjek.cmd` rettet (PR 23).
+- [x] Plugin 0.8.10 opdateret i WordPress af Allan 06-11-2026.
 
 ## 06-11-2026: Aktiescanner ud af menuen (plugin 0.8.9)
 - [x] Siden var en kort udgave af Playbook → Mandagsliste. Fjernet fra menu, Overblik og Hjælp; shortcoden `[ai_stock_scanner]` og snapshot-data er bevaret (Overblik og Analyse bruger dem). Allan valgte det 06-11-2026.
@@ -66,5 +68,5 @@
 ## 05-11-2026: støtte til analyse og entry (plugin 0.8.8, ikke committet ved skrivning)
 - [x] Entry-tjekliste og plan på aktiesiden, advarsel ved svagt marked, regnskabsdatoer fra regnskabslisten, anslået dato som advarsel, stigende estimater, insiderkøb (Yahoo, kun USA), Hvorfor er den billig (lokal AI). Ingen af dem ændrer købsreglerne.
 - [x] B-17 backtest: `docs/B17-ENTRY-BACKTEST.md`. Kvalitet og værdi oven på StockMap gav lavere afkast; simulate() vælger alfabetisk, så rangering efter score er ikke testet.
-- [ ] Næste: gentag B-17 med rangering efter score (Samlet) i stedet for alfabetisk.
+- [x] B-17b (`scripts/study_b17_rank.py`, afsnit i `docs/B17-ENTRY-BACKTEST.md`): rangering efter forenklet Samlet slår ikke kontrollen med omvendt rangering over hele perioden, og 10 pladser giver større fald uden mere afkast. Købsreglerne er uændrede.
 - [ ] SEC Form 4 direkte (`insiders.fetch_sec`) kræver SEC_USER_AGENT med kontaktoplysninger; afventer Allan. Danske insiderkøb er ikke dækket.

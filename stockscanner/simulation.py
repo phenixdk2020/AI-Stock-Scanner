@@ -65,7 +65,9 @@ class SimResult:
 
 
 def simulate(panel: dict[str, pd.DataFrame], start: str, end: str | None = None, max_positions: int = 40,
-             require_mti: bool = False, require_breadth: bool = False, cost_pct: float = 0.1) -> SimResult:
+             require_mti: bool = False, require_breadth: bool = False, cost_pct: float = 0.1,
+             rank: pd.DataFrame | None = None) -> SimResult:
+    """`rank`: score pr. uge og ticker; højeste købes først, aktier uden score sidst. Uden `rank` vælges alfabetisk."""
     weeks = sorted(set().union(*(t.index for t in panel.values())))
     weeks = [w for w in weeks if w >= pd.Timestamp(start) and (end is None or w <= pd.Timestamp(end))]
     cash, holdings, trades, curve = 1.0, {}, [], {}
@@ -92,7 +94,11 @@ def simulate(panel: dict[str, pd.DataFrame], start: str, end: str | None = None,
             candidates = [t for t, r in rows.items() if t not in holdings and r["buy"] and np.isfinite(r["next_open"])
                           and (not require_mti or r["rs_up"])]
             slot = value / max_positions
-            for ticker in sorted(candidates):
+            scores = rank.loc[week] if rank is not None and week in rank.index else {}
+            def order(ticker):
+                score = scores.get(ticker, np.nan)
+                return (-float(score) if np.isfinite(score) else np.inf, ticker)
+            for ticker in sorted(candidates, key=order):
                 if len(holdings) >= max_positions or cash < slot * 0.5:
                     break
                 price = rows[ticker]["next_open"]

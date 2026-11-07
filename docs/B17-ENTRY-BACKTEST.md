@@ -114,3 +114,74 @@ Værdiscoren kræver 3 års P/E-historik, så den dækker først fra ca. 2012-20
 - **Få uafhængige beslutninger:** få handler pr. variant i urørt periode og tydelige markedsfaser (2012-2021 bull, 2022 bear). Resultaterne er ikke statistisk sikre.
 - Kvalitetskravet er en percentil i et univers på ca. 900 aktier (ikke hele markedet). Kurser er fra Yahoo (uofficiel) og kan have huller. Ingen skat, spread eller slippage ud over 0,1 %.
 - Tærsklerne 60 og 50 er mandagslistens værdier og blev ikke tunet på disse data.
+
+## B-17b: rangering og Top 10
+
+(Skrevet af hånden 05-11-2026 ud fra `scripts/study_b17_rank.py` og `data/b17b_resultater.csv`. `study_b17.py` overskriver hele denne fil, hvis den køres igen, så den skal ikke køres uden at gemme konklusionerne først.)
+
+**Spørgsmål:** Bliver resultatet bedre, når de højeste scorer købes først i stedet for alfabetisk, og når pengene samles i 10 aktier som Top 10?
+
+Samme data, regler og omkostninger som B-17. `simulate()` har fået en valgfri `rank`, og uden den vælges der stadig alfabetisk. Samlet er her middel af forenklet Kvalitet og Værdi. Omvendt rangering køber de laveste scorer først og er kontrol: er den lige så god, måler testen tilfældighed og ikke scoren. Hver periode er en selvstændig kørsel med egen start, så hele perioden er ikke de to andre lagt sammen.
+
+### Hele perioden 2012 → i dag
+
+| Variant | CAGR % | Største fald % | Handler | Gns. handel % | 90 %-interval mod RSP (pp) |
+|---|---:|---:|---:|---:|---|
+| RSP køb-og-hold | 12,7 | -36,8 | – | – | – |
+| StockMap, alfabetisk, 40 | 12,7 | -36,6 | 12536 | 0,63 | -3,0 til 2,9 |
+| StockMap, Samlet, 40 | 11,4 | -36,2 | 12849 | 0,55 | -4,2 til 1,5 |
+| StockMap, Samlet, 10 | 8,3 | -46,1 | 3300 | 0,43 | -9,2 til -0,0 |
+| StockMap, omvendt, 10 | 10,2 | -38,0 | 3125 | 0,56 | -7,5 til 2,8 |
+| Begge krav, alfabetisk, 40 | 5,7 | -24,8 | 9113 | 0,38 | -10,5 til -3,0 |
+| Begge krav, Samlet, 40 | 7,0 | -24,5 | 9033 | 0,46 | -9,4 til -1,5 |
+| Begge krav, alfabetisk, 10 | 8,0 | -46,5 | 3088 | 0,41 | -9,4 til -0,7 |
+| Begge krav, Samlet, 10 | 6,3 | -44,8 | 3015 | 0,36 | -10,9 til -1,2 |
+| Begge krav, omvendt, 10 | 6,5 | -28,8 | 3039 | 0,36 | -10,6 til -1,7 |
+
+### Udvikling 2012 → 2024-10
+
+| Variant | CAGR % | Største fald % | Handler | Gns. handel % | 90 %-interval mod RSP (pp) |
+|---|---:|---:|---:|---:|---|
+| RSP køb-og-hold | 12,8 | -36,8 | – | – | – |
+| StockMap, alfabetisk, 40 | 12,8 | -36,6 | 10682 | 0,65 | -2,9 til 3,1 |
+| StockMap, Samlet, 40 | 9,9 | -36,2 | 11013 | 0,50 | -5,9 til 0,1 |
+| StockMap, Samlet, 10 | 8,3 | -46,1 | 2795 | 0,44 | -9,2 til 0,6 |
+| StockMap, omvendt, 10 | 11,3 | -38,0 | 2657 | 0,63 | -6,3 til 3,6 |
+| Begge krav, alfabetisk, 40 | 5,7 | -24,8 | 7423 | 0,42 | -10,8 til -2,1 |
+| Begge krav, Samlet, 40 | 6,4 | -24,5 | 7380 | 0,47 | -10,3 til -1,3 |
+| Begge krav, alfabetisk, 10 | 6,8 | -46,5 | 2613 | 0,40 | -10,0 til -0,5 |
+| Begge krav, Samlet, 10 | 5,9 | -44,8 | 2517 | 0,35 | -11,5 til -0,9 |
+| Begge krav, omvendt, 10 | 7,5 | -28,8 | 2552 | 0,42 | -9,3 til 0,5 |
+
+### Urørt 2024-11 → i dag
+
+| Variant | CAGR % | Største fald % | Handler | Gns. handel % | 90 %-interval mod RSP (pp) |
+|---|---:|---:|---:|---:|---|
+| RSP køb-og-hold | 12,9 | -15,5 | – | – | – |
+| StockMap, alfabetisk, 40 | 12,3 | -17,1 | 1852 | 0,37 | -12,5 til 6,0 |
+| StockMap, Samlet, 40 | 21,2 | -14,1 | 1843 | 0,70 | 0,3 til 15,8 |
+| StockMap, Samlet, 10 | 6,8 | -18,1 | 507 | 0,17 | -22,2 til 4,4 |
+| StockMap, omvendt, 10 | 4,2 | -20,8 | 470 | 0,08 | -28,5 til 7,0 |
+| Begge krav, alfabetisk, 40 | 6,0 | -17,8 | 1674 | 0,07 | -19,1 til -1,3 |
+| Begge krav, Samlet, 40 | 10,0 | -18,1 | 1639 | 0,24 | -15,1 til 4,2 |
+| Begge krav, alfabetisk, 10 | 17,4 | -16,5 | 479 | 0,34 | -10,1 til 11,3 |
+| Begge krav, Samlet, 10 | 7,5 | -18,5 | 503 | 0,20 | -20,7 til 4,6 |
+| Begge krav, omvendt, 10 | 0,8 | -19,1 | 484 | -0,14 | -26,1 til -5,0 |
+
+### Konklusion
+
+- **Nej: testen viser ikke, at Samlet vælger bedre aktier.** Rangering hjælper ikke konsekvent. Hele perioden med 40 pladser: StockMap falder fra 12,7 til 11,4 %, mens Begge krav stiger fra 5,7 til 7,0 %. Med 10 pladser er Samlet under alfabetisk for Begge krav (6,3 mod 8,0 %).
+- **Kontrollen viser det samme.** Hele perioden er omvendt rangering lige så god eller bedre end Samlet med 10 pladser: StockMap 10,2 mod 8,3 % og Begge krav 6,5 mod 6,3 %. Omvendt har desuden klart mindre største fald (-38,0 mod -46,1 % og -28,8 mod -44,8 %). I udviklingsperioden gælder det samme (11,3 mod 8,3 % og 7,5 mod 5,9 %).
+- **Kun i den urørte periode slår Samlet omvendt rangering** (6,8 mod 4,2 % og 7,5 mod 0,8 %). Perioden er på ca. to år, og mønsteret er modsat de 13 år før, så det kan ikke bære en konklusion.
+- **Top 10-måden (Begge krav, Samlet, 10 pladser) ligger klart under RSP:** 6,3 mod 12,7 % om året og største fald -44,8 mod -36,7 %. I urørt periode 7,5 mod 12,9 %. Samling i 10 aktier øger faldet uden at øge afkastet. Det er historik for en forenklet udgave, ikke for sidens Top 10.
+- **Det bedste enkelttal er StockMap, Samlet, 40 i urørt periode:** 21,2 % og interval 0,3 til 15,8 pp over RSP. Det er det eneste interval mod RSP, der ligger helt over 0, ud af 27 kørsler. Samme variant lå under alfabetisk i udviklingsperioden (9,9 mod 12,8 %). Tallet bør derfor ses som et muligt tilfældigt fund og følges fremad, ikke som et bevis.
+- **Det største tilfældighedstegn:** Begge krav, alfabetisk, 10 giver 17,4 % i urørt periode. Alfabetet er ingen strategi, så udsving af den størrelse kan komme af ren tilfældighed med 10 pladser.
+- **Samlet billede med B-17:** intet sikkert tegn på, at reglerne slår RSP. Købsreglerne er ikke ændret; det er Allans beslutning.
+
+### Svagheder
+
+- Samlet er kun middel af forenklet Kvalitet og Værdi. Moat og værdikanalen findes ikke point-in-time, så sidens rigtige Samlet er ikke testet.
+- Intet sektorloft og ingen regnskabsspærring som i Top 10, og PEG, asymmetri og estimatkrav mangler.
+- Kun nuværende aktier i USA (overlevelsesbias), og ingen omkostninger ud over 0,1 % pr. handel.
+- Mange varianter og perioder er sammenlignet, så et enkelt pænt tal er forventeligt. Intervallerne undervurderer sandsynligvis usikkerheden.
+- Med 10 pladser fylder hver aktie 10 %, så få handler styrer resultatet.

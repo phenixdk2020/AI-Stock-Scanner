@@ -38,6 +38,26 @@ class SimulationTests(unittest.TestCase):
             open_at_once = max(open_at_once, held)
         self.assertLessEqual(open_at_once, 1)
 
+    def picks(self, rank, slots=2):
+        """Tre aktier har købssignal i første uge og sælges i sidste; returnerer de købte i købsrækkefølge."""
+        weeks = pd.date_range("2020-01-03", periods=3, freq="W-FRI")
+        table = pd.DataFrame({"buy": [True, False, False], "sell": [False, False, True], "st_down": False,
+                              "close": 100.0, "next_open": 100.0, "above50": True, "rs_up": True}, index=weeks)
+        panel = {ticker: table.copy() for ticker in ("AAA", "BBB", "CCC")}
+        return list(simulate(panel, "2020-01-01", max_positions=slots, rank=rank).trades["ticker"])
+
+    def test_without_rank_the_choice_stays_alphabetical(self):
+        self.assertEqual(self.picks(None), ["AAA", "BBB"])
+
+    def test_rank_buys_highest_score_first(self):
+        rank = pd.DataFrame({"AAA": 1.0, "BBB": 2.0, "CCC": 3.0}, index=[pd.Timestamp("2020-01-03")])
+        self.assertEqual(self.picks(rank), ["CCC", "BBB"])
+
+    def test_stocks_without_score_come_last(self):
+        rank = pd.DataFrame({"AAA": np.nan, "BBB": -5.0}, index=[pd.Timestamp("2020-01-03")])
+        self.assertEqual(self.picks(rank), ["BBB", "AAA"])
+        self.assertEqual(self.picks(rank, slots=3), ["BBB", "AAA", "CCC"])
+
     def test_buy_and_hold(self):
         cagr, dd = buy_and_hold(daily(100 * 1.0004 ** np.arange(1500)), "2018-06-01")
         self.assertGreater(cagr, 0)
